@@ -1,0 +1,23 @@
+﻿{
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "hosting":  {
+                    "public":  "web/dist",
+                    "ignore":  [
+                                   "firebase.json",
+                                   "**/.*",
+                                   "**/node_modules/**",
+                                   ".idea/**",
+                                   "recovered/**",
+                                   "*.zip",
+                                   "www.doorstickets.com.zip"
+                               ],
+                    "rewrites":  [
+                                     {
+                                         "source":  "**",
+                                         "destination":  "/index.html"
+                                     }
+                                 ]
+                }
+}

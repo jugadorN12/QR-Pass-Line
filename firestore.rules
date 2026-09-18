@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function organizer() {
+      return signedIn() && profile().role == 'organizador';
+    }
+
+    function gateStaff() {
+      return signedIn() && (profile().role == 'organizador' || profile().role == 'canjeador');
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if organizer() || request.auth.uid == userId;
+    }
+
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && profile().role != 'canjeador';
+      allow update: if gateStaff();
+    }
+  }
+}

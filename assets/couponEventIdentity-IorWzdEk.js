@@ -1,0 +1,1 @@
+const r=t=>t&&typeof t=="object"&&!Array.isArray(t)&&Object.keys(t).length===0;function e(t){if(t==null||r(t))return"";if(typeof t=="object")return e(t.idEvento??t.id_evento??t.id??t.value);const n=String(t).trim();return!n||n==="{}"||n==="[object Object]"||n.toLowerCase()==="null"||n.toLowerCase()==="undefined"?"":n}function o(t){return!!e(t)}export{o as h,e as n};

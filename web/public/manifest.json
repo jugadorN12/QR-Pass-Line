@@ -1,0 +1,15 @@
+{
+  "name": "QR Pass Line",
+  "short_name": "Pass Line",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e8eef4",
+  "theme_color": "#0a3d4d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

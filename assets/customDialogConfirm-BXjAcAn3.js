@@ -1,0 +1,10 @@
+import{S as y,i as h,s as k,j as x,c as B,f as S,m as O,t as D,a as F,g as _,d as I,o as v,k as w,D as q,y as g}from"./index-DRMiRhuH.js";import{A}from"./ActionButton-DSQRQR0L.js";function E(l){let e;return{c(){e=w(l[0])},m(t,o){S(t,e,o)},p(t,o){o&1&&q(e,t[0])},d(t){t&&_(e)}}}function L(l){let e,t,o;return t=new A({props:{appearance:"plain",style:l[1],$$slots:{default:[E]},$$scope:{ctx:l}}}),t.$on("click",l[2]),{c(){e=x("div"),B(t.$$.fragment)},m(i,s){S(i,e,s),O(t,e,null),o=!0},p(i,[s]){const a={};s&2&&(a.style=i[1]),s&2049&&(a.$$scope={dirty:s,ctx:i}),t.$set(a)},i(i){o||(D(t.$$.fragment,i),o=!0)},o(i){F(t.$$.fragment,i),o=!1},d(i){i&&_(e),I(t)}}}function j(l,e,t){let{nameButton:o=""}=e,{titleFirst:i=""}=e,{btn:s=""}=e,{onSubmit:a=()=>{}}=e,{onClose:r=()=>{}}=e,{autoOpen:m=!1}=e,{btnStyle:d=""}=e,{generic:u=""}=e,{userId:f=""}=e;function C(){u===""?a(f):a(f,u),g.dialog.close()}function b(){const n=window.innerWidth<720?10:0,c=g.dialog.create({title:`
+                <div class="btnCustomDialogTitle" style="position: relative;">
+                    <i class="f7-icons close-icon" style="position: absolute; right: 0px; top: auto; color:#667085; font-size: 24px; cursor: pointer;">xmark</i>
+          DOORS
+            </div>
+                    `,text:`
+                <div class="btnCustomDialogSubtitle">
+                    ${i}
+                </div>
+                    `,content:`<div style="height:${n}px;"></div>`,buttons:[{text:s,onClick:C}]});c.el.classList.add("custom-dialog-background"),c.el.querySelector(".close-icon").addEventListener("click",()=>c.close()),c.on("closed",r),c.open()}return v(()=>{m&&b()}),l.$$set=n=>{"nameButton"in n&&t(0,o=n.nameButton),"titleFirst"in n&&t(3,i=n.titleFirst),"btn"in n&&t(4,s=n.btn),"onSubmit"in n&&t(5,a=n.onSubmit),"onClose"in n&&t(6,r=n.onClose),"autoOpen"in n&&t(7,m=n.autoOpen),"btnStyle"in n&&t(1,d=n.btnStyle),"generic"in n&&t(8,u=n.generic),"userId"in n&&t(9,f=n.userId)},[o,d,b,i,s,a,r,m,u,f]}class R extends y{constructor(e){super(),h(this,e,j,L,k,{nameButton:0,titleFirst:3,btn:4,onSubmit:5,onClose:6,autoOpen:7,btnStyle:1,generic:8,userId:9})}}export{R as C};

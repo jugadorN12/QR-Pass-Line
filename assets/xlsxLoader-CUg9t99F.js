@@ -1,0 +1,1 @@
+import{$ as o}from"./index-DRMiRhuH.js";let i=null;async function a(){return typeof window<"u"&&window.XLSX?window.XLSX:(i||(i=o(()=>import("./xlsx-B6sNpj_1.js"),[]).then(r=>{var n;const t=(n=r==null?void 0:r.default)!=null&&n.utils?r.default:r;if(!(t!=null&&t.utils))throw new Error("No se pudo cargar XLSX");return t})),i)}export{a as l};
