@@ -20,29 +20,94 @@ import { StaffRolePage } from './pages/StaffRolePage'
 import { QrInfoPage, QrGroupsPage, InactiveQrPage } from './pages/QrInfoPage'
 import { SellerLimitationsPage, NewSellerLimitationPage, EditSellerLimitationPage } from './pages/SellerLimitationsPage'
 import { EstablishmentSettingsPage } from './pages/EstablishmentSettingsPage'
+import { AdminDashboardPage } from './pages/AdminDashboardPage'
 
 function ProtectedRoutes() {
-  const { currentUser, loading } = useApp()
+  const { currentUser, loading, logout } = useApp()
   if (loading) return <main className="app-shell"><div className="page"><div className="card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role === 'pendiente' || !currentUser.role) {
+    return (
+      <main className="role-screen">
+        <div className="role-main">
+          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
+            <h2>Cuenta pendiente de aprobación</h2>
+            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
+            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
+          </div>
+        </div>
+      </main>
+    )
+  }
   return (
     <Shell />
   )
 }
 
-function RoleGate({ children }: { children?: ReactNode }) {
+function AdminGate({ children }: { children: ReactNode }) {
   const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role !== 'admin') return <Navigate to="/seleccionar-rol" replace />
+  return <>{children}</>
+}
+
+function ProtectedRoutesNoShell({ children }: { children: ReactNode }) {
+  const { currentUser, loading, logout } = useApp()
+  if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
+  if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role === 'pendiente' || !currentUser.role) {
+    return (
+      <main className="role-screen">
+        <div className="role-main">
+          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
+            <h2>Cuenta pendiente de aprobación</h2>
+            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
+            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+  return <>{children}</>
+}
+
+function RoleGate({ children }: { children?: ReactNode }) {
+  const { currentUser, loading, logout } = useApp()
+  if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
+  if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role === 'pendiente' || !currentUser.role) {
+    return (
+      <main className="role-screen">
+        <div className="role-main">
+          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
+            <h2>Cuenta pendiente de aprobación</h2>
+            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
+            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
+          </div>
+        </div>
+      </main>
+    )
+  }
   return children ?? <RoleSelectionPage />
+}
+
+function HomeRedirect() {
+  const { currentUser, loading } = useApp()
+  if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
+  if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role === 'admin') return <Navigate to="/admin" replace />
+  return <Navigate to="/seleccionar-rol" replace />
 }
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<HomeRedirect />} />
         <Route path="/ingresar" element={<AuthPage />} />
         <Route path="/seleccionar-rol" element={<RoleGate />} />
+        <Route path="/admin" element={<AdminGate><AdminDashboardPage /></AdminGate>} />
         <Route path="/encargado" element={<RoleGate><ManagerPage /></RoleGate>} />
         <Route path="/encargado/configuracion" element={<RoleGate><EstablishmentSettingsPage /></RoleGate>} />
         <Route path="/vendedores" element={<RoleGate><SellersPage /></RoleGate>} />
@@ -61,9 +126,10 @@ export default function App() {
         <Route path="/qr/inactivos" element={<RoleGate><InactiveQrPage /></RoleGate>} />
         <Route path="/supervisores" element={<RoleGate><StaffRolePage role="supervisor" title="Supervisores" /></RoleGate>} />
         <Route path="/validadores" element={<RoleGate><StaffRolePage role="validador" title="Validadores" /></RoleGate>} />
-        <Route path="/" element={<Navigate to="/seleccionar-rol" replace />} />
+        {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
+        <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
+
         <Route element={<ProtectedRoutes />}>
-          <Route path="/resumen" element={<HomePage />} />
           <Route path="/fechas" element={<EventsPage />} />
           <Route path="/fechas/nueva" element={<NewEventPage />} />
           <Route path="/fechas/:eventId" element={<EventDetailPage />} />

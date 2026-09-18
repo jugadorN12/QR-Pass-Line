@@ -642,9 +642,9 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   color: #051429;
 }
 .staff-subtiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
-.staff-subtile { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid #e0e6ee; border-radius: 9px; background: linear-gradient(145deg, #fff, #f9fafc); box-shadow: 0 5px 10px rgba(31, 54, 80, .08); color: #182940; }
+.staff-subtile { min-height: 56px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid #e0e6ee; border-radius: 9px; background: linear-gradient(145deg, #fff, #f9fafc); box-shadow: 0 5px 10px rgba(31, 54, 80, .08); color: #182940; }
 .staff-subtile span { color: #d6dbe1; font-size: 22px; line-height: 1; }
-.staff-subtile strong { font-size: 8px; }
+.staff-subtile strong { font-size: 12px; }
 .staff-is-open { align-items: start; }
 .staff-is-open .staff-subtiles { min-height: 84px; }
 .staff-page { min-height: 100dvh; background: #f2f5fa; color: #182940; }

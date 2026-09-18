@@ -10,17 +10,17 @@ service cloud.firestore {
     }
 
     function organizer() {
-      return signedIn() && profile().role == 'organizador';
+      return signedIn() && (profile().role == 'organizador' || profile().role == 'admin');
     }
 
     function gateStaff() {
-      return signedIn() && (profile().role == 'organizador' || profile().role == 'canjeador');
+      return signedIn() && (profile().role == 'organizador' || profile().role == 'admin' || profile().role == 'canjeador');
     }
 
     match /users/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if organizer() || request.auth.uid == userId;
+      allow create: if signedIn() && (request.auth.uid == userId || organizer());
+      allow update, delete: if organizer() || request.auth.uid == userId;
     }
 
     match /events/{eventId} {
@@ -32,6 +32,21 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn() && profile().role != 'canjeador';
       allow update: if gateStaff();
+    }
+
+    match /qrCatalog/{qrId} {
+      allow read: if signedIn();
+      allow create, update, delete: if organizer();
+    }
+
+    match /limitations/{limitId} {
+      allow read: if signedIn();
+      allow create, update, delete: if organizer();
+    }
+
+    match /venues/{venueId} {
+      allow read: if signedIn();
+      allow create, update, delete: if organizer();
     }
   }
 }

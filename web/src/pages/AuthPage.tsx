@@ -1,13 +1,20 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 
 export function AuthPage() {
-  const { login, register } = useApp()
+  const { currentUser, loading, login, register } = useApp()
   const [tab, setTab] = useState<'login' | 'register'>('login')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
-  const navigate = useNavigate()
+
+  if (loading) {
+    return <div className="auth-layout" style={{ display: 'grid', placeItems: 'center', background: '#102d4a', color: '#fff' }}><p>Cargando sesión…</p></div>
+  }
+
+  if (currentUser) {
+    return <Navigate to="/seleccionar-rol" replace />
+  }
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -16,10 +23,8 @@ export function AuthPage() {
     setError('')
     try {
       await login(String(form.get('email')), String(form.get('password')))
-      navigate('/seleccionar-rol')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo ingresar.')
-    } finally {
       setPending(false)
     }
   }
@@ -41,10 +46,8 @@ export function AuthPage() {
     setError('')
     try {
       await register(String(form.get('name')), String(form.get('email')), pass)
-      navigate('/seleccionar-rol')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta.')
-    } finally {
       setPending(false)
     }
   }

@@ -13,10 +13,12 @@ import {
   signOut,
   updateProfile,
   updatePassword,
+  sendPasswordResetEmail,
 } from 'firebase/auth'
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -28,7 +30,8 @@ import {
 } from 'firebase/firestore'
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
-import type { AppData, ClubEvent, EventStatus, Role, Ticket, TicketKind, User } from '../types'
+import { defaultQrCatalog } from '../lib/qrCatalog'
+import type { AppData, ClubEvent, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
 
 type AppContextValue = AppData & {
   loading: boolean
@@ -43,19 +46,45 @@ type AppContextValue = AppData & {
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
   issueTicket: (input: { eventId: string; kind: TicketKind; holderName: string; dni?: string }) => Promise<Ticket>
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket } | { ok: false; message: string }>
+  saveQrItem: (item: QrCatalogItem) => Promise<void>
+  deleteQrItem: (id: string) => Promise<void>
+  saveLimitation: (limitation: Limitation) => Promise<void>
+  deleteLimitation: (id: string) => Promise<void>
+  updateUserRole: (userId: string, role: Role, venueId?: string) => Promise<void>
+  resetUserPasswordByEmail: (email: string) => Promise<void>
+  createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
+  deleteVenue: (id: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
-const emptyData: AppData = { users: [], events: [], tickets: [], session: null }
+const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], limitations: [], venues: [], session: null }
+
+const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
 
 function asUser(id: string, value: Record<string, unknown>): User {
+  let role = (value.role as Role) ?? 'pendiente'
+  if (String(value.email).toLowerCase() === ADMIN_EMAIL) {
+    role = 'admin'
+  }
   return {
     id,
     name: String(value.name ?? ''),
     email: String(value.email ?? ''),
-    role: (value.role as Role) ?? 'vendedor',
+    role,
+    venueId: String(value.venueId ?? ''),
     createdAt: String(value.createdAt ?? new Date().toISOString()),
   }
+}
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3 // metros
+  const φ1 = (lat1 * Math.PI) / 180
+  const φ2 = (lat2 * Math.PI) / 180
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c // en metros
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -69,22 +98,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
-      const [profile, usersSnapshot, eventsSnapshot, ticketsSnapshot] = await Promise.all([
-        getDoc(doc(db, 'users', firebaseUser.uid)),
+      const userDocRef = doc(db, 'users', firebaseUser.uid)
+      const profile = await getDoc(userDocRef)
+
+      let currentUserObj: User
+      if (!profile.exists()) {
+        const usersSnap = await getDocs(collection(db, 'users'))
+        const isFirst = usersSnap.empty
+        const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
+        const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+        currentUserObj = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
+          email,
+          role: assignedRole,
+          createdAt: new Date().toISOString(),
+        }
+        await setDoc(userDocRef, currentUserObj)
+      } else {
+        currentUserObj = asUser(firebaseUser.uid, profile.data())
+        // Forzar admin si es el mail configurado aunque el doc diga otra cosa
+        if (currentUserObj.email.toLowerCase() === ADMIN_EMAIL && currentUserObj.role !== 'admin') {
+          currentUserObj.role = 'admin'
+          await updateDoc(userDocRef, { role: 'admin' })
+        }
+      }
+
+      const [usersSnapshot, eventsSnapshot, ticketsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'events')),
         getDocs(query(collection(db, 'tickets'), where('issuedBy', '!=', ''))),
+        getDocs(collection(db, 'qrCatalog')),
+        getDocs(collection(db, 'limitations')),
+        getDocs(collection(db, 'venues')),
       ])
-      const current = profile.exists() ? asUser(firebaseUser.uid, profile.data()) : null
+
+      const allUsers = usersSnapshot.docs.map((item) => asUser(item.id, item.data()))
+      if (!allUsers.some((u) => u.id === currentUserObj.id)) {
+        allUsers.push(currentUserObj)
+      }
+
+      let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+      if (!qrCatalog.length) {
+        const defaults = defaultQrCatalog()
+        for (const item of defaults) {
+          await setDoc(doc(db, 'qrCatalog', item.id), item)
+        }
+        qrCatalog = defaults
+      }
+
+      const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
+      const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+
       setData({
-        users: usersSnapshot.docs.map((item) => asUser(item.id, item.data())),
+        users: allUsers,
         events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
         tickets: ticketsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket)),
-        session: current ? { userId: current.id } : null,
+        qrCatalog,
+        limitations,
+        venues,
+        session: { userId: currentUserObj.id },
       })
     } catch (error) {
       console.error('No se pudieron cargar los datos de Firebase.', error)
-      setData(emptyData)
+      const fallbackUser: User = {
+        id: firebaseUser.uid,
+        name: firebaseUser.displayName || 'Usuario',
+        email: firebaseUser.email || '',
+        role: 'pendiente',
+        createdAt: new Date().toISOString(),
+      }
+      setData({
+        users: [fallbackUser],
+        events: [],
+        tickets: [],
+        qrCatalog: defaultQrCatalog(),
+        limitations: [],
+        venues: [],
+        session: { userId: fallbackUser.id },
+      })
     } finally {
       setLoading(false)
     }
@@ -103,13 +195,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await signInWithEmailAndPassword(auth, email.trim(), password)
     },
     async register(name, email, password) {
-      const credentials = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password)
+      const usersSnapshot = await getDocs(collection(db, 'users'))
+      const cleanEmail = email.trim().toLowerCase()
+      const assignedRole: Role = (usersSnapshot.empty || cleanEmail === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+
+      const credentials = await createUserWithEmailAndPassword(auth, cleanEmail, password)
       await updateProfile(credentials.user, { displayName: name.trim() })
       const profile: User = {
         id: credentials.user.uid,
         name: name.trim(),
-        email: email.trim().toLowerCase(),
-        role: 'organizador',
+        email: cleanEmail,
+        role: assignedRole,
         createdAt: new Date().toISOString(),
       }
       await setDoc(doc(db, 'users', profile.id), profile)
@@ -131,10 +227,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updatePassword(auth.currentUser, password)
     },
     async addMember({ name, email, password, role }) {
-      if (currentUser?.role !== 'organizador') throw new Error('Solo el organizador puede cargar el equipo.')
+      if (currentUser?.role !== 'organizador' && currentUser?.role !== 'admin') {
+        throw new Error('Sin permisos para registrar personal.')
+      }
+      const venueId = currentUser.venueId || ''
       const credentials = await createUserWithEmailAndPassword(secondaryAuth, email.trim().toLowerCase(), password)
       await updateProfile(credentials.user, { displayName: name.trim() })
-      const user: User = { id: credentials.user.uid, name: name.trim(), email: email.trim().toLowerCase(), role, createdAt: new Date().toISOString() }
+      const user: User = { id: credentials.user.uid, name: name.trim(), email: email.trim().toLowerCase(), role, venueId, createdAt: new Date().toISOString() }
       await setDoc(doc(db, 'users', user.id), user)
       await signOut(secondaryAuth)
       setData((prev) => ({ ...prev, users: [...prev.users, user] }))
@@ -151,6 +250,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updateDoc(doc(db, 'events', id), { status })
       setData((prev) => ({ ...prev, events: prev.events.map((event) => event.id === id ? { ...event, status } : event) }))
     },
+    async saveQrItem(item) {
+      await setDoc(doc(db, 'qrCatalog', item.id), item)
+      setData((prev) => ({
+        ...prev,
+        qrCatalog: [item, ...prev.qrCatalog.filter((q) => q.id !== item.id)],
+      }))
+    },
+    async deleteQrItem(id) {
+      await deleteDoc(doc(db, 'qrCatalog', id))
+      setData((prev) => ({
+        ...prev,
+        qrCatalog: prev.qrCatalog.filter((q) => q.id !== id),
+      }))
+    },
+    async saveLimitation(limitation) {
+      await setDoc(doc(db, 'limitations', limitation.id), limitation)
+      setData((prev) => ({
+        ...prev,
+        limitations: [limitation, ...prev.limitations.filter((l) => l.id !== limitation.id)],
+      }))
+    },
+    async deleteLimitation(id) {
+      await deleteDoc(doc(db, 'limitations', id))
+      setData((prev) => ({
+        ...prev,
+        limitations: prev.limitations.filter((l) => l.id !== id),
+      }))
+    },
     async issueTicket({ eventId, kind, holderName, dni }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
@@ -165,6 +292,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async redeemTicket(code) {
       if (!currentUser) return { ok: false, message: 'Sesión vencida.' }
       if (currentUser.role === 'vendedor') return { ok: false, message: 'El vendedor no canjea en puerta.' }
+
+      // Validación Geográfica
+      if (currentUser.venueId) {
+        const venue = data.venues.find(v => v.id === currentUser.venueId)
+        if (venue && venue.radius > 0) {
+          try {
+            const pos: any = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 }))
+            const dist = getDistance(pos.coords.latitude, pos.coords.longitude, venue.latitude, venue.longitude)
+            if (dist > venue.radius) {
+              return { ok: false, message: `Estás fuera del radio permitido para canjear (${Math.round(dist)}m de distancia).` }
+            }
+          } catch {
+            return { ok: false, message: 'No se pudo obtener tu ubicación GPS necesaria para el canje.' }
+          }
+        }
+      }
+
       const normalized = code.trim().toUpperCase()
       const match = data.tickets.find((ticket) => ticket.code === normalized)
       if (!match) return { ok: false, message: 'Ese código no existe.' }
@@ -175,6 +319,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updateDoc(doc(db, 'tickets', match.id), { redeemedAt: redeemed.redeemedAt, redeemedBy: redeemed.redeemedBy })
       setData((prev) => ({ ...prev, tickets: prev.tickets.map((ticket) => ticket.id === match.id ? redeemed : ticket) }))
       return { ok: true, ticket: redeemed }
+    },
+    async updateUserRole(userId, role, venueId) {
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'organizador') throw new Error('Sin permisos para asignar roles.')
+      const updates: any = { role }
+      if (venueId !== undefined) updates.venueId = venueId
+      await updateDoc(doc(db, 'users', userId), updates)
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) => u.id === userId ? { ...u, ...updates } : u),
+      }))
+    },
+    async resetUserPasswordByEmail(email) {
+      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede blanquear contraseñas.')
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase())
+    },
+    async createVenue(input) {
+      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede registrar locales.')
+      const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
+      const created = await addDoc(collection(db, 'venues'), { ...venue, createdAt: serverTimestamp() })
+      const result = { id: created.id, ...venue }
+      setData((prev) => ({ ...prev, venues: [result, ...prev.venues] }))
+      return result
+    },
+    async deleteVenue(id) {
+      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede eliminar locales.')
+      await deleteDoc(doc(db, 'venues', id))
+      setData((prev) => ({ ...prev, venues: prev.venues.filter((v) => v.id !== id) }))
     },
   }
 

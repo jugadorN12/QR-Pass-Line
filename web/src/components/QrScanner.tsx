@@ -33,8 +33,21 @@ export function QrScanner({ onScan }: QrScannerProps) {
       )
       setActive(true)
     } catch {
-      scannerRef.current = null
-      setError('No se pudo abrir la cámara. Revisá el permiso del navegador o usá el ingreso manual.')
+      try {
+        await scanner.start(
+          {},
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            onScan(decodedText)
+            void stop()
+          },
+          () => undefined,
+        )
+        setActive(true)
+      } catch {
+        scannerRef.current = null
+        setError('No se pudo abrir la cámara. Revisá el permiso del navegador o usá el ingreso manual.')
+      }
     }
   }
 

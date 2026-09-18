@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { loadQrCatalog, saveQrCatalog, type QrCatalogItem } from '../lib/qrCatalog'
+import { useApp } from '../context/AppContext'
+import type { QrCatalogItem } from '../types'
 
 const iconOptions = ['Ticket', 'Estrella', 'Pulsera', 'Copa', 'Rayo']
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
@@ -9,8 +10,9 @@ const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(
 export function NewQrPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  const { qrCatalog, saveQrItem } = useApp()
   const editingId = params.get('id')
-  const existingQr = editingId ? loadQrCatalog().find((qr) => qr.id === editingId) : undefined
+  const existingQr = editingId ? qrCatalog.find((qr) => qr.id === editingId) : undefined
   const [kind, setKind] = useState<'viral' | 'consumible'>(existingQr?.kind ?? 'consumible')
   const [icon, setIcon] = useState(existingQr?.icon ?? 'Ticket')
   const [backgroundImage, setBackgroundImage] = useState(existingQr?.backgroundImage ?? '')
@@ -60,7 +62,7 @@ export function NewQrPage() {
     setDays((current) => current.includes(day) ? current.filter((item) => item !== day) : [...current, day])
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const item: QrCatalogItem = {
@@ -77,7 +79,7 @@ export function NewQrPage() {
       scheduleMode,
       backgroundImage,
     }
-    saveQrCatalog([item, ...loadQrCatalog().filter((qr) => qr.id !== item.id)])
+    await saveQrItem(item)
     navigate('/qr')
   }
 
@@ -90,8 +92,8 @@ export function NewQrPage() {
           <div className="sellers-titlebar new-qr-titlebar"><Link to="/qr" className="back-link">‹</Link><h1>Nuevo Cupón QR</h1><button className="add-person" type="button" aria-label="Información">i</button></div>
           <form onSubmit={submit} className="new-qr-form">
             <section className="new-qr-basic">
-              <div className="icon-name-row"><button className="qr-icon-select" type="button" aria-label="Seleccionar icono" onClick={() => setIcon(iconOptions[(iconOptions.indexOf(icon) + 1) % iconOptions.length])}>{icon === 'Ticket' ? '▱' : icon === 'Estrella' ? '★' : icon === 'Pulsera' ? '◌' : icon === 'Copa' ? '♢' : 'ϟ'}</button><label className="floating-field"><span>Nombre</span><input name="name" placeholder="Nombre" required /></label></div>
-              <label className="floating-field"><span>Descripción (Interno)</span><textarea name="description" placeholder="Observaciones internas para encargados y vendedores" rows={3} /></label>
+              <div className="icon-name-row"><button className="qr-icon-select" type="button" aria-label="Seleccionar icono" onClick={() => setIcon(iconOptions[(iconOptions.indexOf(icon) + 1) % iconOptions.length])}>{icon === 'Ticket' ? '▱' : icon === 'Estrella' ? '★' : icon === 'Pulsera' ? '◌' : icon === 'Copa' ? '♢' : 'ϟ'}</button><label className="floating-field"><span>Nombre</span><input name="name" defaultValue={existingQr?.name} placeholder="Nombre" required /></label></div>
+              <label className="floating-field"><span>Descripción (Interno)</span><textarea name="description" defaultValue={existingQr?.description} placeholder="Observaciones internas para encargados y vendedores" rows={3} /></label>
               <div className="new-qr-label">Tipo de Cupón</div>
               <div className="qr-kind-toggle"><button type="button" className={kind === 'viral' ? 'selected' : ''} onClick={() => setKind('viral')}>QR Viral</button><button type="button" className={kind === 'consumible' ? 'selected' : ''} onClick={() => setKind('consumible')}>QR Consumible</button></div>
             </section>
@@ -105,7 +107,7 @@ export function NewQrPage() {
               <div className="visual-upload">
                 <label className="visual-upload-button"><span>{backgroundImage ? 'Cambiar imagen de fondo' : 'Subir imagen de fondo'}</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectBackground} /></label>
                 <small>La imagen se mostrará como fondo del acceso QR.</small>
-                {backgroundImage ? <div className="visual-image-preview" style={{ backgroundImage: `url(${backgroundImage})` }}><button type="button" onClick={() => setBackgroundImage('')}>Quitar imagen</button></div> :                 <div className="visual-placeholder"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong><small>Sin imagen de fondo</small></div>}
+                {backgroundImage ? <div className="visual-image-preview" style={{ backgroundImage: `url(${backgroundImage})` }}><button type="button" onClick={() => setBackgroundImage('')}>Quitar imagen</button></div> : <div className="visual-placeholder"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong><small>Sin imagen de fondo</small></div>}
               </div>
             </Collapsible>
             <Collapsible title="Reglas" open={openSection === 'rules'} onClick={() => setOpenSection(openSection === 'rules' ? null : 'rules')}><div className="rule-row"><span>Público</span><div className="mini-toggle"><button className={publicAccess ? 'selected' : ''} type="button" onClick={() => setPublicAccess(true)}>Sí</button><button className={!publicAccess ? 'selected' : ''} type="button" onClick={() => setPublicAccess(false)}>No</button></div></div></Collapsible>

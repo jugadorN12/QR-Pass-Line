@@ -7,23 +7,15 @@ type Redeemer = {
   name: string
   email: string
   initials: string
-  demo?: boolean
-  scanType?: 'qr' | 'dni' | 'both'
 }
 
-const demoRedeemers: Redeemer[] = [
-  { id: 'demo-redeemer-1', name: 'Sofía Control', email: 'sofia@qrpassline.com', initials: 'S', demo: true },
-  { id: 'demo-redeemer-2', name: 'Diego Puerta', email: 'diego@qrpassline.com', initials: 'D', demo: true },
-]
-
 export function RedeemersPage() {
-  const { users } = useApp()
+  const { users, addMember } = useApp()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteError, setInviteError] = useState('')
-  const [scanType, setScanType] = useState<'qr' | 'dni' | 'both'>('both')
-  const [invitedRedeemers, setInvitedRedeemers] = useState<Redeemer[]>([])
-  const realRedeemers: Redeemer[] = users
+
+  const redeemers: Redeemer[] = users
     .filter((user) => user.role === 'canjeador')
     .map((user) => ({
       id: user.id,
@@ -31,26 +23,27 @@ export function RedeemersPage() {
       email: user.email,
       initials: user.name.slice(0, 1).toUpperCase(),
     }))
-  const redeemers = realRedeemers.length ? [...realRedeemers, ...invitedRedeemers] : [...demoRedeemers, ...invitedRedeemers]
 
-  function inviteRedeemer(event: React.FormEvent<HTMLFormElement>) {
+  async function inviteRedeemer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const email = inviteEmail.trim().toLowerCase()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setInviteError('Ingresá un email válido.')
       return
     }
-    setInvitedRedeemers((current) => [...current, {
-      id: `invited-${crypto.randomUUID().slice(0, 8)}`,
-      name: 'Canjeador invitado',
-      email,
-      initials: email.slice(0, 1).toUpperCase(),
-      scanType,
-    }])
-    setInviteEmail('')
-    setInviteError('')
-    setScanType('both')
-    setInviteOpen(false)
+    try {
+      await addMember({
+        name: email.split('@')[0],
+        email,
+        password: 'Password123!',
+        role: 'canjeador',
+      })
+      setInviteEmail('')
+      setInviteError('')
+      setInviteOpen(false)
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'No se pudo registrar el canjeador.')
+    }
   }
 
   return (
@@ -79,10 +72,11 @@ export function RedeemersPage() {
             <span className="people-symbol">♧</span>
           </div>
           <section className="sellers-panel redeemers-panel">
+            <div className="sellers-panel-heading"><strong>Canjeadores registrados</strong><span>{redeemers.length}</span></div>
             <div className="seller-grid">
               {redeemers.map((redeemer) => (
                 <article className="seller-card" key={redeemer.id}>
-                  <div className={`seller-avatar ${redeemer.demo ? 'seller-avatar-demo' : ''}`}>{redeemer.initials}</div>
+                  <div className="seller-avatar">{redeemer.initials}</div>
                   <div className="seller-info"><strong>{redeemer.name}</strong><small>{redeemer.email}</small></div>
                   <div className="seller-actions">
                     <Link className="seller-action-button" to={`/canjeadores/${redeemer.id}/limitaciones/nueva`} aria-label={`Limitaciones de ${redeemer.name}`}>▣</Link>
@@ -98,16 +92,10 @@ export function RedeemersPage() {
       {inviteOpen ? (
         <div className="invite-backdrop" role="dialog" aria-modal="true" aria-labelledby="redeemer-invite-title">
           <button className="invite-dismiss" type="button" aria-label="Cerrar diálogo" onClick={() => setInviteOpen(false)} />
-          <form className="invite-dialog" onSubmit={inviteRedeemer}>
+          <form className="invite-dialog" onSubmit={(e) => void inviteRedeemer(e)}>
             <div className="invite-dialog-heading"><button type="button" aria-label="Cerrar" onClick={() => setInviteOpen(false)}>×</button><strong id="redeemer-invite-title">Nuevo canjeador</strong></div>
-            <p>Ingresá el email del nuevo canjeador.</p>
+            <p>Ingresá el email del nuevo canjeador (Contraseña temporal: Password123!).</p>
             <label className="invite-field"><span>Email del canjeador</span><input autoFocus type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="canjeador@ejemplo.com" required /></label>
-            <fieldset className="scan-type-field">
-              <legend>Tipo de escaneo permitido</legend>
-              <label><input type="radio" name="scanType" value="qr" checked={scanType === 'qr'} onChange={() => setScanType('qr')} /> QR</label>
-              <label><input type="radio" name="scanType" value="dni" checked={scanType === 'dni'} onChange={() => setScanType('dni')} /> DNI</label>
-              <label><input type="radio" name="scanType" value="both" checked={scanType === 'both'} onChange={() => setScanType('both')} /> QR y DNI</label>
-            </fieldset>
             {inviteError ? <small className="invite-error">{inviteError}</small> : null}
             <button className="btn btn-primary invite-confirm" type="submit">Confirmar</button>
           </form>

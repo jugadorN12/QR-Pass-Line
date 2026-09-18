@@ -6,6 +6,9 @@ const empty: AppData = {
   users: [],
   events: [],
   tickets: [],
+  qrCatalog: [],
+  limitations: [],
+  venues: [],
   session: null,
 }
 

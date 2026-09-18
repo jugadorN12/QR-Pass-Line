@@ -7,44 +7,41 @@ type Seller = {
   name: string
   email: string
   initials: string
-  demo?: boolean
 }
 
-const demoSellers: Seller[] = [
-  { id: 'demo-lucia', name: 'Lucía Eventos', email: 'lucia@qrpassline.com', initials: 'L', demo: true },
-  { id: 'demo-marcos', name: 'Marcos Fiestas', email: 'marcos@qrpassline.com', initials: 'M', demo: true },
-]
-
 export function SellersPage() {
-  const { users } = useApp()
+  const { users, addMember } = useApp()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteError, setInviteError] = useState('')
-  const [invitedSellers, setInvitedSellers] = useState<Seller[]>([])
-  const realSellers: Seller[] = users.filter((user) => user.role === 'vendedor').map((user) => ({
+
+  const sellers: Seller[] = users.filter((user) => user.role === 'vendedor').map((user) => ({
     id: user.id,
     name: user.name,
     email: user.email,
     initials: user.name.slice(0, 1).toUpperCase(),
   }))
-  const sellers = realSellers.length ? [...realSellers, ...invitedSellers] : [...demoSellers, ...invitedSellers]
 
-  function inviteSeller(event: React.FormEvent<HTMLFormElement>) {
+  async function inviteSeller(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const email = inviteEmail.trim().toLowerCase()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setInviteError('Ingresá un email válido.')
       return
     }
-    setInvitedSellers((current) => [...current, {
-      id: `invited-${crypto.randomUUID().slice(0, 8)}`,
-      name: 'Vendedor invitado',
-      email,
-      initials: email.slice(0, 1).toUpperCase(),
-    }])
-    setInviteEmail('')
-    setInviteError('')
-    setInviteOpen(false)
+    try {
+      await addMember({
+        name: email.split('@')[0],
+        email,
+        password: 'Password123!',
+        role: 'vendedor',
+      })
+      setInviteEmail('')
+      setInviteError('')
+      setInviteOpen(false)
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'No se pudo registrar el vendedor.')
+    }
   }
 
   return (
@@ -73,15 +70,15 @@ export function SellersPage() {
             <span className="people-symbol">♧</span>
           </div>
           <section className="sellers-panel">
-            <div className="sellers-panel-heading"><strong>Vendedores sin grupo</strong><span>⌃</span></div>
+            <div className="sellers-panel-heading"><strong>Vendedores registrados</strong><span>{sellers.length}</span></div>
             <div className="seller-grid">
               {sellers.map((seller) => (
                 <article className="seller-card" key={seller.id}>
-                  <div className={`seller-avatar ${seller.demo ? 'seller-avatar-demo' : ''}`}>{seller.initials}</div>
+                  <div className="seller-avatar">{seller.initials}</div>
                   <div className="seller-info"><strong>{seller.name}</strong><small>{seller.email}</small></div>
                   <div className="seller-actions">
                     <Link className="seller-action-button" to={`/vendedores/${seller.id}/limitaciones`} aria-label={`Limitaciones de ${seller.name}`}>▣</Link>
-                    <button type="button" aria-label={`Ventas de ${seller.name}`}>♧ <b>{seller.demo ? 0 : 0}</b></button>
+                    <button type="button" aria-label={`Ventas de ${seller.name}`}>♧ <b>0</b></button>
                     <button type="button" aria-label={`Eliminar ${seller.name}`}>♧</button>
                   </div>
                 </article>
@@ -98,9 +95,9 @@ export function SellersPage() {
       {inviteOpen ? (
         <div className="invite-backdrop" role="dialog" aria-modal="true" aria-labelledby="invite-title">
           <button className="invite-dismiss" type="button" aria-label="Cerrar diálogo" onClick={() => setInviteOpen(false)} />
-          <form className="invite-dialog" onSubmit={inviteSeller}>
+          <form className="invite-dialog" onSubmit={(e) => void inviteSeller(e)}>
             <div className="invite-dialog-heading"><button type="button" aria-label="Cerrar" onClick={() => setInviteOpen(false)}>×</button><strong id="invite-title">Nuevo vendedor</strong></div>
-            <p>Ingresá el email del nuevo vendedor.</p>
+            <p>Ingresá el email del nuevo vendedor (Contraseña temporal: Password123!).</p>
             <label className="invite-field"><span>Email del vendedor</span><input autoFocus type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="vendedor@ejemplo.com" required /></label>
             {inviteError ? <small className="invite-error">{inviteError}</small> : null}
             <button className="btn btn-primary invite-confirm" type="submit">Confirmar</button>
