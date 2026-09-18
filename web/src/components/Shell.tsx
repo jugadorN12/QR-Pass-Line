@@ -30,7 +30,7 @@ export function Shell() {
       <div className="workspace">
         <aside className="side-nav">
           <p className="nav-caption">Operación</p>
-          <NavLink to="/" end><span className="nav-icon">⌂</span>Resumen</NavLink>
+          <NavLink to="/resumen" end><span className="nav-icon">⌂</span>Resumen</NavLink>
           <NavLink to="/fechas"><span className="nav-icon">◷</span>Fechas</NavLink>
           <NavLink to="/puerta"><span className="nav-icon">⌗</span>Control de puerta</NavLink>
           <NavLink to="/equipo"><span className="nav-icon">◎</span>Equipo</NavLink>
@@ -38,7 +38,7 @@ export function Shell() {
         <Outlet />
       </div>
       <nav className="bottom-nav">
-        <NavLink to="/" end><span>⌂</span>Inicio</NavLink>
+        <NavLink to="/resumen" end><span>⌂</span>Inicio</NavLink>
         <NavLink to="/fechas"><span>◷</span>Fechas</NavLink>
         <NavLink to="/puerta"><span>⌗</span>Puerta</NavLink>
         <NavLink to="/equipo"><span>◎</span>Equipo</NavLink>

@@ -61,8 +61,9 @@ export default function App() {
         <Route path="/qr/inactivos" element={<RoleGate><InactiveQrPage /></RoleGate>} />
         <Route path="/supervisores" element={<RoleGate><StaffRolePage role="supervisor" title="Supervisores" /></RoleGate>} />
         <Route path="/validadores" element={<RoleGate><StaffRolePage role="validador" title="Validadores" /></RoleGate>} />
+        <Route path="/" element={<Navigate to="/seleccionar-rol" replace />} />
         <Route element={<ProtectedRoutes />}>
-          <Route index element={<HomePage />} />
+          <Route path="/resumen" element={<HomePage />} />
           <Route path="/fechas" element={<EventsPage />} />
           <Route path="/fechas/nueva" element={<NewEventPage />} />
           <Route path="/fechas/:eventId" element={<EventDetailPage />} />

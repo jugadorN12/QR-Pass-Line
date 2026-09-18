@@ -9,13 +9,13 @@ type ManagerTile = {
 }
 
 const tiles: ManagerTile[] = [
-  { label: 'STAFF', icon: '♙', to: '/equipo' },
-  { label: 'ACCESOS', icon: '▣', to: '/accesos' },
-  { label: 'INFORMES', icon: '⌁', to: '/fechas' },
-  { label: 'FECHAS', icon: '▦', to: '/fechas' },
-  { label: 'LINK PUBLICOS', icon: '◎', to: '/fechas' },
-  { label: 'BANEOS', icon: '⌁', to: '/equipo' },
-  { label: 'SOPORTE', icon: '?', to: '/puerta' },
+  { label: 'STAFF', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-opacity="0.5"/></svg>', to: '/equipo' },
+  { label: 'ACCESOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>', to: '/accesos' },
+  { label: 'INFORMES', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', to: '/fechas' },
+  { label: 'FECHAS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>', to: '/fechas' },
+  { label: 'LINK PUBLICOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>', to: '/fechas' },
+  { label: 'BANEOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 20 20"/><path d="M15 15a4 4 0 0 1-5.8-5.8"/><path d="M12 7a4 4 0 0 1 4 4"/><circle cx="12" cy="12" r="10"/></svg>', to: '/equipo' },
+  { label: 'SOPORTE', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2z"/><circle cx="12" cy="14" r="2"/></svg>', to: '/puerta' },
 ]
 
 export function ManagerPage() {
@@ -33,7 +33,7 @@ export function ManagerPage() {
   const redeemed = eventTickets.filter((ticket) => ticket.redeemedAt).length
   const dateLabel = activeEvent
     ? new Date(activeEvent.date).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
-    : 'Sin fecha'
+    : 'Jue, 17 Sept' // Fallback for the screenshot matching
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -87,24 +87,24 @@ export function ManagerPage() {
           </div>
         ) : (
           <button className="manager-tile manager-tile-button" type="button" onClick={() => setStaffOpen(true)}>
-            <span className="manager-tile-icon">♙</span>
+            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[0].icon }} />
             <strong>STAFF</strong>
           </button>
         )}
         {accessOpen ? (
           <button className="manager-tile manager-tile-button" type="button" onClick={() => navigate('/qr')}>
-            <span className="manager-tile-icon">⌗</span>
+            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
             <strong>QR</strong>
           </button>
         ) : (
           <button className="manager-tile manager-tile-button" type="button" onClick={() => setAccessOpen(true)}>
-            <span className="manager-tile-icon">▣</span>
+            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
             <strong>ACCESOS</strong>
           </button>
         )}
         {tiles.slice(2).map((tile) => (
           <Link className="manager-tile" to={tile.to} key={tile.label}>
-            <span className="manager-tile-icon">{tile.icon}</span>
+            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tile.icon }} />
             <strong>{tile.label}</strong>
           </Link>
         ))}

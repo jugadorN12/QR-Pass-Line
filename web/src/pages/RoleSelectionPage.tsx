@@ -9,10 +9,26 @@ type RoleOption = {
 }
 
 const roleOptions: RoleOption[] = [
-  { key: 'encargado', label: 'ENCARGADO', icon: '♙' },
-  { key: 'organizador', label: 'ORGANIZADOR', icon: '♙' },
-  { key: 'vendedor', label: 'VENDEDOR', icon: '♧' },
-  { key: 'canjeador', label: 'CANJEADOR', icon: '⌗' },
+  {
+    key: 'encargado',
+    label: 'ENCARGADO',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+  },
+  {
+    key: 'organizador',
+    label: 'ORGANIZADOR',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+  },
+  {
+    key: 'vendedor',
+    label: 'VENDEDOR',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+  },
+  {
+    key: 'canjeador',
+    label: 'CANJEADOR',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5c0-1.1.9-2 2-2h2"/><path d="M17 3h2c1.1 0 2 .9 2 2v2"/><path d="M21 17v2c0 1.1-.9 2-2 2h-2"/><path d="M7 21H5c-1.1 0-2-.9-2-2v-2"/><rect width="7" height="7" x="7" y="7" rx="1"/></svg>'
+  },
 ]
 
 export function RoleSelectionPage() {
@@ -28,7 +44,7 @@ export function RoleSelectionPage() {
 
   function selectRole(role: RoleOption['key']) {
     if (!canUse(role)) return
-    navigate(role === 'encargado' ? '/encargado' : '/')
+    navigate(role === 'encargado' ? '/encargado' : '/resumen')
   }
 
   return (
@@ -38,8 +54,8 @@ export function RoleSelectionPage() {
           <img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" />
           <strong>QR Pass Line</strong>
         </div>
-        <button className="role-exit" type="button" onClick={() => { void logout(); navigate('/ingresar') }} aria-label="Cerrar sesión">
-          <span>×</span>
+        <button className="role-exit-btn" type="button" onClick={() => { void logout(); navigate('/ingresar') }} aria-label="Cerrar sesión">
+          <img src="/favicon.svg" alt="Salir" className="role-exit-avatar" />
         </button>
       </header>
 
@@ -74,7 +90,7 @@ export function RoleSelectionPage() {
                   type="button"
                   onClick={() => selectRole(option.key)}
                 >
-                  <span className="role-option-icon">{option.icon}</span>
+                  <span className="role-option-icon" dangerouslySetInnerHTML={{ __html: option.icon }} />
                   <strong>{option.label}</strong>
                 </button>
               )

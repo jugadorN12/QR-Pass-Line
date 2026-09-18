@@ -334,44 +334,174 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 
 .role-screen {
   min-height: 100dvh;
-  background: #f2f5fb;
-  color: #183250;
+  background: #e5e9f0; /* Fondo más oscurito para resaltar el blanco */
+  color: #0b192c;
+  display: flex;
+  flex-direction: column;
 }
 .role-header {
-  height: 72px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f1;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #dce4ed;
 }
-.role-brand { display: flex; align-items: center; gap: 9px; color: #4078c4; font-size: 21px; letter-spacing: -.04em; }
-.role-brand img { width: 42px; height: 42px; }
-.role-exit { width: 32px; height: 32px; border: 0; border-radius: 50%; color: #fff; background: #050505; cursor: pointer; }
-.role-exit span { display: block; color: #ef1717; font-size: 29px; line-height: 25px; transform: rotate(45deg); }
-.role-main { width: min(700px, calc(100% - 28px)); margin: 62px auto 0; }
-.role-card { background: #fff; border: 1px solid #d9e2ee; border-radius: 12px; box-shadow: 0 7px 18px rgba(46, 77, 115, .08); }
-.role-user-card { padding: 13px 12px 10px; }
-.role-user-card h1 { margin: 0 0 8px; color: #17385d; font-size: 25px; font-weight: 900; letter-spacing: -.06em; }
-.role-user { display: inline-flex; align-items: center; gap: 9px; padding: 4px 12px 4px 5px; border: 1px solid #dce4ed; border-radius: 25px; background: #f0f4f9; }
-.role-avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: var(--brand); font-weight: 900; }
-.role-user strong, .role-user small, .business-heading strong, .business-heading small { display: block; }
-.role-user strong { font-size: 11px; }
-.role-user small { color: #7b8da3; font-size: 8px; }
-.role-business-card { margin-top: 11px; padding: 10px; }
-.business-heading { display: flex; align-items: center; gap: 9px; padding: 0 0 10px; }
-.business-logo { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #dce5ef; border-radius: 9px; background: #fff; }
-.business-logo img { width: 28px; height: 28px; }
-.business-heading strong { color: #183c63; font-size: 13px; }
-.business-heading small { margin-top: 2px; color: #8b9aac; font-size: 9px; }
-.role-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.role-option { min-height: 76px; display: flex; align-items: center; justify-content: center; gap: 7px; position: relative; overflow: hidden; border: 1px solid #dce3ec; border-radius: 11px; background: linear-gradient(145deg, #fff, #f8fafc); color: #182940; cursor: pointer; box-shadow: 0 4px 8px rgba(33, 58, 87, .08); }
-.role-option:hover:not(:disabled) { border-color: var(--brand); transform: translateY(-1px); }
-.role-option-icon { color: #d4d9df; font-size: 38px; line-height: 1; }
-.role-option strong { position: relative; z-index: 1; font-size: 13px; }
-.role-option.is-disabled { opacity: .42; cursor: not-allowed; filter: grayscale(.25); }
-.role-footer { margin-top: 20px; color: #7e91aa; font-size: 9px; }
+.role-brand { display: flex; align-items: center; gap: 12px; color: #0b192c; font-size: 20px; font-weight: 900; letter-spacing: -.03em; }
+.role-brand img { width: 44px; height: 44px; }
+.role-exit-btn {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #000;
+  border-radius: 50%;
+  background: #000;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+}
+.role-exit-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #fff;
+}
+.role-main {
+  width: min(980px, calc(100% - 18px)); /* Ligeramente más ancho */
+  margin: 75px auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.role-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 52, 0.03);
+}
+.role-user-card {
+  padding: 20px 24px; /* Más fino de arriba/abajo, menos padding */
+  margin-bottom: 12px; /* Más pegado al panel de abajo */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.role-user-card h1 {
+  margin: 0 0 2px; /* Menos espacio debajo del título */
+  color: #051429;
+  font-size: 30px; /* Un poco más chico para encajar mejor */
+  font-weight: 1800;
+  letter-spacing: -.02em;
+}
+.role-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 4px 4px; /* Más ajustado alrededor del avatar */
+  border: 3px solid #cbd5e1;
+  border-radius: 20px;
+  background: #f4f7fb;
+}
+.role-avatar {
+  width: 36px; /* Aún más chico, más sutil */
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 70%;
+  color: #fff;
+  background: #000;
+  font-size: 15px;
+  font-weight: 900;
+}
+.role-user strong, .role-user small, .business-heading strong, .business-heading small {
+  display: block;
+  line-height: 1.2; /* Textos más juntos verticalmente */
+}
+.role-user strong { font-size: 12px; color: #051429; font-weight: 900; }
+.role-user small { color: #64748b; font-size: 12px; font-weight: 300;}
+.role-business-card { padding: 20px 12px; } /* Mismo padding que la de arriba */
+.business-heading {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 0 10px; /* Menos padding inferior */
+  border-bottom: px solid #e2e8f1;
+  margin-bottom: 8px; /* Menos margen inferior */
+}
+.business-logo {
+  width: 56px; /* Logo más chico */
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e2e8f1;
+  border-radius: 10px; /* Radio acorde al tamaño */
+  background: #fff;
+}
+.business-logo img { width: 44px; height: 44px; }
+.business-heading strong { color: #051429; font-size: 18px; font-weight: 900; }
+.business-heading small { margin-top: 4px; color: #64748b; font-size: 13px; font-weight: 500;}
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px; /* DRÁSTICA reducción del espacio entre botones */
+}
+.role-option {
+  position: relative;
+  min-height: 104px; /* Botones apenas más bajitos */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px; /* Menos padding interno para que no "infle" la caja */
+  border: 1px solid #e2e8f1;
+  border-radius: 10px; /* Radio de los botones similar a DOORS */
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.40);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.role-option:hover:not(:disabled) {
+  border-color: #74c8ee;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(22, 183, 189, 0.08);
+}
+.role-option-icon {
+  position: absolute;
+  top: 50%;
+  left: -12px; /* Posición del icono ajustada al nuevo tamaño */
+  transform: translateY(-50%);
+  color: #D3D3D3;
+  width: 76px; /* Icono achicado proporcionalmente */
+  height: 76px;
+  z-index: 0;
+  pointer-events: none;
+}
+.role-option-icon svg {
+  width: 200%;
+  height: 100%;
+}
+.role-option strong {
+  position: relative;
+  z-index: 9;
+  font-size: 18px; /* Texto un poquito más chico para encajar en la nueva caja */
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  color: #051429;
+}
+.role-option.is-disabled {
+  opacity: 1.2;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(10);
+}
+.role-footer {
+  margin-top: 32px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+}
 .manager-screen { min-height: 100dvh; background: #f2f5fa; }
 .manager-header { height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #fff; border-bottom: 1px solid #e0e6ee; }
 .manager-brand { display: flex; align-items: center; gap: 8px; color: #477cc4; font-size: 20px; letter-spacing: -.04em; }
@@ -382,7 +512,7 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .manager-datebar strong { min-width: 96px; padding: 9px 14px; border-radius: 13px; background: #fff; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); text-align: center; font-size: 12px; }
 .date-arrow { width: 30px; height: 30px; border: 0; border-radius: 10px; background: #fff; color: #59708e; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); font-size: 23px; line-height: 20px; cursor: pointer; }
 .manager-refresh { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; background: #fff; color: #4771a3; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); }
-.manager-heading { margin: 0 0 12px; }
+.manager-heading { margin: 0 0 20px; }
 .manager-heading h1 { display: inline; font-size: 21px; letter-spacing: -.04em; }
 .manager-heading-actions { margin-left: 8px; color: #49719e; font-size: 17px; }
 .manager-heading-actions a { color: inherit; text-decoration: none; }
@@ -411,13 +541,34 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .profile-dialog label { display: grid; gap: 6px; color: #60758c; font-size: 10px; font-weight: 800; }
 .profile-dialog input { border: 1px solid #dce4ed; border-radius: 8px; padding: 10px; font-size: 12px; }
 .profile-dialog-close { position: absolute; top: 8px; right: 10px; border: 0; background: transparent; color: #7890a8; font-size: 22px; cursor: pointer; }
-.manager-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
-.manager-kpi { min-height: 85px; display: flex; align-items: center; justify-content: center; gap: 12px; border-radius: 12px; color: #fff; box-shadow: 0 12px 20px rgba(32, 55, 81, .14); }
-.manager-kpi div { text-align: center; }
+.manager-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.manager-kpi {
+  position: relative;
+  min-height: 100px; /* Un poco más altos como en la foto */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(32, 55, 81, .1);
+  overflow: hidden;
+}
+.manager-kpi div { text-align: center; position: relative; z-index: 1; }
 .manager-kpi strong, .manager-kpi small { display: block; }
-.manager-kpi strong { font-size: 15px; }
-.manager-kpi small { margin-top: 4px; font-size: 8px; font-weight: 900; }
-.manager-kpi-icon { color: rgba(255,255,255,.35); font-size: 42px; line-height: 1; }
+.manager-kpi strong { font-size: 24px; font-weight: 900; } /* Números grandes */
+.manager-kpi small { margin-top: 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.manager-kpi-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,.15); /* Marca de agua grande en las tarjetas de colores */
+  font-size: 80px;
+  line-height: 1;
+  z-index: 0;
+  pointer-events: none;
+}
 .manager-kpi-sales { background: linear-gradient(120deg, #35c29a, #159a76); }
 .manager-kpi-issued { background: linear-gradient(120deg, #4c7fe5, #2756b9); }
 .manager-kpi-redeemed { background: linear-gradient(120deg, #2ebac4, #15939e); }
@@ -448,13 +599,48 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .parameter-item { border-bottom: 1px solid #edf1f5; }
 .parameter-item button { display: flex; justify-content: space-between; width: 100%; padding: 11px 3px; border: 0; background: transparent; color: #53657a; font-size: 11px; text-align: left; cursor: pointer; }
 .parameter-item p { margin: 0 3px 10px; color: #8a99a9; font-size: 10px; }
-.settings-radio { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; color: #60758c; font-size: 10px; }
-.manager-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.manager-tile { min-height: 84px; display: flex; align-items: center; justify-content: center; gap: 14px; border: 1px solid #e0e6ee; border-radius: 12px; background: linear-gradient(145deg, #fff, #f9fafc); box-shadow: 0 10px 17px rgba(31, 54, 80, .1); color: #182940; }
+.settings-radio { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; color: #60758c; font-size: 40px; }
+.manager-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.manager-tile {
+  position: relative;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid #e0e6ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 10px rgba(31, 54, 80, .03); /* Sombra restaurada, idéntica a la anterior */
+  color: #182940;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .manager-tile-button { width: 100%; font: inherit; cursor: pointer; }
-.manager-tile:hover { transform: translateY(-1px); border-color: #b7cadf; }
-.manager-tile-icon { color: #d5d9de; font-size: 42px; line-height: 1; }
-.manager-tile strong { font-size: 12px; }
+.manager-tile:hover { transform: translateY(-2px); border-color: #b7cadf; box-shadow: 0 8px 16px rgba(31, 54, 80, .50); }
+.manager-tile-icon {
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  transform: translateY(-50%);
+  color: #D3D3D3; /* Color original restaurado */
+  width: 76px;
+  height: 76px;
+  z-index: 0;
+  pointer-events: none;
+}
+.manager-tile-icon svg {
+  width: 200%;
+  height: 100%;
+}
+.manager-tile strong {
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #051429;
+}
 .staff-subtiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 .staff-subtile { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid #e0e6ee; border-radius: 9px; background: linear-gradient(145deg, #fff, #f9fafc); box-shadow: 0 5px 10px rgba(31, 54, 80, .08); color: #182940; }
 .staff-subtile span { color: #d6dbe1; font-size: 22px; line-height: 1; }
@@ -657,8 +843,8 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   .auth-form-panel { padding: 24px 16px 40px; }
   .auth-mobile-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; color: var(--brand-strong); }
   .auth-mobile-brand .brand-mark { width: 32px; }
-  .role-main { margin-top: 30px; }
-  .role-grid { grid-template-columns: repeat(2, 1fr); }
+  .role-main { margin-top: 30px; width: calc(100% - 32px); }
+  .role-grid { grid-template-columns: 1fr; gap: 8px; }
   .role-option { min-height: 88px; }
   .manager-page { padding: 68px 10px 92px; }
   .manager-kpis { grid-template-columns: repeat(2, 1fr); }
