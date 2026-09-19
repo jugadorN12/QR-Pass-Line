@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { QrCatalogItem } from '../types'
+import { StaffHeader } from '../components/StaffHeader'
 
 const sellerNames: Record<string, { name: string; email: string }> = {
   'demo-lucia': { name: 'Lucía Eventos', email: 'lucia@qrpassline.com' },
@@ -213,5 +214,5 @@ function CouponPicker({ selectedId, onClose, onSelect }: { selectedId?: string; 
 }
 
 function StaffFrame({ children }: { children: ReactNode }) {
-  return <div className="staff-page"><header className="staff-header"><div className="staff-brand"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong></div><div className="staff-close">×</div></header><div className="staff-layout"><aside className="staff-sidebar"><Link className="staff-sidebar-control" to="/encargado">‹</Link><Link to="/encargado">⌂</Link><Link className="active" to="/vendedores">♙</Link><Link to="/canjeadores">⌗</Link><Link to="/fechas">⌁</Link><Link to="/equipo">◎</Link><Link to="/puerta">?</Link></aside>{children}</div></div>
+  return <div className="staff-page"><StaffHeader /><div className="staff-layout"><aside className="staff-sidebar"><Link className="staff-sidebar-control" to="/encargado">‹</Link><Link to="/encargado">⌂</Link><Link className="active" to="/vendedores">♙</Link><Link to="/canjeadores">⌗</Link><Link to="/fechas">⌁</Link><Link to="/equipo">◎</Link><Link to="/puerta">?</Link></aside>{children}</div></div>
 }

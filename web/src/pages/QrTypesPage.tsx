@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { QrCatalogItem } from '../types'
 
+import { StaffHeader } from '../components/StaffHeader'
+
 export function QrTypesPage() {
   const { qrCatalog, deleteQrItem } = useApp()
   const [preview, setPreview] = useState<QrCatalogItem | null>(null)
@@ -15,10 +17,7 @@ export function QrTypesPage() {
 
   return (
     <div className="staff-page qr-page">
-      <header className="staff-header">
-        <div className="staff-brand"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong></div>
-        <div className="staff-close">×</div>
-      </header>
+      <StaffHeader />
       <div className="staff-layout">
         <aside className="staff-sidebar">
           <Link className="staff-sidebar-control" to="/encargado">‹</Link>
@@ -46,9 +45,9 @@ export function QrTypesPage() {
                 <article className="qr-type-card" key={qr.id}>
                   <div className="qr-type-heading"><span className="qr-ticket-icon">▱</span><div><small>CONSUMIBLE_QR</small><strong>{qr.name}</strong></div></div>
                   <div className="seller-actions">
-                    <button type="button" aria-label={`Editar ${qr.name}`} onClick={() => navigate(`/qr/nuevo?id=${qr.id}`)}>⌕</button>
-                    <button type="button" aria-label={`Ver ${qr.name}`} onClick={() => setPreview(qr)}>◉</button>
-                    <button type="button" aria-label={`Eliminar ${qr.name}`} onClick={() => removeQr(qr)}>♧</button>
+                    <button type="button" aria-label={`Editar ${qr.name}`} onClick={() => navigate(`/qr/nuevo?id=${qr.id}`)}>✎</button>
+                    <button type="button" aria-label={`Ver ${qr.name}`} onClick={() => setPreview(qr)}>👁</button>
+                    <button type="button" aria-label={`Eliminar ${qr.name}`} onClick={() => removeQr(qr)}>🗑</button>
                   </div>
                 </article>
               ))}

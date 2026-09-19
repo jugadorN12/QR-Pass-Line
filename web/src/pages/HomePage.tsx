@@ -10,7 +10,7 @@ export function HomePage() {
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
-  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
   const navigate = useNavigate()
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {

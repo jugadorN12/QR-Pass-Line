@@ -544,12 +544,12 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .manager-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .manager-kpi {
   position: relative;
-  min-height: 100px; /* Un poco más altos como en la foto */
+  min-height: 123px; /* Un poco más altos como en la foto */
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  border-radius: 12px;
+  border-radius: 18px;
   color: #fff;
   box-shadow: 0 4px 12px rgba(32, 55, 81, .1);
   overflow: hidden;
@@ -650,7 +650,9 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .staff-page { min-height: 100dvh; background: #f2f5fa; color: #182940; }
 .staff-header { height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #fff; border-bottom: 1px solid #e0e6ee; }
 .staff-brand { display: flex; align-items: center; gap: 8px; color: #477cc4; font-size: 20px; letter-spacing: -.04em; }
-.staff-brand img { width: 40px; height: 40px; }
+.staff-brand img { width: 40px; height: 40px; object-fit: contain; }
+.org-brand { display: flex; align-items: center; gap: 10px; }
+.org-brand img { width: 40px; height: 40px; object-fit: contain; }
 .staff-close { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #050505; color: #e5141b; font-size: 28px; transform: rotate(45deg); }
 .staff-layout { display: flex; min-height: calc(100dvh - 72px); }
 .staff-sidebar { width: 64px; flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0 0 12px; padding: 8px 6px; border-radius: 17px; background: #f8fafc; box-shadow: 0 14px 25px rgba(31,54,80,.12); }
@@ -825,12 +827,19 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .utility-list span { color: #718399; font-size: 11px; }
 
 @media (max-width: 760px) {
-  .app-shell { width: 100%;     .access-types-grid { grid-template-columns: repeat(2, 1fr); }
-    .qr-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-    .new-qr-titlebar { padding-left: 4px; }
-    .new-qr-form { padding: 0; }
-    .days-row button { width: 32px; height: 32px; }
-  }
+  .app-shell { width: 100%; }
+  .access-types-grid { grid-template-columns: repeat(2, 1fr); }
+  .qr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 10px; }
+  .qr-type-card { padding: 8px; min-height: 100px; }
+  .qr-type-heading { min-height: 42px; gap: 6px; }
+  .qr-ticket-icon { width: 28px; height: 28px; font-size: 16px; flex-shrink: 0; }
+  .qr-type-heading > div { min-width: 0; overflow: hidden; }
+  .qr-type-heading strong { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qr-type-heading small { font-size: 7.5px; }
+  .qr-type-card .seller-actions { gap: 3px; padding-top: 6px; }
+  .qr-type-card .seller-actions button { height: 26px; font-size: 11px; }
+  .new-qr-form { padding: 0; }
+  .days-row button { width: 32px; height: 32px; }
   .topbar { padding: 14px 16px; }
   .side-nav { display: none; }
   .page { padding: 24px 16px 92px; }
@@ -850,6 +859,7 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   .manager-kpis { grid-template-columns: repeat(2, 1fr); }
   .manager-tiles { grid-template-columns: repeat(2, 1fr); }
   .manager-tile { min-height: 76px; }
+  .staff-subtiles { grid-column: 1 / -1; }
   .staff-sidebar { display: none; }
   .sellers-main { padding: 10px; }
   .sellers-titlebar { padding: 0 4px; }

@@ -38,7 +38,7 @@ export function RoleSelectionPage() {
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
-  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
   const navigate = useNavigate()
 
   if (!currentUser) return null
@@ -68,6 +68,8 @@ export function RoleSelectionPage() {
       icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
     })
   }
+
+  const availableRoleOptions = extendedRoleOptions.filter(option => canUse(option.key))
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -108,19 +110,17 @@ export function RoleSelectionPage() {
 
         <section className="role-card role-business-card">
           <div className="business-heading">
-            <div className="business-logo"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /></div>
+            <div className="business-logo"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /></div>
             <div>
-              <strong>QR Pass Line</strong>
-              <small>{currentUser.role === 'admin' ? 'Modo Superusuario' : currentUser.role === 'organizador' ? '4 roles disponibles' : '1 rol disponible'}</small>
+              <strong>{localStorage.getItem('qr-pass-line.business-name') || 'QR Pass Line'}</strong>
+              <small>{currentUser.role === 'admin' ? 'Modo Superusuario' : `${availableRoleOptions.length} ${availableRoleOptions.length === 1 ? 'rol disponible' : 'roles disponibles'}`}</small>
             </div>
           </div>
-          <div className="role-grid" style={extendedRoleOptions.length > 4 ? { gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' } : undefined}>
-            {extendedRoleOptions.map((option) => {
-              const enabled = canUse(option.key)
+          <div className="role-grid" style={availableRoleOptions.length > 4 ? { gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' } : undefined}>
+            {availableRoleOptions.map((option) => {
               return (
                 <button
-                  className={`role-option ${enabled ? '' : 'is-disabled'}`}
-                  disabled={!enabled}
+                  className="role-option"
                   key={option.key}
                   type="button"
                   onClick={() => selectRole(option.key)}

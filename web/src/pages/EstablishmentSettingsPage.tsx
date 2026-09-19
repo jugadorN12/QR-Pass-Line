@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { StaffHeader } from '../components/StaffHeader'
 
 type SectionProps = { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }
 
@@ -11,7 +12,7 @@ export function EstablishmentSettingsPage() {
   const [visibleDays, setVisibleDays] = useState('7')
   const [minAgeMen, setMinAgeMen] = useState('18')
   const [minAgeWomen, setMinAgeWomen] = useState('18')
-  const [logo, setLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+  const [logo, setLogo] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
   const [qrBackground, setQrBackground] = useState(() => localStorage.getItem('qr-pass-line.qr-background') ?? '')
   const [saved, setSaved] = useState(false)
 
@@ -27,8 +28,8 @@ export function EstablishmentSettingsPage() {
 
   function save() {
     localStorage.setItem('qr-pass-line.business-name', name.trim() || 'QR Pass Line')
-    if (logo) localStorage.setItem('qr-pass-line.logo', logo)
-    else localStorage.removeItem('qr-pass-line.logo')
+    if (logo) localStorage.setItem('qr-pass-line.establishment-logo', logo)
+    else localStorage.removeItem('qr-pass-line.establishment-logo')
     if (qrBackground) localStorage.setItem('qr-pass-line.qr-background', qrBackground)
     else localStorage.removeItem('qr-pass-line.qr-background')
     setSaved(true)
@@ -37,10 +38,7 @@ export function EstablishmentSettingsPage() {
 
   return (
     <div className="staff-page settings-page">
-      <header className="staff-header">
-        <div className="staff-brand"><img src={logo || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong></div>
-        <div className="staff-close">×</div>
-      </header>
+      <StaffHeader />
       <div className="staff-layout">
         <aside className="staff-sidebar">
           <Link className="staff-sidebar-control" to="/encargado">‹</Link>

@@ -26,14 +26,23 @@ export function ManagerPage() {
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
-  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
   const navigate = useNavigate()
-  const activeEvent = events.find((event) => event.status === 'activo')
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const active = events.find((event) => event.status === 'activo')
+    return active ? (active.date.includes('T') ? active.date.split('T')[0] : active.date) : '2026-09-18'
+  })
+
+  function shiftDate(days: number) {
+    const base = new Date(selectedDate + 'T00:00:00')
+    base.setDate(base.getDate() + days)
+    setSelectedDate(base.toISOString().split('T')[0])
+  }
+
+  const activeEvent = events.find((event) => (event.status === 'activo' || (event.date && event.date.startsWith(selectedDate)))) || events[0]
   const eventTickets = activeEvent ? tickets.filter((ticket) => ticket.eventId === activeEvent.id) : []
   const redeemed = eventTickets.filter((ticket) => ticket.redeemedAt).length
-  const dateLabel = activeEvent
-    ? new Date(activeEvent.date).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
-    : 'Jue, 17 Sept' // Fallback for the screenshot matching
+  const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -51,14 +60,14 @@ export function ManagerPage() {
   return (
     <div className="manager-screen">
       <header className="manager-header">
-        <div className="manager-brand"><img src={profilePhoto || '/favicon.svg'} alt="Logo QR Pass Line" /><strong>QR Pass Line</strong></div>
-        <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil"><img src={profilePhoto || '/favicon.svg'} alt="Foto del encargado" /></button>
+        <div className="manager-brand"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="Logo Nexo Software" /><strong>QR Pass Line</strong></div>
+        <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="Logo del boliche" /></button>
       </header>
       <main className="manager-page">
       <div className="manager-datebar">
-        <button type="button" className="date-arrow" aria-label="Fecha anterior">‹</button>
+        <button type="button" className="date-arrow" onClick={() => shiftDate(-1)} aria-label="Fecha anterior">‹</button>
         <strong>{dateLabel}</strong>
-        <button type="button" className="date-arrow" aria-label="Fecha siguiente">›</button>
+        <button type="button" className="date-arrow" onClick={() => shiftDate(1)} aria-label="Fecha siguiente">›</button>
       </div>
       <div className="manager-refresh" aria-label="Actualizar">↻</div>
 

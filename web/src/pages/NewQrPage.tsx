@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { QrCatalogItem } from '../types'
+import { StaffHeader } from '../components/StaffHeader'
 
 const iconOptions = ['Ticket', 'Estrella', 'Pulsera', 'Copa', 'Rayo']
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
@@ -85,7 +86,7 @@ export function NewQrPage() {
 
   return (
     <div className="staff-page qr-page">
-      <header className="staff-header"><div className="staff-brand"><img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong></div><div className="staff-close">×</div></header>
+      <StaffHeader />
       <div className="staff-layout">
         <aside className="staff-sidebar"><Link className="staff-sidebar-control" to="/qr">‹</Link><Link to="/encargado">⌂</Link><Link to="/vendedores">♙</Link><Link className="active" to="/qr">▣</Link><Link to="/fechas">⌁</Link><Link to="/equipo">◎</Link><Link to="/puerta">?</Link></aside>
         <main className="new-qr-main">
