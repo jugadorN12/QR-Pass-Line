@@ -73,12 +73,12 @@ export function SellersPage() {
             <div className="seller-grid">
               {sellers.map((seller) => (
                 <article className="seller-card" key={seller.id}>
-                  <div className="seller-avatar">{seller.initials}</div>
+                  <div className="seller-avatar" style={(seller as any).avatar ? { backgroundImage: `url(${(seller as any).avatar})` } : undefined}>{!(seller as any).avatar ? seller.initials : ''}</div>
                   <div className="seller-info"><strong>{seller.name}</strong><small>{seller.email}</small></div>
                   <div className="seller-actions">
-                    <Link className="seller-action-button" to={`/vendedores/${seller.id}/limitaciones`} aria-label={`Limitaciones de ${seller.name}`}>▣</Link>
-                    <button type="button" aria-label={`Ventas de ${seller.name}`}>♧ <b>0</b></button>
-                    <button type="button" aria-label={`Eliminar ${seller.name}`}>♧</button>
+                    <Link className="seller-action-button" to={`/vendedores/${seller.id}/limitaciones`} aria-label={`Limitaciones de ${seller.name}`}>▱</Link>
+                    <button type="button" aria-label={`Ventas de ${seller.name}`}><b>0</b></button>
+                    <button type="button" aria-label={`Eliminar ${seller.name}`}>🗑</button>
                   </div>
                 </article>
               ))}

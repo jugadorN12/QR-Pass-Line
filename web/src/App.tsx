@@ -21,6 +21,7 @@ import { QrInfoPage, QrGroupsPage, InactiveQrPage } from './pages/QrInfoPage'
 import { SellerLimitationsPage, NewSellerLimitationPage, EditSellerLimitationPage } from './pages/SellerLimitationsPage'
 import { EstablishmentSettingsPage } from './pages/EstablishmentSettingsPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { SellerEmitPage } from './pages/SellerEmitPage'
 
 function ProtectedRoutes() {
   const { currentUser, loading, logout } = useApp()
@@ -92,6 +93,31 @@ function RoleGate({ children }: { children?: ReactNode }) {
   return children ?? <RoleSelectionPage />
 }
 
+function ManagerGate({ children }: { children: ReactNode }) {
+  const { currentUser, loading, logout } = useApp()
+  if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
+  if (!currentUser) return <Navigate to="/ingresar" replace />
+  if (currentUser.role === 'pendiente' || !currentUser.role) {
+    return (
+      <main className="role-screen">
+        <div className="role-main">
+          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
+            <h2>Cuenta pendiente de aprobación</h2>
+            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
+            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+  const userRoles = currentUser.roles && currentUser.roles.length ? currentUser.roles : [currentUser.role]
+  const isManager = userRoles.includes('organizador') || userRoles.includes('admin')
+  if (!isManager) {
+    return <Navigate to="/seleccionar-rol" replace />
+  }
+  return <>{children}</>
+}
+
 function HomeRedirect() {
   const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
@@ -108,24 +134,25 @@ export default function App() {
         <Route path="/ingresar" element={<AuthPage />} />
         <Route path="/seleccionar-rol" element={<RoleGate />} />
         <Route path="/admin" element={<AdminGate><AdminDashboardPage /></AdminGate>} />
-        <Route path="/encargado" element={<RoleGate><ManagerPage /></RoleGate>} />
-        <Route path="/encargado/configuracion" element={<RoleGate><EstablishmentSettingsPage /></RoleGate>} />
-        <Route path="/vendedores" element={<RoleGate><SellersPage /></RoleGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones" element={<RoleGate><SellerLimitationsPage /></RoleGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones/nueva" element={<RoleGate><NewSellerLimitationPage /></RoleGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones/:limitId/editar" element={<RoleGate><EditSellerLimitationPage /></RoleGate>} />
-        <Route path="/canjeadores" element={<RoleGate><RedeemersPage /></RoleGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones/nueva" element={<RoleGate><NewSellerLimitationPage /></RoleGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones" element={<RoleGate><SellerLimitationsPage /></RoleGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones/:limitId/editar" element={<RoleGate><EditSellerLimitationPage /></RoleGate>} />
-        <Route path="/accesos" element={<RoleGate><AccessTypesPage /></RoleGate>} />
-        <Route path="/qr" element={<RoleGate><QrTypesPage /></RoleGate>} />
-        <Route path="/qr/nuevo" element={<RoleGate><NewQrPage /></RoleGate>} />
-        <Route path="/qr/informacion" element={<RoleGate><QrInfoPage /></RoleGate>} />
-        <Route path="/qr/grupos" element={<RoleGate><QrGroupsPage /></RoleGate>} />
-        <Route path="/qr/inactivos" element={<RoleGate><InactiveQrPage /></RoleGate>} />
-        <Route path="/supervisores" element={<RoleGate><StaffRolePage role="supervisor" title="Supervisores" /></RoleGate>} />
-        <Route path="/validadores" element={<RoleGate><StaffRolePage role="validador" title="Validadores" /></RoleGate>} />
+        <Route path="/encargado" element={<ManagerGate><ManagerPage /></ManagerGate>} />
+        <Route path="/encargado/configuracion" element={<ManagerGate><EstablishmentSettingsPage /></ManagerGate>} />
+        <Route path="/vendedor" element={<RoleGate><SellerEmitPage /></RoleGate>} />
+        <Route path="/vendedores" element={<ManagerGate><SellersPage /></ManagerGate>} />
+        <Route path="/vendedores/:sellerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
+        <Route path="/vendedores/:sellerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
+        <Route path="/vendedores/:sellerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
+        <Route path="/canjeadores" element={<ManagerGate><RedeemersPage /></ManagerGate>} />
+        <Route path="/canjeadores/:redeemerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
+        <Route path="/canjeadores/:redeemerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
+        <Route path="/canjeadores/:redeemerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
+        <Route path="/accesos" element={<ManagerGate><AccessTypesPage /></ManagerGate>} />
+        <Route path="/qr" element={<ManagerGate><QrTypesPage /></ManagerGate>} />
+        <Route path="/qr/nuevo" element={<ManagerGate><NewQrPage /></ManagerGate>} />
+        <Route path="/qr/informacion" element={<ManagerGate><QrInfoPage /></ManagerGate>} />
+        <Route path="/qr/grupos" element={<ManagerGate><QrGroupsPage /></ManagerGate>} />
+        <Route path="/qr/inactivos" element={<ManagerGate><InactiveQrPage /></ManagerGate>} />
+        <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
+        <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
         {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
         <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
 

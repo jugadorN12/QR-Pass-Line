@@ -41,7 +41,7 @@ type AppContextValue = AppData & {
   logout: () => Promise<void>
   updateName: (name: string) => Promise<void>
   updateUserPassword: (password: string) => Promise<void>
-  addMember: (input: { name: string; email: string; password: string; role: Role }) => Promise<void>
+  addMember: (input: { name: string; email: string; password: string; role?: Role; roles?: Role[] }) => Promise<void>
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus }) => Promise<ClubEvent>
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
   issueTicket: (input: { eventId: string; kind: TicketKind; holderName: string; dni?: string }) => Promise<Ticket>
@@ -50,7 +50,7 @@ type AppContextValue = AppData & {
   deleteQrItem: (id: string) => Promise<void>
   saveLimitation: (limitation: Limitation) => Promise<void>
   deleteLimitation: (id: string) => Promise<void>
-  updateUserRole: (userId: string, role: Role, venueId?: string) => Promise<void>
+  updateUserRole: (userId: string, role?: Role, venueId?: string, roles?: Role[]) => Promise<void>
   resetUserPasswordByEmail: (email: string) => Promise<void>
   createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
   deleteVenue: (id: string) => Promise<void>
@@ -226,17 +226,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
       await updatePassword(auth.currentUser, password)
     },
-    async addMember({ name, email, password, role }) {
+    async addMember({ name, email, password, role, roles }) {
       if (currentUser?.role !== 'organizador' && currentUser?.role !== 'admin') {
         throw new Error('Sin permisos para registrar personal.')
       }
       const venueId = currentUser.venueId || ''
-      const credentials = await createUserWithEmailAndPassword(secondaryAuth, email.trim().toLowerCase(), password)
-      await updateProfile(credentials.user, { displayName: name.trim() })
-      const user: User = { id: credentials.user.uid, name: name.trim(), email: email.trim().toLowerCase(), role, venueId, createdAt: new Date().toISOString() }
-      await setDoc(doc(db, 'users', user.id), user)
-      await signOut(secondaryAuth)
-      setData((prev) => ({ ...prev, users: [...prev.users, user] }))
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanName = name.trim() || cleanEmail.split('@')[0]
+      const cleanPassword = password || 'Password123!'
+
+      const assignedRoles: Role[] = roles && roles.length ? roles : (role ? [role] : ['vendedor'])
+      const primaryRole: Role = assignedRoles[0] || 'vendedor'
+
+      try {
+        const credentials = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, cleanPassword)
+        await updateProfile(credentials.user, { displayName: cleanName })
+        const user: User = {
+          id: credentials.user.uid,
+          name: cleanName,
+          email: cleanEmail,
+          role: primaryRole,
+          roles: assignedRoles,
+          venueId,
+          createdAt: new Date().toISOString()
+        }
+        await setDoc(doc(db, 'users', user.id), user)
+        await signOut(secondaryAuth).catch(() => {})
+        setData((prev) => ({
+          ...prev,
+          users: [user, ...prev.users.filter((u) => u.id !== user.id)]
+        }))
+      } catch (err: any) {
+        console.error('Error in addMember:', err)
+        const msg = err?.code === 'auth/email-already-in-use'
+          ? 'El correo electrónico ya está registrado.'
+          : err?.code === 'auth/weak-password'
+          ? 'La contraseña es demasiado débil.'
+          : err?.message || 'No se pudo registrar el usuario.'
+        throw new Error(msg)
+      }
     },
     async createEvent(input) {
       if (!currentUser) throw new Error('Sesión vencida.')
@@ -320,9 +348,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, tickets: prev.tickets.map((ticket) => ticket.id === match.id ? redeemed : ticket) }))
       return { ok: true, ticket: redeemed }
     },
-    async updateUserRole(userId, role, venueId) {
+    async updateUserRole(userId, role, venueId, roles) {
       if (currentUser?.role !== 'admin' && currentUser?.role !== 'organizador') throw new Error('Sin permisos para asignar roles.')
-      const updates: any = { role }
+      const updates: any = {}
+      if (role !== undefined) {
+        updates.role = role
+        updates.roles = [role]
+      }
+      if (roles !== undefined) {
+        updates.roles = roles
+        if (roles.length > 0) updates.role = roles[0]
+      }
       if (venueId !== undefined) updates.venueId = venueId
       await updateDoc(doc(db, 'users', userId), updates)
       setData((prev) => ({

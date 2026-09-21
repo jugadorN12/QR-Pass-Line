@@ -75,12 +75,12 @@ export function RedeemersPage() {
             <div className="seller-grid">
               {redeemers.map((redeemer) => (
                 <article className="seller-card" key={redeemer.id}>
-                  <div className="seller-avatar">{redeemer.initials}</div>
+                  <div className="seller-avatar" style={(redeemer as any).avatar ? { backgroundImage: `url(${(redeemer as any).avatar})` } : undefined}>{!(redeemer as any).avatar ? redeemer.initials : ''}</div>
                   <div className="seller-info"><strong>{redeemer.name}</strong><small>{redeemer.email}</small></div>
                   <div className="seller-actions">
-                    <Link className="seller-action-button" to={`/canjeadores/${redeemer.id}/limitaciones/nueva`} aria-label={`Limitaciones de ${redeemer.name}`}>▣</Link>
-                    <button type="button" aria-label={`Editar ${redeemer.name}`}>⌕</button>
-                    <button type="button" aria-label={`Eliminar ${redeemer.name}`}>♧</button>
+                    <Link className="seller-action-button" to={`/canjeadores/${redeemer.id}/limitaciones/nueva`} aria-label={`Limitaciones de ${redeemer.name}`}>▱</Link>
+                    <button type="button" aria-label={`Canjes de ${redeemer.name}`}><b>0</b></button>
+                    <button type="button" aria-label={`Eliminar ${redeemer.name}`}>🗑</button>
                   </div>
                 </article>
               ))}

@@ -48,15 +48,24 @@ export function RoleSelectionPage() {
     return <Navigate to="/admin" replace />
   }
 
+  const getUserRoles = (user: typeof currentUser) => {
+    if (!user) return []
+    if (user.roles && user.roles.length) return user.roles
+    return user.role ? [user.role] : []
+  }
+
   const canUse = (role: RoleOption['key']) => {
-    const r = currentUser.role as string
-    if (role === 'encargado') return r === 'organizador' || r === 'admin'
-    return r === role || r === 'organizador' || r === 'admin'
+    const roles = getUserRoles(currentUser)
+    const isManager = roles.includes('organizador' as any) || roles.includes('admin' as any) || currentUser.role === 'organizador' || currentUser.role === 'admin'
+    if (isManager) return true
+    return roles.includes(role as any)
   }
 
   function selectRole(role: RoleOption['key']) {
     if (!canUse(role)) return
     if ((role as string) === 'admin') return navigate('/admin')
+    if (role === 'vendedor') return navigate('/vendedor')
+    if (role === 'canjeador') return navigate('/puerta')
     navigate(role === 'encargado' ? '/encargado' : '/resumen')
   }
 
