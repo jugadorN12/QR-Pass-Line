@@ -28,11 +28,11 @@ export function StaffHeader() {
     <>
       <header className="staff-header">
         <div className="staff-brand">
-          <img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="Nexo Software" />
+          <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="Nexo Software" />
           <strong>QR Pass Line</strong>
         </div>
         <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
-          <img src={profilePhoto || '/favicon.svg'} alt="Logo del boliche" />
+          <img src={profilePhoto || '/app-icon.png'} alt="Logo del boliche" />
         </button>
       </header>
 
@@ -42,7 +42,7 @@ export function StaffHeader() {
           <aside className="profile-drawer">
             <button className="profile-drawer-close" type="button" onClick={() => setProfileOpen(false)}>×</button>
             <div className="profile-card">
-              <img className="profile-avatar-image" src={profilePhoto || '/favicon.svg'} alt="Foto del boliche" />
+              <img className="profile-avatar-image" src={profilePhoto || '/app-icon.png'} alt="Foto del boliche" />
               <div>
                 <strong>{currentUser?.name ?? 'Usuario'}</strong>
                 <small>{currentUser?.email ?? ''}</small>
@@ -56,7 +56,7 @@ export function StaffHeader() {
             <div className="profile-links">
               <button type="button" onClick={() => { setProfileDialog('name'); setProfileValue(currentUser?.name ?? ''); setProfileError('') }}>♧ &nbsp; Cambiar nombre</button>
               <button type="button" onClick={() => { setProfileDialog('password'); setProfileValue(''); setProfileError('') }}>⚿ &nbsp; Cambiar contraseña</button>
-              <button className="profile-logout" type="button" onClick={() => { void logout(); navigate('/ingresar') }}>Cerrar sesión</button>
+              <button className="profile-logout" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Cerrar sesión</button>
             </div>
           </aside>
         </div>

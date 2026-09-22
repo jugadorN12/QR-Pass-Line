@@ -97,11 +97,11 @@ export function RoleSelectionPage() {
     <div className="role-screen">
       <header className="role-header">
         <div className="role-brand">
-          <img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" />
+          <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
           <strong>QR Pass Line</strong>
         </div>
         <button className="role-exit-btn" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
-          <img src={profilePhoto || '/favicon.svg'} alt="Perfil" className="role-exit-avatar" />
+          <img src={profilePhoto || '/app-icon.png'} alt="Perfil" className="role-exit-avatar" />
         </button>
       </header>
 
@@ -119,7 +119,7 @@ export function RoleSelectionPage() {
 
         <section className="role-card role-business-card">
           <div className="business-heading">
-            <div className="business-logo"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /></div>
+            <div className="business-logo"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" /></div>
             <div>
               <strong>{localStorage.getItem('qr-pass-line.business-name') || 'QR Pass Line'}</strong>
               <small>{currentUser.role === 'admin' ? 'Modo Superusuario' : `${availableRoleOptions.length} ${availableRoleOptions.length === 1 ? 'rol disponible' : 'roles disponibles'}`}</small>
@@ -145,7 +145,7 @@ export function RoleSelectionPage() {
         <p className="role-footer">© 2026 QR Pass Line.</p>
       </main>
 
-      {profileOpen ? <div className="profile-drawer-backdrop"><button className="profile-drawer-dismiss" type="button" aria-label="Cerrar perfil" onClick={() => setProfileOpen(false)} /><aside className="profile-drawer"><button className="profile-drawer-close" type="button" onClick={() => setProfileOpen(false)}>×</button><div className="profile-card"><img className="profile-avatar-image" src={profilePhoto || '/favicon.svg'} alt="Foto del usuario" /><div><strong>{currentUser?.name ?? 'Usuario'}</strong><small>{currentUser?.email ?? ''}</small></div></div><div className="profile-actions"><button type="button" onClick={() => setProfileOpen(false)}>♙<strong>Cambiar<br />rol</strong></button><button type="button">▣<strong>Cupones<br />comprados</strong></button><button type="button">?<strong>Ayuda</strong></button></div><div className="profile-links"><button type="button" onClick={() => { setProfileDialog('name'); setProfileValue(currentUser?.name ?? ''); setProfileError('') }}>♧ &nbsp; Cambiar nombre</button><button type="button" onClick={() => { setProfileDialog('password'); setProfileValue(''); setProfileError('') }}>⚿ &nbsp; Cambiar contraseña</button><button className="profile-logout" type="button" onClick={() => { void logout(); navigate('/ingresar') }}>Cerrar sesión</button></div></aside></div> : null}
+      {profileOpen ? <div className="profile-drawer-backdrop"><button className="profile-drawer-dismiss" type="button" aria-label="Cerrar perfil" onClick={() => setProfileOpen(false)} /><aside className="profile-drawer"><button className="profile-drawer-close" type="button" onClick={() => setProfileOpen(false)}>×</button><div className="profile-card"><img className="profile-avatar-image" src={profilePhoto || '/app-icon.png'} alt="Foto del usuario" /><div><strong>{currentUser?.name ?? 'Usuario'}</strong><small>{currentUser?.email ?? ''}</small></div></div><div className="profile-actions"><button type="button" onClick={() => setProfileOpen(false)}>♙<strong>Cambiar<br />rol</strong></button><button type="button">▣<strong>Cupones<br />comprados</strong></button><button type="button">?<strong>Ayuda</strong></button></div><div className="profile-links"><button type="button" onClick={() => { setProfileDialog('name'); setProfileValue(currentUser?.name ?? ''); setProfileError('') }}>♧ &nbsp; Cambiar nombre</button><button type="button" onClick={() => { setProfileDialog('password'); setProfileValue(''); setProfileError('') }}>⚿ &nbsp; Cambiar contraseña</button><button className="profile-logout" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Cerrar sesión</button></div></aside></div> : null}
       {profileDialog ? <div className="profile-dialog-backdrop"><form className="profile-dialog" onSubmit={saveProfile}><button className="profile-dialog-close" type="button" onClick={() => setProfileDialog(null)}>×</button><h2>{profileDialog === 'name' ? 'Cambiar nombre' : 'Cambiar contraseña'}</h2><label>{profileDialog === 'name' ? 'Nuevo nombre' : 'Nueva contraseña'}<input autoFocus type={profileDialog === 'password' ? 'password' : 'text'} value={profileValue} onChange={(event) => setProfileValue(event.target.value)} minLength={profileDialog === 'password' ? 6 : undefined} required /></label>{profileError ? <p className="error">{profileError}</p> : null}<button className="btn btn-primary" type="submit">Guardar</button></form></div> : null}
     </div>
   )

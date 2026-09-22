@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { QrCatalogItem } from '../types'
@@ -17,7 +17,7 @@ export function NewQrPage() {
 
   const [kind, setKind] = useState<'viral' | 'consumible'>(existingQr?.kind ?? 'consumible')
   const [icon, setIcon] = useState(existingQr?.icon ?? 'Ticket')
-  const [backgroundImage, setBackgroundImage] = useState(existingQr?.backgroundImage ?? localStorage.getItem('qr-pass-line.poster') ?? '')
+  const [backgroundImage, setBackgroundImage] = useState(existingQr?.backgroundImage ?? '')
   const [publicAccess, setPublicAccess] = useState(existingQr?.publicAccess ?? false)
   const [active, setActive] = useState(existingQr?.active ?? true)
   const [openSection, setOpenSection] = useState<'validity' | 'visual' | 'rules' | null>('validity')
@@ -32,6 +32,20 @@ export function NewQrPage() {
 
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+
+  useEffect(() => {
+    if (existingQr) {
+      setKind(existingQr.kind ?? 'consumible')
+      setIcon(existingQr.icon ?? 'Ticket')
+      setBackgroundImage(existingQr.backgroundImage ?? '')
+      setPublicAccess(existingQr.publicAccess ?? false)
+      setActive(existingQr.active ?? true)
+      setScheduleMode(existingQr.scheduleMode ?? 'full')
+      setDays(existingQr.days ?? ['L', 'M', 'X', 'J', 'V', 'S', 'D'])
+      setFromLabel(existingQr.from ?? '08:00 del día corriente')
+      setDurationLabel(existingQr.duration ?? '23:59 (hasta las 07:59 del día siguiente)')
+    }
+  }, [existingQr])
 
   function selectBackground(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -66,10 +80,8 @@ export function NewQrPage() {
           ctx.drawImage(img, 0, 0, w, h)
           const compressed = canvas.toDataURL('image/jpeg', 0.82)
           setBackgroundImage(compressed)
-          localStorage.setItem('qr-pass-line.poster', compressed)
         } else {
           setBackgroundImage(rawSrc)
-          localStorage.setItem('qr-pass-line.poster', rawSrc)
         }
       }
       img.src = rawSrc
@@ -121,10 +133,6 @@ export function NewQrPage() {
 
       await saveQrItem(item)
 
-      if (backgroundImage) {
-        localStorage.setItem('qr-pass-line.poster', backgroundImage)
-      }
-
       setSaveMessage('✓ Cambios guardados con éxito')
       setTimeout(() => {
         navigate('/qr')
@@ -168,10 +176,7 @@ export function NewQrPage() {
                 <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 12, overflow: 'hidden' }}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setBackgroundImage('')
-                      localStorage.removeItem('qr-pass-line.poster')
-                    }}
+                    onClick={() => setBackgroundImage('')}
                     style={{
                       flex: 1,
                       height: 42,

@@ -48,5 +48,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update, delete: if organizer();
     }
+
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow create, update, delete: if organizer();
+    }
   }
 }

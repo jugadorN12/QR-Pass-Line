@@ -31,7 +31,8 @@ import {
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
 import { defaultQrCatalog } from '../lib/qrCatalog'
-import type { AppData, ClubEvent, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
+import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
+import { defaultCouponTemplate } from '../types'
 
 type AppContextValue = AppData & {
   loading: boolean
@@ -54,10 +55,11 @@ type AppContextValue = AppData & {
   resetUserPasswordByEmail: (email: string) => Promise<void>
   createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
   deleteVenue: (id: string) => Promise<void>
+  saveCouponTemplate: (config: CouponTemplateConfig) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
-const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], limitations: [], venues: [], session: null }
+const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], limitations: [], venues: [], couponTemplate: defaultCouponTemplate, session: null }
 
 const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
 
@@ -113,13 +115,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const [usersSnapshot, eventsSnapshot, ticketsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot] = await Promise.all([
+      const [usersSnapshot, eventsSnapshot, ticketsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'events')),
         getDocs(query(collection(db, 'tickets'), where('issuedBy', '!=', ''))),
         getDocs(collection(db, 'qrCatalog')),
         getDocs(collection(db, 'limitations')),
         getDocs(collection(db, 'venues')),
+        getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
       ])
 
       const allUsers = usersSnapshot.docs.map((item) => asUser(item.id, item.data()))
@@ -139,6 +142,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
       const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
 
+      let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
+      if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
+        couponTemplate = { ...defaultCouponTemplate, ...(settingsSnapshot as any).data() }
+      } else {
+        const localSaved = localStorage.getItem('qr-pass-line.coupon-template')
+        if (localSaved) {
+          try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch {}
+        }
+      }
+      localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
+
       setData({
         users: allUsers,
         events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
@@ -146,6 +160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         qrCatalog,
         limitations,
         venues,
+        couponTemplate,
         session: { userId: currentUserObj.id },
       })
     } catch (error) {
@@ -201,7 +216,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, users: [profile, ...prev.users.filter((user) => user.id !== profile.id)], session: { userId: profile.id } }))
     },
     async logout() {
-      await signOut(auth)
+      try {
+        await signOut(auth)
+      } catch (err) {
+        console.error('Error al cerrar sesión:', err)
+      } finally {
+        setData(emptyData)
+      }
     },
     async updateName(name) {
       const cleanName = name.trim()
@@ -433,9 +454,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result
     },
     async deleteVenue(id) {
-      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede eliminar locales.')
+      if (currentUser?.role !== 'admin') throw new Error('Solo el administrador puede eliminar locales.')
       await deleteDoc(doc(db, 'venues', id))
       setData((prev) => ({ ...prev, venues: prev.venues.filter((v) => v.id !== id) }))
+    },
+    async saveCouponTemplate(config: CouponTemplateConfig) {
+      localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(config))
+      await setDoc(doc(db, 'settings', 'couponTemplate'), config)
+      setData((prev) => ({ ...prev, couponTemplate: config }))
     },
   }
 
@@ -444,6 +470,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 export function useApp() {
   const context = useContext(AppContext)
-  if (!context) throw new Error('useApp fuera de AppProvider')
+  if (!context) {
+    throw new Error('useApp debe usarse dentro de AppProvider.')
+  }
   return context
 }

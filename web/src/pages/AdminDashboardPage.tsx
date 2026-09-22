@@ -2,11 +2,29 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { Role } from '../types'
+import { DottedQrImage } from '../components/DottedQrImage'
+import { formatCouponSchedule } from '../lib/dateUtils'
 
 export function AdminDashboardPage() {
-  const { users, venues, updateUserRole, resetUserPasswordByEmail, createVenue, deleteVenue, addMember } = useApp()
-  const [tab, setTab] = useState<'users' | 'venues' | 'settings'>('users')
+  const { users, venues, updateUserRole, resetUserPasswordByEmail, createVenue, deleteVenue, addMember, logout, couponTemplate, saveCouponTemplate, qrCatalog, events } = useApp()
+  const [tab, setTab] = useState<'users' | 'venues' | 'settings' | 'template'>('users')
   const [globalLogo, setGlobalLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+
+  // Template Editor State
+  const [templateConfig, setTemplateConfig] = useState(() => {
+    if (couponTemplate) return couponTemplate
+    const saved = localStorage.getItem('qr-pass-line.coupon-template')
+    if (saved) {
+      try { return JSON.parse(saved) } catch {}
+    }
+    return {
+      qrY: 180,
+      qrSize: 180,
+      qrRadius: 24,
+      brightness: 1,
+      shadow: true
+    }
+  })
 
   function handleLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -119,63 +137,37 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="org-screen" style={{ minHeight: '100dvh', background: '#f2f5fa', display: 'flex', flexDirection: 'column' }}>
-      <header className="org-header" style={{ height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: '#fff', borderBottom: '1px solid #e0e6ee' }}>
-        <div className="org-brand" style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 18, color: '#102d4a' }}>
-          <img src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-          <strong>QR Pass Line <span style={{ color: '#16b7bd', fontSize: 13, fontWeight: 700 }}>[ADMIN]</span></strong>
+    <div className="org-screen">
+      <header className="org-header">
+        <div className="org-brand">
+          <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
+          <strong>Panel Administrador General</strong>
         </div>
-        <div className="row" style={{ gap: 12 }}>
-           <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate('/resumen')}>Ver como Organizador</button>
-           <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => navigate('/seleccionar-rol')}>Cerrar Panel</button>
-        </div>
+        <button className="btn btn-ghost" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Salir</button>
       </header>
 
-      <main className="org-main" style={{ width: 'min(1200px, calc(100% - 32px))', margin: '32px auto', flex: 1 }}>
-        <section className="org-hero" style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 26, color: '#0b192c', fontWeight: 900, letterSpacing: '-0.03em' }}>Panel de Administración General 👋</h1>
-          <p className="muted" style={{ fontSize: 14, marginTop: 4 }}>Control total de usuarios, boliches y geolocalización de la plataforma.</p>
-        </section>
-
-        <div className="tabs" style={{ marginBottom: 28, maxWidth: 450, background: '#e2e8f0', borderRadius: 999, padding: 4, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          <button className={`btn ${tab === 'users' ? 'btn-primary' : 'btn-ghost'}`} style={{ borderRadius: 999, fontSize: 13 }} onClick={() => setTab('users')}>Usuarios</button>
-          <button className={`btn ${tab === 'venues' ? 'btn-primary' : 'btn-ghost'}`} style={{ borderRadius: 999, fontSize: 13 }} onClick={() => setTab('venues')}>Locales</button>
-          <button className={`btn ${tab === 'settings' ? 'btn-primary' : 'btn-ghost'}`} style={{ borderRadius: 999, fontSize: 13 }} onClick={() => setTab('settings')}>Logo Global</button>
+      <main className="org-main" style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, flexWrap: 'wrap' }}>
+          <button className={`btn ${tab === 'users' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('users')}>Usuarios ({users.length})</button>
+          <button className={`btn ${tab === 'venues' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('venues')}>Locales ({venues.length})</button>
+          <button className={`btn ${tab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('settings')}>Configuración Global</button>
+          <button className={`btn ${tab === 'template' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('template')}>⚙️ Configurar Cupón</button>
         </div>
 
-        {tab === 'settings' ? (
-          <section className="role-card" style={{ padding: 28, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)', maxWidth: 650 }}>
-            <h2 style={{ fontSize: 18, color: '#0b192c', fontWeight: 800, marginBottom: 6 }}>Logo Global de la Plataforma</h2>
-            <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>Este logo aparecerá en el encabezado superior izquierdo junto a "QR Pass Line" en toda la aplicación.</p>
-            <div className="stack" style={{ gap: 20 }}>
-              <div className="image-setting" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, background: '#f8fafc' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <img src={globalLogo || '/favicon.svg'} alt="Logo global" style={{ width: 56, height: 56, objectFit: 'contain', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 6 }} />
-                  <div>
-                    <strong style={{ display: 'block', fontSize: 13, color: '#152238' }}>Logo actual</strong>
-                    <small className="muted" style={{ fontSize: 11 }}>Formato recomendado: SVG, PNG o JPG</small>
-                  </div>
-                </div>
-                <label className="btn btn-primary" style={{ cursor: 'pointer', fontSize: 12, padding: '10px 16px' }}>
-                  <span>Cambiar logo</span>
-                  <input type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
-                </label>
-              </div>
-              {message && <p className="flash flash-ok" style={{ padding: '12px 16px', borderRadius: 10, fontSize: 13 }}>{message}</p>}
-            </div>
-          </section>
-        ) : tab === 'users' ? (
-          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 24, alignItems: 'start' }}>
+        {message && <div className="flash flash-ok" style={{ marginBottom: 20, borderRadius: 10, padding: 12 }}>{message}</div>}
+
+        {tab === 'users' && (
+          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
             <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
               <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Registrar nuevo usuario</h2>
-              <form onSubmit={handleCreateUser} className="stack" style={{ gap: 14 }}>
-                <label className="field"><span>Nombre</span><input value={newUserName} onChange={e => setNewUserName(e.target.value)} required /></label>
-                <label className="field"><span>Email</span><input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required /></label>
-                <label className="field"><span>Contraseña</span><input type="password" value={newUserPass} onChange={e => setNewUserPass(e.target.value)} required minLength={6} /></label>
+              <form onSubmit={handleCreateUser} className="stack" style={{ gap: 12 }}>
+                <label className="field"><span>Nombre y Apellido</span><input value={newUserName} onChange={e => setNewUserName(e.target.value)} required placeholder="Ej: Juan Pérez" /></label>
+                <label className="field"><span>Correo electrónico</span><input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required placeholder="correo@ejemplo.com" /></label>
+                <label className="field"><span>Contraseñas (mín. 6 caracteres)</span><input type="password" value={newUserPass} onChange={e => setNewUserPass(e.target.value)} required minLength={6} placeholder="••••••" /></label>
                 <label className="field">
-                  <span>Establecimiento</span>
+                  <span>Local / Establecimiento asignado</span>
                   <select value={newUserVenue} onChange={e => setNewUserVenue(e.target.value)}>
-                    <option value="">Sin asignar (Global)</option>
+                    <option value="">Sin local (Global)</option>
                     {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                 </label>
@@ -251,55 +243,195 @@ export function AdminDashboardPage() {
               </div>
             </section>
           </div>
-        ) : (
-          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+        )}
+
+        {tab === 'venues' && (
+          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
             <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
               <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Registrar nuevo local</h2>
               <form onSubmit={handleCreateVenue} className="stack" style={{ gap: 14 }}>
-                <label className="field"><span>Nombre del Boliche/Local</span><input value={venueName} onChange={e => setVenueName(e.target.value)} required /></label>
+                <label className="field"><span>Nombre del Boliche/Local</span><input value={venueName} onChange={e => setVenueName(e.target.value)} required placeholder="Ej: Cubano" /></label>
                 <div className="field">
                   <span>Dirección</span>
-                  <div className="row" style={{ gap: 8 }}>
-                    <input style={{ flex: 1 }} value={venueAddress} onChange={e => setVenueAddress(e.target.value)} placeholder="Ej: Av. Rivadavia 1234, CABA" required />
-                    <button type="button" className="btn btn-secondary" onClick={validateAddress} disabled={isGeocoding}>Validar</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input value={venueAddress} onChange={e => setVenueAddress(e.target.value)} required placeholder="Ej: Av. Corrientes 1234, CABA" style={{ flex: 1 }} />
+                    <button className="btn btn-secondary" type="button" disabled={isGeocoding} onClick={() => void validateAddress()}>Validar GPS</button>
                   </div>
                 </div>
-                <div className="row" style={{ gap: 16 }}>
-                  <label className="field" style={{ flex: 1 }}><span>Latitud</span><input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)} required /></label>
-                  <label className="field" style={{ flex: 1 }}><span>Longitud</span><input type="number" step="any" value={lng} onChange={e => setLng(e.target.value)} required /></label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <label className="field"><span>Latitud</span><input value={lat} onChange={e => setLat(e.target.value)} required placeholder="-34.6037" /></label>
+                  <label className="field"><span>Longitud</span><input value={lng} onChange={e => setLng(e.target.value)} required placeholder="-58.3816" /></label>
                 </div>
-                <label className="field"><span>Radio de validación (metros)</span><input type="number" value={radius} onChange={e => setRadius(e.target.value)} required /></label>
-                {lat && lng && (
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'underline' }}>
-                    Ver en Google Maps para confirmar
-                  </a>
-                )}
-                {message && <p className="flash flash-ok" style={{ marginTop: 10, padding: 12, borderRadius: 10 }}>{message}</p>}
-                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }}>CREAR LOCAL GEOLOCALIZADO</button>
+                <label className="field"><span>Radio permitido de canje (metros)</span><input type="number" value={radius} onChange={e => setRadius(e.target.value)} required min={10} max={1000} /></label>
+                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }}>CREAR LOCAL</button>
               </form>
             </section>
 
             <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
-              <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Locales registrados ({venues.length})</h2>
-              <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+              <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Locales habilitados ({venues.length})</h2>
+              <div className="stack" style={{ gap: 12 }}>
                 {venues.map(v => (
-                  <div key={v.id} className="list-item" style={{ justifyContent: 'space-between', padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', alignItems: 'center' }}>
+                  <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
                     <div>
-                      <strong style={{ fontSize: 14, color: '#0b192c' }}>{v.name}</strong>
-                      <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{v.address}</p>
-                      <div className="row" style={{ gap: 8, marginTop: 6 }}>
-                         <a href={`https://www.google.com/maps/search/?api=1&query=${v.latitude},${v.longitude}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#2563eb', textDecoration: 'underline' }}>
-                           Ubicación: {v.latitude}, {v.longitude}
-                         </a>
-                         <span className="pill pill-ok" style={{ fontSize: 10 }}>Radio: {v.radius}m</span>
-                      </div>
+                      <strong style={{ color: '#0b192c', display: 'block' }}>{v.name}</strong>
+                      <small className="muted">{v.address} (Radio: {v.radius}m)</small>
                     </div>
-                    <button className="btn btn-danger" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => void deleteVenue(v.id)}>Eliminar</button>
+                    <button className="btn btn-secondary" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => void deleteVenue(v.id)}>Eliminar</button>
                   </div>
                 ))}
-                {venues.length === 0 && <p className="muted" style={{ padding: 20, textAlign: 'center' }}>No hay locales registrados aún.</p>}
+                {!venues.length && <p className="muted">No hay locales registrados.</p>}
               </div>
             </section>
+          </div>
+        )}
+
+        {tab === 'settings' && (
+          <div className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)', maxWidth: 500 }}>
+            <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Logo Global de la Plataforma (Nexo Software)</h2>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>Este logo se mostrará en la esquina superior izquierda de todas las pantallas administrativas.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+              <div style={{ width: 80, height: 80, borderRadius: 16, border: '2px dashed #cbd5e1', display: 'grid', placeItems: 'center', background: '#f8fafc', overflow: 'hidden' }}>
+                {globalLogo ? <img src={globalLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 24 }}>🖼️</span>}
+              </div>
+              <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                <span>Subir Logo Global</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} style={{ display: 'none' }} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {tab === 'template' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+            {/* Left Column: Controls */}
+            <div className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 16, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0b192c', margin: 0 }}>Editor de Plantilla de Cupón</h2>
+              <p className="muted" style={{ fontSize: 13, margin: 0 }}>Ajustá las coordenadas, tamaños y estilos del QR y los textos. Los cambios se sincronizan en la nube para todos los vendedores y clientes.</p>
+
+              <label className="field">
+                <span>Posición vertical QR (Y): {templateConfig.qrY}px</span>
+                <input type="range" min={50} max={320} value={templateConfig.qrY} onChange={e => setTemplateConfig({ ...templateConfig, qrY: Number(e.target.value) })} style={{ width: '100%' }} />
+              </label>
+
+              <label className="field">
+                <span>Tamaño del QR: {templateConfig.qrSize}px</span>
+                <input type="range" min={120} max={280} value={templateConfig.qrSize} onChange={e => setTemplateConfig({ ...templateConfig, qrSize: Number(e.target.value) })} style={{ width: '100%' }} />
+              </label>
+
+              <label className="field">
+                <span>Radio de esquinas QR (Bordes): {templateConfig.qrRadius}px</span>
+                <input type="range" min={0} max={50} value={templateConfig.qrRadius} onChange={e => setTemplateConfig({ ...templateConfig, qrRadius: Number(e.target.value) })} style={{ width: '100%' }} />
+              </label>
+
+              <label className="field">
+                <span>Brillo del Afiche: {Math.round(templateConfig.brightness * 100)}%</span>
+                <input type="range" min={50} max={150} value={Math.round(templateConfig.brightness * 100)} onChange={e => setTemplateConfig({ ...templateConfig, brightness: Number(e.target.value) / 100 })} style={{ width: '100%' }} />
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Sombras de texto y contenedor</span>
+                <input type="checkbox" checked={templateConfig.shadow} onChange={e => setTemplateConfig({ ...templateConfig, shadow: e.target.checked })} style={{ width: 18, height: 18 }} />
+              </div>
+
+              {message && <p className="flash flash-ok" style={{ fontSize: 13, padding: 10, borderRadius: 8 }}>{message}</p>}
+
+              <button
+                className="btn btn-primary btn-block"
+                type="button"
+                onClick={async () => {
+                  try {
+                    await saveCouponTemplate(templateConfig)
+                    setMessage('¡Plantilla de cupón guardada con éxito en la nube y aplicada a todos los dispositivos!')
+                    setTimeout(() => setMessage(''), 4000)
+                  } catch (err: any) {
+                    setMessage('Error al guardar: ' + (err?.message || 'Error desconocido'))
+                  }
+                }}
+                style={{ height: 48, borderRadius: 12, background: '#1e3a8a', fontWeight: 800, fontSize: 15 }}
+              >
+                GUARDAR CONFIGURACIÓN DE CUPÓN
+              </button>
+            </div>
+
+            {/* Right Column: Real-Time Live Preview */}
+            <div className="role-card" style={{ padding: 24, background: '#f8fafc', borderRadius: 16, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,42,.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'sticky', top: 20 }}>
+              <strong style={{ fontSize: 14, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vista Preliminar en Tiempo Real</strong>
+
+              {(() => {
+                const sampleCoupon = qrCatalog.find((q) => q.backgroundImage) || qrCatalog[0]
+                const activeEvent = events.find((e) => e.status === 'activo') || events[0]
+                const posterBg = sampleCoupon?.backgroundImage || (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || localStorage.getItem('qr-pass-line.poster') || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'
+
+                return (
+                  <div
+                    style={{
+                      width: 360,
+                      height: 520,
+                      borderRadius: 24,
+                      backgroundImage: `url(${posterBg})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: `brightness(${templateConfig.brightness})`,
+                      padding: '20px',
+                      color: '#fff',
+                      boxShadow: templateConfig.shadow ? '0 20px 40px rgba(0,0,0,0.6)' : 'none',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Gradient Sombra Base */}
+                    <div style={{ position: 'absolute', inset: '240px 0 0 0', background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.92))', pointerEvents: 'none' }} />
+
+                    {/* QR Box with Live Template Config */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        top: `${templateConfig.qrY}px`,
+                        width: `${templateConfig.qrSize}px`,
+                        height: `${templateConfig.qrSize}px`,
+                        borderRadius: `${templateConfig.qrRadius}px`,
+                        background: 'rgba(255, 255, 255, 0.78)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        padding: 10,
+                        display: 'grid',
+                        placeItems: 'center',
+                        zIndex: 2,
+                        boxShadow: templateConfig.shadow ? '0 8px 32px rgba(0,0,0,0.3)' : 'none'
+                      }}
+                    >
+                      <div style={{ width: templateConfig.qrSize - 20, height: templateConfig.qrSize - 20 }}>
+                        <DottedQrImage value="DEMO-QR-CODE" size={templateConfig.qrSize - 20} />
+                      </div>
+                    </div>
+
+                    {/* Bottom Details */}
+                    <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 10px', width: '92%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
+                          <span>Cupón</span>
+                          <span>Cant.</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                          <span>INGRESO GENERAL 2AM</span>
+                          <span style={{ color: '#ff4d4d' }}>1</span>
+                        </div>
+                      </div>
+
+                      <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateConfig.shadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
+                        {formatCouponSchedule(activeEvent, sampleCoupon)}
+                      </p>
+
+                      <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
+                        RR.PP: JOSE
+                      </strong>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         )}
       </main>

@@ -56,7 +56,7 @@ export function AuthPage() {
     <div className="auth-layout">
       <section className="auth-brand-panel">
         <div className="brand auth-brand">
-          <img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" />
+          <img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
           <strong>QR Pass Line</strong>
         </div>
         <div className="auth-promise">
@@ -68,7 +68,7 @@ export function AuthPage() {
       </section>
       <main className="auth-form-panel">
         <div className="auth-form-wrap">
-          <div className="auth-mobile-brand"><img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" /><strong>QR Pass Line</strong></div>
+          <div className="auth-mobile-brand"><img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" /><strong>QR Pass Line</strong></div>
           <div className="auth-heading">
             <p className="kicker">{tab === 'login' ? 'Bienvenido de nuevo' : 'Empezá ahora'}</p>
             <h2>{tab === 'login' ? 'Ingresá a tu cuenta' : 'Creá tu cuenta'}</h2>

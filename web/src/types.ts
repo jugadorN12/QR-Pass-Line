@@ -77,6 +77,23 @@ export type Limitation = {
   days?: string[]
 }
 
+export type CouponTemplateConfig = {
+  qrY: number
+  qrSize: number
+  qrRadius: number
+  tableY?: number
+  brightness: number
+  shadow: boolean
+}
+
+export const defaultCouponTemplate: CouponTemplateConfig = {
+  qrY: 180,
+  qrSize: 180,
+  qrRadius: 24,
+  brightness: 1,
+  shadow: true,
+}
+
 export type AppData = {
   users: User[]
   events: ClubEvent[]
@@ -84,5 +101,7 @@ export type AppData = {
   qrCatalog: QrCatalogItem[]
   limitations: Limitation[]
   venues: Venue[]
+  couponTemplate?: CouponTemplateConfig
   session: Session | null
 }
+

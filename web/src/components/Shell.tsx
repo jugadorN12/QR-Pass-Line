@@ -11,7 +11,7 @@ export function Shell() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/favicon.svg'} alt="" />
+          <img className="brand-mark" src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
           <div>
             <div>QR Pass Line</div>
             <small className="muted">{currentUser.name} · {labelRole(currentUser.role)}</small>
@@ -19,9 +19,10 @@ export function Shell() {
         </div>
         <button
           className="btn btn-ghost"
-          onClick={() => {
-            logout()
-            navigate('/ingresar')
+          type="button"
+          onClick={async () => {
+            await logout()
+            navigate('/ingresar', { replace: true })
           }}
         >
           Salir
