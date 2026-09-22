@@ -46,6 +46,7 @@ type ScanResult =
       venueName: string
       quantity: string
       schedule: string
+      date: string
     }
   | {
       ok: false
@@ -53,9 +54,14 @@ type ScanResult =
       reason?: string
       message: string
       sellerName?: string
+      venueName?: string
       redeemedAtFormatted?: string
       redeemerName?: string
       holderName?: string
+      ticketName?: string
+      schedule?: string
+      date?: string
+      quantity?: string
     }
 
 function GatePageContent() {
@@ -76,60 +82,71 @@ function GatePageContent() {
   const activeEvents = (events || []).filter((event) => event?.status === 'activo')
 
   async function redeemValue(rawValue: string) {
-    const code = parseQrPayload(rawValue)
-    if (!code) {
+    if (!rawValue || typeof rawValue !== 'string') return
+    const trimmed = rawValue.trim()
+    if (!trimmed) return
+
+    try {
+      const code = parseQrPayload(trimmed) || trimmed.toUpperCase()
+
+      const result: any = await redeemTicket(code)
+
+      if (result.ok) {
+        setScanResult({
+          ok: true,
+          title: '✓ QR VÁLIDO',
+          holderName: result.ticket?.holderName || 'Cliente General',
+          ticketName: result.ticketName || 'INGRESO GENERAL',
+          sellerName: result.sellerName || 'Vendedor General',
+          venueName: result.venueName || 'Local Principal',
+          quantity: result.quantity || '1 persona beneficiada',
+          schedule: result.schedule || 'Hasta las 02:00 hs',
+          date: result.date || 'Fecha de hoy'
+        })
+
+        setScanHistory((prev) => [
+          {
+            code,
+            name: result.ticket?.holderName || 'Cliente General',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            ok: true
+          },
+          ...prev
+        ])
+      } else {
+        setScanResult({
+          ok: false,
+          title: result.reason === 'already_used' ? '✕ QR YA UTILIZADO' : '✕ QR NO VÁLIDO',
+          reason: result.reason,
+          message: result.message || 'El acceso no es válido para ingresar.',
+          sellerName: result.sellerName,
+          venueName: result.venueName,
+          redeemedAtFormatted: result.redeemedAtFormatted,
+          redeemerName: result.redeemerName,
+          holderName: result.holderName,
+          ticketName: result.ticketName,
+          schedule: result.schedule,
+          date: result.date,
+          quantity: result.quantity
+        })
+
+        setScanHistory((prev) => [
+          {
+            code,
+            name: result.holderName || 'Acceso Denegado',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            ok: false
+          },
+          ...prev
+        ])
+      }
+    } catch (err: any) {
+      console.error('Error in redeemValue:', err)
       setScanResult({
         ok: false,
         title: '✕ QR NO VÁLIDO',
-        message: 'Código de acceso no reconocido.'
+        message: err?.message || 'Error al procesar la validación del código.'
       })
-      return
-    }
-
-    const result: any = await redeemTicket(code)
-
-    if (result.ok) {
-      setScanResult({
-        ok: true,
-        title: '✓ QR VÁLIDO',
-        holderName: result.ticket.holderName || 'Cliente General',
-        ticketName: 'INGRESO GENERAL 2AM',
-        sellerName: result.sellerName || 'Vendedor General',
-        venueName: result.venueName || 'Local Principal',
-        quantity: 'Ingreso para 1 persona',
-        schedule: result.schedule || 'Del 19/09 23:59 al 20/09 02:00'
-      })
-
-      setScanHistory((prev) => [
-        {
-          code,
-          name: result.ticket.holderName || 'Cliente General',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          ok: true
-        },
-        ...prev
-      ])
-    } else {
-      setScanResult({
-        ok: false,
-        title: result.reason === 'already_used' ? '✕ QR YA UTILIZADO' : '✕ QR NO VÁLIDO',
-        reason: result.reason,
-        message: result.message,
-        sellerName: result.sellerName,
-        redeemedAtFormatted: result.redeemedAtFormatted,
-        redeemerName: result.redeemerName,
-        holderName: result.holderName
-      })
-
-      setScanHistory((prev) => [
-        {
-          code,
-          name: result.holderName || 'Acceso Denegado',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          ok: false
-        },
-        ...prev
-      ])
     }
   }
 
@@ -151,113 +168,6 @@ function GatePageContent() {
           {/* Scanner Component with Continuous Live Camera */}
           <div style={{ position: 'relative', width: '100%' }}>
             <QrScanner ref={scannerRef} onScan={(rawValue) => void redeemValue(rawValue)} />
-
-            {/* Cartel Permanente de Resultado Superpuesto (Verde para Válido / Rojo para Inválido o Usado) */}
-            {scanResult && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 12,
-                  zIndex: 60,
-                  background: scanResult.ok ? '#15803d' : '#b91c1c',
-                  color: '#fff',
-                  borderRadius: 20,
-                  padding: '24px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: scanResult.ok
-                    ? '0 20px 40px rgba(21,128,61,0.6)'
-                    : '0 20px 40px rgba(185,28,28,0.6)',
-                  animation: 'fadeIn 0.2s ease-out'
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: 24, fontWeight: 900, letterSpacing: '0.04em', display: 'block', marginBottom: 12 }}>
-                    {scanResult.title}
-                  </strong>
-
-                  {scanResult.ok ? (
-                    /* QR VÁLIDO - Detalle */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, borderTop: '1px solid rgba(255,255,255,0.3)', paddingTop: 12 }}>
-                      <div>
-                        <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Cliente / Portador</span>
-                        <strong style={{ fontSize: 17 }}>{scanResult.holderName}</strong>
-                      </div>
-                      <div>
-                        <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Tipo de Entrada</span>
-                        <strong style={{ fontSize: 16 }}>{scanResult.ticketName}</strong>
-                      </div>
-                      <div>
-                        <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Cantidad</span>
-                        <strong style={{ fontSize: 15 }}>{scanResult.quantity}</strong>
-                      </div>
-                      <div>
-                        <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Horario Permitido</span>
-                        <span style={{ fontSize: 13, opacity: 0.95 }}>{scanResult.schedule}</span>
-                      </div>
-                      <div>
-                        <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>RRPP / Vendedor</span>
-                        <strong style={{ fontSize: 15 }}>{scanResult.sellerName}</strong>
-                      </div>
-                    </div>
-                  ) : (
-                    /* QR NO VÁLIDO / YA UTILIZADO - Detalle */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, borderTop: '1px solid rgba(255,255,255,0.3)', paddingTop: 12 }}>
-                      <p style={{ margin: '4px 0 8px', fontSize: 16, fontWeight: 700, lineHeight: 1.4 }}>
-                        {scanResult.message}
-                      </p>
-
-                      {scanResult.reason === 'already_used' && (
-                        <>
-                          {scanResult.redeemedAtFormatted && (
-                            <div>
-                              <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Hora de Canje</span>
-                              <strong style={{ fontSize: 15 }}>{scanResult.redeemedAtFormatted} hs</strong>
-                            </div>
-                          )}
-                          {scanResult.redeemerName && (
-                            <div>
-                              <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>Validado por</span>
-                              <strong style={{ fontSize: 15 }}>{scanResult.redeemerName}</strong>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {scanResult.sellerName && (
-                        <div>
-                          <span style={{ opacity: 0.85, fontSize: 12, display: 'block' }}>RRPP / Vendedor que lo emitió</span>
-                          <strong style={{ fontSize: 15 }}>{scanResult.sellerName}</strong>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Botón Permanente CONTINUAR */}
-                <button
-                  type="button"
-                  onClick={() => setScanResult(null)}
-                  style={{
-                    marginTop: 20,
-                    height: 50,
-                    borderRadius: 14,
-                    background: '#ffffff',
-                    color: scanResult.ok ? '#15803d' : '#b91c1c',
-                    fontWeight: 900,
-                    fontSize: 16,
-                    letterSpacing: '0.04em',
-                    width: '100%',
-                    border: 0,
-                    cursor: 'pointer',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.25)'
-                  }}
-                >
-                  CONTINUAR
-                </button>
-              </div>
-            )}
 
             {/* Floating Action Button / Menu Trigger (Imagen 2 & 3) */}
             <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 50, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: 12 }}>
@@ -604,6 +514,259 @@ function GatePageContent() {
               </div>
             ))}
             {!scanHistory.length && <p className="muted" style={{ textAlign: 'center', marginTop: 32 }}>No hay lecturas registradas aún.</p>}
+          </div>
+        </div>
+      )}
+      {/* Fixed High-Visibility Scan Result Modal Overlay (Permanece fijo hasta presionar Continuar) */}
+      {scanResult && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+            overflowY: 'auto'
+          }}
+        >
+          <div
+            style={{
+              width: 'min(460px, 100%)',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: scanResult.ok
+                ? 'linear-gradient(160deg, #15803d 0%, #16a34a 100%)'
+                : 'linear-gradient(160deg, #991b1b 0%, #dc2626 100%)',
+              color: '#ffffff',
+              borderRadius: 24,
+              padding: '28px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 18,
+              boxShadow: scanResult.ok
+                ? '0 25px 60px rgba(21,128,61,0.5), 0 0 0 2px rgba(255,255,255,0.25)'
+                : '0 25px 60px rgba(220,38,38,0.5), 0 0 0 2px rgba(255,255,255,0.25)',
+              border: '2px solid rgba(255,255,255,0.25)',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+          >
+            {/* Header with status badge */}
+            <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.22)',
+                  border: '2px solid rgba(255, 255, 255, 0.45)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 32,
+                  fontWeight: 900,
+                  margin: '0 auto 12px',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
+                }}
+              >
+                {scanResult.ok ? '✓' : '✕'}
+              </div>
+              <h2
+                style={{
+                  fontSize: 26,
+                  fontWeight: 900,
+                  letterSpacing: '0.04em',
+                  margin: 0,
+                  textTransform: 'uppercase',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                }}
+              >
+                {scanResult.title}
+              </h2>
+              <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.9, fontWeight: 600 }}>
+                {scanResult.ok ? 'Acceso confirmado y validado correctamente' : 'Acceso no permitido para ingresar'}
+              </p>
+            </div>
+
+            {/* Content Details */}
+            {scanResult.ok ? (
+              /* QR VÁLIDO - Detalle */
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  borderRadius: 18,
+                  padding: '16px 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}
+              >
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    📅 FECHA
+                  </span>
+                  <strong style={{ fontSize: 17, fontWeight: 800 }}>{scanResult.date}</strong>
+                </div>
+
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    👥 CANTIDAD DE PERSONAS BENEFICIADAS
+                  </span>
+                  <strong style={{ fontSize: 18, fontWeight: 900, color: '#fef08a' }}>{scanResult.quantity}</strong>
+                </div>
+
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    🎟️ TIPO DE ENTRADA
+                  </span>
+                  <strong style={{ fontSize: 17, fontWeight: 800 }}>{scanResult.ticketName}</strong>
+                </div>
+
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    ⏰ LÍMITE DE HORA
+                  </span>
+                  <strong style={{ fontSize: 16, fontWeight: 800 }}>{scanResult.schedule}</strong>
+                </div>
+
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    👤 TITULAR / CLIENTE
+                  </span>
+                  <strong style={{ fontSize: 16, fontWeight: 800 }}>{scanResult.holderName}</strong>
+                </div>
+
+                <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    🏷️ RRPP / VENDEDOR
+                  </span>
+                  <strong style={{ fontSize: 15, fontWeight: 800 }}>{scanResult.sellerName}</strong>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
+                    📍 ESTABLECIMIENTO
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{scanResult.venueName}</span>
+                </div>
+              </div>
+            ) : (
+              /* QR NO VÁLIDO / YA UTILIZADO - Detalle */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Highlighted Rejection Reason */}
+                <div
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    border: '2px solid rgba(255, 255, 255, 0.4)',
+                    borderRadius: 18,
+                    padding: '16px 18px'
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fef08a', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    ⚠️ MOTIVO DEL RECHAZO:
+                  </span>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 800, lineHeight: 1.4, color: '#ffffff' }}>
+                    {scanResult.message}
+                  </p>
+                </div>
+
+                {/* Additional context details if available */}
+                <div
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.2)',
+                    borderRadius: 18,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    border: '1px solid rgba(255, 255, 255, 0.15)'
+                  }}
+                >
+                  {scanResult.reason === 'already_used' && (
+                    <>
+                      {scanResult.redeemedAtFormatted && (
+                        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                          <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>HORA DEL PRIMER CANJE</span>
+                          <strong style={{ fontSize: 15, fontWeight: 800, color: '#fca5a5' }}>{scanResult.redeemedAtFormatted} hs</strong>
+                        </div>
+                      )}
+                      {scanResult.redeemerName && (
+                        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                          <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>VALIDADO EN PUERTA POR</span>
+                          <strong style={{ fontSize: 15, fontWeight: 800 }}>{scanResult.redeemerName}</strong>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {scanResult.date && (
+                    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                      <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>FECHA DEL TICKET</span>
+                      <strong style={{ fontSize: 14 }}>{scanResult.date}</strong>
+                    </div>
+                  )}
+
+                  {scanResult.schedule && (
+                    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                      <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>LÍMITE DE HORA PERMITIDO</span>
+                      <strong style={{ fontSize: 14 }}>{scanResult.schedule}</strong>
+                    </div>
+                  )}
+
+                  {scanResult.ticketName && (
+                    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                      <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>TIPO DE ENTRADA</span>
+                      <strong style={{ fontSize: 14 }}>{scanResult.ticketName}</strong>
+                    </div>
+                  )}
+
+                  {scanResult.holderName && (
+                    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 8 }}>
+                      <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>TITULAR / PORTADOR</span>
+                      <strong style={{ fontSize: 14 }}>{scanResult.holderName}</strong>
+                    </div>
+                  )}
+
+                  {scanResult.sellerName && (
+                    <div>
+                      <span style={{ fontSize: 11, opacity: 0.85, display: 'block', fontWeight: 700 }}>RRPP / VENDEDOR QUE LO EMITIÓ</span>
+                      <strong style={{ fontSize: 14 }}>{scanResult.sellerName}</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Prominent Action Button: CONTINUAR ESCANEANDO */}
+            <button
+              type="button"
+              onClick={() => setScanResult(null)}
+              style={{
+                height: 54,
+                borderRadius: 16,
+                background: '#ffffff',
+                color: scanResult.ok ? '#15803d' : '#dc2626',
+                fontWeight: 900,
+                fontSize: 16,
+                letterSpacing: '0.04em',
+                width: '100%',
+                border: 0,
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'transform 0.1s ease',
+                marginTop: 4
+              }}
+            >
+              <span>CONTINUAR ESCANEANDO</span>
+              <span style={{ fontSize: 18 }}>➔</span>
+            </button>
           </div>
         </div>
       )}

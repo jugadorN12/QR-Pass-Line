@@ -38,11 +38,29 @@ export function qrPayload(code: string): string {
 export function parseQrPayload(raw: string): string | null {
   if (!raw) return null
   const text = raw.trim()
+  if (!text) return null
   if (text.startsWith('QPL1|')) return text.slice(5).trim().toUpperCase()
-  const fromUrl = text.match(/\/t\/([A-Z0-9]{4,32})/i)
+
+  // Extract from URL query parameters (e.g. ?c=..., ?code=..., ?t=...)
+  try {
+    if (text.includes('?') || text.includes('://')) {
+      const url = new URL(text.startsWith('http') ? text : `http://dummy.com/${text}`)
+      const paramCode = url.searchParams.get('c') || url.searchParams.get('code') || url.searchParams.get('ticket') || url.searchParams.get('t')
+      if (paramCode) return paramCode.trim().toUpperCase()
+    }
+  } catch {}
+
+  // Match /t/CODE path
+  const fromUrl = text.match(/\/t\/([A-Z0-9_-]{4,64})/i)
   if (fromUrl) return fromUrl[1].toUpperCase()
+
+  // Match standalone 8-character ticketCode
   const match = text.match(/\b([A-Z0-9]{8})\b/i) || text.match(/([A-Z0-9]{8})/i)
   if (match) return match[1].toUpperCase()
-  if (text.length >= 4 && text.length <= 32) return text.toUpperCase()
-  return null
+
+  // Return clean alphanumeric string
+  const clean = text.replace(/[^a-zA-Z0-9_-]/g, '')
+  if (clean.length >= 4 && clean.length <= 64) return clean.toUpperCase()
+
+  return text.toUpperCase()
 }

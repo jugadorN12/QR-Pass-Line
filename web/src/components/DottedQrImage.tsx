@@ -2,80 +2,73 @@ import { useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 
 export function drawDottedQr(ctx: CanvasRenderingContext2D, value: string, size: number) {
-  // Use robust QR generation with medium error correction level
   let qr: any
   try {
-    qr = QRCode.create(value, { errorCorrectionLevel: 'M' })
+    // Version 5 (37x37 modules) with High error correction creates a high-density delicate matrix
+    qr = QRCode.create(value, { errorCorrectionLevel: 'H', version: 5 })
   } catch {
     try {
-      qr = QRCode.create(value, { errorCorrectionLevel: 'L' })
+      qr = QRCode.create(value, { errorCorrectionLevel: 'H' })
     } catch {
-      qr = QRCode.create(value)
+      qr = QRCode.create(value, { errorCorrectionLevel: 'M' })
     }
   }
 
   const matrixSize = qr.modules.size
-  // Quiet zone margin of 1 module for optical distinction
-  const margin = 1
-  const totalGrid = matrixSize + margin * 2
-  const cell = size / totalGrid
-
-  // Clean solid background for maximum contrast
+  const cell = size / matrixSize
   ctx.clearRect(0, 0, size, size)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, size, size)
   ctx.fillStyle = '#0f172a'
 
   const isFinder = (r: number, c: number) => {
     return (r < 7 && c < 7) || (r < 7 && c >= matrixSize - 7) || (r >= matrixSize - 7 && c < 7)
   }
 
-  // Draw data modules as high-coverage rounded squares (preserves 100% optical readability)
+  // Draw normal data modules as delicate filled circles
   for (let r = 0; r < matrixSize; r++) {
     for (let c = 0; c < matrixSize; c++) {
       if (isFinder(r, c)) continue
       if (qr.modules.get(r, c)) {
-        const x = (c + margin) * cell + cell * 0.04
-        const y = (r + margin) * cell + cell * 0.04
-        const w = cell * 0.92
-        const h = cell * 0.92
-        const rad = cell * 0.22
+        const cx = (c + 0.5) * cell
+        const cy = (r + 0.5) * cell
+        const radius = cell * 0.38
         ctx.beginPath()
-        ctx.roundRect(x, y, w, h, rad)
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2)
         ctx.fill()
       }
     }
   }
 
-  // Draw standard-compliant finder patterns (7x7 outer square, 5x5 white ring, 3x3 inner square)
+  // Helper function to draw compact finder patterns (rounded square outer ring + inner filled circle)
   const drawFinder = (startRow: number, startCol: number) => {
-    const fx = (startCol + margin) * cell
-    const fy = (startRow + margin) * cell
+    const x = startCol * cell
+    const y = startRow * cell
     const outerDim = 7 * cell
-    const cornerRad = cell * 0.5
+    const radius = cell * 2.2
 
-    // 1. Outer 7x7 dark square
-    ctx.fillStyle = '#0f172a'
+    // Draw outer thick rounded stroke
     ctx.beginPath()
-    ctx.roundRect(fx, fy, outerDim, outerDim, cornerRad)
-    ctx.fill()
+    ctx.lineWidth = cell * 0.95
+    ctx.strokeStyle = '#0f172a'
 
-    // 2. Middle 5x5 white square
-    ctx.fillStyle = '#ffffff'
-    const midX = fx + cell
-    const midY = fy + cell
-    const midDim = 5 * cell
-    ctx.beginPath()
-    ctx.roundRect(midX, midY, midDim, midDim, cornerRad * 0.6)
-    ctx.fill()
+    const strokeOffset = ctx.lineWidth / 2
+    const rx = x + strokeOffset
+    const ry = y + strokeOffset
+    const rw = outerDim - ctx.lineWidth
+    const rh = outerDim - ctx.lineWidth
 
-    // 3. Inner 3x3 dark square
-    ctx.fillStyle = '#0f172a'
-    const inX = fx + 2 * cell
-    const inY = fy + 2 * cell
-    const inDim = 3 * cell
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(rx, ry, rw, rh, radius)
+    } else {
+      ctx.rect(rx, ry, rw, rh)
+    }
+    ctx.stroke()
+
+    // Draw inner filled circle (soft dot)
+    const cx = x + outerDim / 2
+    const cy = y + outerDim / 2
+    const innerRadius = cell * 1.45
     ctx.beginPath()
-    ctx.roundRect(inX, inY, inDim, inDim, cornerRad * 0.4)
+    ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2)
     ctx.fill()
   }
 
@@ -106,7 +99,7 @@ export function DottedQrImage({ value, size = 220 }: { value: string; size?: num
       style={{
         width: '100%',
         height: '100%',
-        display: 'block',
+        display: 'block'
       }}
     />
   )

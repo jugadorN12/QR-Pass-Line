@@ -414,9 +414,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result
     },
     async redeemTicket(code) {
-      if (!currentUser) return { ok: false, message: 'Sesión vencida.' }
-      if (currentUser.role === 'vendedor') return { ok: false, message: 'El vendedor no canjea en puerta.' }
-
       const normalizedCode = code.trim().toUpperCase()
       let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
 
@@ -446,12 +443,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
       const sellerName = seller ? seller.name : 'Vendedor General'
 
-      // Lookup Event & Venue
+      // Lookup Event & Venue & Coupon
       const event = data.events.find((e) => e.id === ticket.eventId)
+      const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
       const ticketVenue = event?.venue || ''
+      const ticketName = coupon?.name || 'INGRESO GENERAL'
+      const schedule = coupon?.from && coupon?.duration
+        ? `Del ${coupon.from} al ${coupon.duration}`
+        : (coupon?.duration ? `Hasta las ${coupon.duration} hs` : 'Del 23:59 a 02:00 hs')
+      let formattedDate = 'Fecha de hoy'
+      if (event?.date) {
+        try {
+          const parts = event.date.split('-')
+          if (parts.length === 3) {
+            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`
+          } else {
+            formattedDate = event.date
+          }
+        } catch {
+          formattedDate = event.date
+        }
+      }
 
-      // 1. Check Establishment / Venue Match
-      const currentVenueName = currentUser.venueId
+      // 1. Check Establishment / Venue Match (only if staff has a specific venueId assigned)
+      const currentVenueName = currentUser?.venueId
         ? (data.venues.find((v) => v.id === currentUser.venueId)?.name || '')
         : ''
 
@@ -461,6 +476,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           reason: 'wrong_venue',
           message: `Este cupón pertenece al local "${ticketVenue}" y estás operando en "${currentVenueName}".`,
           sellerName,
+          ticketName,
+          date: formattedDate,
+          schedule,
+          quantity: '1 persona beneficiada',
           ticketVenue
         }
       }
@@ -472,7 +491,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           reason: 'inactive_event',
           message: `La fecha de este acceso ("${event.name}") no está activa hoy.`,
           sellerName,
-          eventName: event.name
+          eventName: event.name,
+          ticketName,
+          date: formattedDate,
+          schedule,
+          quantity: '1 persona beneficiada'
         }
       }
 
@@ -488,11 +511,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return {
           ok: false,
           reason: 'already_used',
-          message: `Este QR ya fue utilizado anteriormente.`,
+          message: `Este código QR ya fue canjeado e ingresado anteriormente.`,
           sellerName,
           redeemedAtFormatted: formattedTime,
           redeemerName,
-          holderName: ticket.holderName || 'Portador'
+          holderName: ticket.holderName || 'Portador',
+          ticketName,
+          date: formattedDate,
+          schedule,
+          quantity: '1 persona beneficiada'
         }
       }
 
@@ -500,13 +527,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const redeemed = {
         ...ticket,
         redeemedAt: new Date().toISOString(),
-        redeemedBy: currentUser.id
+        redeemedBy: currentUser?.id || 'staff_puerta'
       }
 
-      await updateDoc(doc(db, 'tickets', ticket.id), {
-        redeemedAt: redeemed.redeemedAt,
-        redeemedBy: redeemed.redeemedBy
-      })
+      try {
+        await updateDoc(doc(db, 'tickets', ticket.id), {
+          redeemedAt: redeemed.redeemedAt,
+          redeemedBy: redeemed.redeemedBy
+        })
+      } catch (e) {
+        console.error('Error updating ticket redemption in Firestore:', e)
+      }
 
       setData((prev) => ({
         ...prev,
@@ -519,8 +550,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sellerName,
         eventName: event?.name || 'Evento Activo',
         venueName: ticketVenue || currentVenueName || 'Local Principal',
-        schedule: 'Del 19/09 23:59 al 20/09 02:00',
-        quantity: 1
+        ticketName,
+        date: formattedDate,
+        schedule,
+        quantity: '1 persona beneficiada'
       }
     },
     async updateUserRole(userId, role, venueId, roles) {

@@ -95,22 +95,19 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
         scannerRef.current = null
       }
 
-      // Initialize Html5Qrcode specifically with QR_CODE format for maximum speed and accuracy
+      // Initialize Html5Qrcode with standard QR engine for universal compatibility
       const scanner = new Html5Qrcode('qr-reader', {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        verbose: false,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,
-        },
+        verbose: false
       })
       scannerRef.current = scanner
 
       const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
         const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
-        const qrboxSize = Math.floor(minEdge * 0.78)
+        const qrboxSize = Math.floor(minEdge * 0.85)
         return {
-          width: Math.max(200, qrboxSize),
-          height: Math.max(200, qrboxSize),
+          width: Math.max(220, qrboxSize),
+          height: Math.max(220, qrboxSize),
         }
       }
 
@@ -122,12 +119,28 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
           aspectRatio: 1.0,
         },
         (decodedText) => {
+          if (!decodedText) return
           const now = Date.now()
-          // 2.0 second cooldown between scans to allow fluid reading without accidental duplicates
-          if (now - lastScannedTimeRef.current < 2000) {
+          if (now - lastScannedTimeRef.current < 1200) {
             return
           }
           lastScannedTimeRef.current = now
+
+          // Play subtle confirmation beep
+          try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const osc = audioCtx.createOscillator()
+            const gain = audioCtx.createGain()
+            osc.type = 'sine'
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime)
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime)
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15)
+            osc.connect(gain)
+            gain.connect(audioCtx.destination)
+            osc.start()
+            osc.stop(audioCtx.currentTime + 0.15)
+          } catch {}
+
           try {
             onScan(decodedText)
           } catch (e) {
