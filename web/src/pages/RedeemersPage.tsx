@@ -21,10 +21,10 @@ export function RedeemersPage() {
 
   const redeemers: Redeemer[] = users
     .filter((user) =>
-      user.role === 'canjeador' ||
-      user.role === 'organizador' ||
-      user.role === 'admin' ||
-      Boolean(user.roles && (user.roles.includes('canjeador') || user.roles.includes('organizador') || user.roles.includes('admin')))
+      user.role !== 'admin' &&
+      (user.role === 'canjeador' ||
+        user.role === 'organizador' ||
+        Boolean(user.roles && (user.roles.includes('canjeador') || user.roles.includes('organizador'))))
     )
     .map((user) => ({
       id: user.id,

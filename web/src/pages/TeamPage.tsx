@@ -99,13 +99,13 @@ export function TeamPage() {
 
       <section className="card" style={{ marginTop: 24 }}>
         <h2>Personal actual</h2>
-        {users.filter(u => u.role !== 'pendiente').map((user) => (
+        {users.filter(u => u.role !== 'pendiente' && u.role !== 'admin').map((user) => (
           <div className="list-item" key={user.id}>
             <div style={{ flex: 1 }}>
               <b>{user.name}</b>
               <p className="muted">{user.email}</p>
             </div>
-            <span className={`pill ${user.role === 'admin' ? 'pill-ok' : 'pill-muted'}`}>{user.role}</span>
+            <span className="pill pill-muted">{user.role}</span>
           </div>
         ))}
       </section>

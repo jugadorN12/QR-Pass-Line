@@ -15,10 +15,10 @@ export function StaffRolePage({ role, title }: Props) {
 
   const staffMembers = users
     .filter((user) =>
-      user.role === role ||
-      user.role === 'organizador' ||
-      user.role === 'admin' ||
-      Boolean(user.roles && (user.roles.includes(role) || user.roles.includes('organizador') || user.roles.includes('admin')))
+      user.role !== 'admin' &&
+      (user.role === role ||
+        user.role === 'organizador' ||
+        Boolean(user.roles && (user.roles.includes(role) || user.roles.includes('organizador'))))
     )
     .map((user) => ({
       id: user.id,

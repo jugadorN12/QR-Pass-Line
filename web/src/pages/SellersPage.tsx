@@ -21,10 +21,10 @@ export function SellersPage() {
 
   const sellers: Seller[] = users
     .filter((user) =>
-      user.role === 'vendedor' ||
-      user.role === 'organizador' ||
-      user.role === 'admin' ||
-      Boolean(user.roles && (user.roles.includes('vendedor') || user.roles.includes('organizador') || user.roles.includes('admin')))
+      user.role !== 'admin' &&
+      (user.role === 'vendedor' ||
+        user.role === 'organizador' ||
+        Boolean(user.roles && (user.roles.includes('vendedor') || user.roles.includes('organizador'))))
     )
     .map((user) => ({
       id: user.id,
