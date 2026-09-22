@@ -23,8 +23,17 @@ export function AuthPage() {
     setError('')
     try {
       await login(String(form.get('email')), String(form.get('password')))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo ingresar.')
+    } catch (err: any) {
+      const code = err?.code || ''
+      let msg = 'No se pudo ingresar.'
+      if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
+        msg = 'Email o contraseña incorrectos. Verificá los datos ingresados.'
+      } else if (code === 'auth/too-many-requests') {
+        msg = 'Demasiados intentos fallidos. Esperá unos momentos o cambiá tu contraseña.'
+      } else if (err?.message) {
+        msg = err.message
+      }
+      setError(msg)
       setPending(false)
     }
   }
@@ -46,8 +55,17 @@ export function AuthPage() {
     setError('')
     try {
       await register(String(form.get('name')), String(form.get('email')), pass)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta.')
+    } catch (err: any) {
+      const code = err?.code || ''
+      let msg = 'No se pudo crear la cuenta.'
+      if (code === 'auth/email-already-in-use') {
+        msg = 'Este email ya está registrado. Ingresá desde la pestaña "Ingresar".'
+      } else if (code === 'auth/weak-password') {
+        msg = 'La contraseña es muy débil. Usá al menos 6 caracteres.'
+      } else if (err?.message) {
+        msg = err.message
+      }
+      setError(msg)
       setPending(false)
     }
   }

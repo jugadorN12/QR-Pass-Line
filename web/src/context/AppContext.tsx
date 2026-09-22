@@ -208,17 +208,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await signInWithEmailAndPassword(auth, email.trim(), password)
     },
     async register(name, email, password) {
-      const usersSnapshot = await getDocs(collection(db, 'users'))
       const cleanEmail = email.trim().toLowerCase()
-      const assignedRole: Role = (usersSnapshot.empty || cleanEmail === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+      const cleanName = name.trim()
 
       const credentials = await createUserWithEmailAndPassword(auth, cleanEmail, password)
-      await updateProfile(credentials.user, { displayName: name.trim() })
+      await updateProfile(credentials.user, { displayName: cleanName })
+
+      const assignedRole: Role = cleanEmail === ADMIN_EMAIL ? 'admin' : 'pendiente'
+
       const profile: User = {
         id: credentials.user.uid,
-        name: name.trim(),
+        name: cleanName,
         email: cleanEmail,
         role: assignedRole,
+        roles: [assignedRole],
+        avatar: `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=193659&color=fff`,
         createdAt: new Date().toISOString(),
       }
       await setDoc(doc(db, 'users', profile.id), profile)

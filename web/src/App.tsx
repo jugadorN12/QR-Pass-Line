@@ -26,22 +26,44 @@ import { InformesPage } from './pages/InformesPage'
 import { PublicLinksPage } from './pages/PublicLinksPage'
 import { BansPage } from './pages/BansPage'
 
+function PendingApprovalScreen() {
+  const { currentUser, logout } = useApp()
+  return (
+    <main className="role-screen" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#f8fafc', padding: 16 }}>
+      <div className="role-card" style={{ maxWidth: 420, width: '100%', padding: '32px 24px', textAlign: 'center', background: '#fff', borderRadius: 24, boxShadow: '0 10px 30px rgba(0,0,0,0.06)' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#eff6ff', border: '2px solid #bfdbfe', display: 'grid', placeItems: 'center', fontSize: 30, margin: '0 auto 16px' }}>
+          ⏳
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: '0 0 12px' }}>
+          ¡Cuenta registrada!
+        </h2>
+        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 16, padding: '16px 18px', margin: '16px 0', textAlign: 'center' }}>
+          <p style={{ fontSize: 15, fontWeight: 800, color: '#166534', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Avisale al encargado que ya te registraste y pasale tu email para que te asigne tu rol.
+          </p>
+          <div style={{ display: 'inline-block', background: '#fff', padding: '6px 14px', borderRadius: 8, border: '1px solid #bbf7d0', fontWeight: 900, color: '#14532d', fontSize: 14 }}>
+            {currentUser?.email}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
+          <button className="btn btn-primary btn-block" type="button" onClick={() => window.location.reload()} style={{ height: 48, borderRadius: 12, fontWeight: 800, background: '#1e3a8a' }}>
+            ↻ Ya me asignaron rol (Actualizar)
+          </button>
+          <button className="btn btn-secondary btn-block" type="button" onClick={() => void logout()} style={{ height: 44, borderRadius: 12 }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function ProtectedRoutes() {
-  const { currentUser, loading, logout } = useApp()
+  const { currentUser, loading } = useApp()
   if (loading) return <main className="app-shell"><div className="page"><div className="card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
-    return (
-      <main className="role-screen">
-        <div className="role-main">
-          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
-            <h2>Cuenta pendiente de aprobación</h2>
-            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
-            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
-          </div>
-        </div>
-      </main>
-    )
+    return <PendingApprovalScreen />
   }
   return (
     <Shell />
@@ -57,61 +79,31 @@ function AdminGate({ children }: { children: ReactNode }) {
 }
 
 function ProtectedRoutesNoShell({ children }: { children: ReactNode }) {
-  const { currentUser, loading, logout } = useApp()
+  const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
-    return (
-      <main className="role-screen">
-        <div className="role-main">
-          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
-            <h2>Cuenta pendiente de aprobación</h2>
-            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
-            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
-          </div>
-        </div>
-      </main>
-    )
+    return <PendingApprovalScreen />
   }
   return <>{children}</>
 }
 
 function RoleGate({ children }: { children?: ReactNode }) {
-  const { currentUser, loading, logout } = useApp()
+  const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
-    return (
-      <main className="role-screen">
-        <div className="role-main">
-          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
-            <h2>Cuenta pendiente de aprobación</h2>
-            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
-            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
-          </div>
-        </div>
-      </main>
-    )
+    return <PendingApprovalScreen />
   }
   return children ?? <RoleSelectionPage />
 }
 
 function ManagerGate({ children }: { children: ReactNode }) {
-  const { currentUser, loading, logout } = useApp()
+  const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
-    return (
-      <main className="role-screen">
-        <div className="role-main">
-          <div className="role-card" style={{ padding: 32, textAlign: 'center' }}>
-            <h2>Cuenta pendiente de aprobación</h2>
-            <p className="muted" style={{ margin: '16px 0' }}>Tu cuenta fue registrada exitosamente, pero aún no tiene un rol asignado por un Organizador.</p>
-            <button className="btn btn-primary" type="button" onClick={() => void logout()}>Cerrar sesión</button>
-          </div>
-        </div>
-      </main>
-    )
+    return <PendingApprovalScreen />
   }
   const userRoles = currentUser.roles && currentUser.roles.length ? currentUser.roles : [currentUser.role]
   const isManager = userRoles.includes('organizador') || userRoles.includes('admin')
