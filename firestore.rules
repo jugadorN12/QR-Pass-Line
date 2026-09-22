@@ -30,8 +30,8 @@ service cloud.firestore {
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create: if signedIn() && profile().role != 'canjeador';
-      allow update: if gateStaff();
+      allow create: if signedIn();
+      allow update: if signedIn();
     }
 
     match /qrCatalog/{qrId} {

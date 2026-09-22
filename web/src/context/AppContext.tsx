@@ -417,18 +417,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const normalizedCode = code.trim().toUpperCase()
       let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
 
-      // Live Firestore lookup if not present in memory yet
-      if (!ticket) {
-        try {
-          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
-          const snap = await getDocs(q)
-          if (!snap.empty) {
-            const d = snap.docs[0]
-            ticket = { id: d.id, ...(d.data() as any) } as Ticket
-          }
-        } catch (e) {
-          console.error('Error in live ticket lookup:', e)
+      // Always fetch latest live status from Firestore
+      try {
+        const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          const d = snap.docs[0]
+          ticket = { id: d.id, ...(d.data() as any) } as Ticket
         }
+      } catch (e) {
+        console.error('Error in live ticket lookup:', e)
       }
 
       if (!ticket) {
@@ -499,7 +497,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 3. Check Single Use / Already Redeemed
+      // 3. Check Single Use / Already Redeemed (Bloqueo estricto para que un QR no pueda canjearse 2 veces)
       if (ticket.redeemedAt) {
         const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
         const redeemerName = redeemer ? redeemer.name : 'Personal de Puerta'
@@ -541,7 +539,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setData((prev) => ({
         ...prev,
-        tickets: prev.tickets.map((t) => t.id === ticket.id ? redeemed : t)
+        tickets: prev.tickets.some((t) => t.id === ticket.id)
+          ? prev.tickets.map((t) => (t.id === ticket.id ? redeemed : t))
+          : [redeemed, ...prev.tickets]
       }))
 
       return {
