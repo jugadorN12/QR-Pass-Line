@@ -62,6 +62,7 @@ function GatePageContent() {
   const { currentUser, events, redeemTicket } = useApp()
   const scannerRef = useRef<QrScannerRef | null>(null)
 
+  const [manualCode, setManualCode] = useState('')
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -311,9 +312,10 @@ function GatePageContent() {
                   </button>
 
                   {/* 2. Support Headset Icon */}
-                  <button
-                    type="button"
-                    onClick={() => alert('Soporte técnico disponible 24/7 para el centro de canje.')}
+                  <a
+                    href="https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20en%20puerta%20con%20QR%20Pass%20Line"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       width: 48,
                       height: 48,
@@ -325,17 +327,21 @@ function GatePageContent() {
                       display: 'grid',
                       placeItems: 'center',
                       boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      textDecoration: 'none'
                     }}
-                    title="Soporte"
+                    title="Soporte WhatsApp"
                   >
                     🎧
-                  </button>
+                  </a>
 
                   {/* 3. Flip Camera Icon */}
                   <button
                     type="button"
-                    onClick={() => void scannerRef.current?.flipCamera()}
+                    onClick={() => {
+                      void scannerRef.current?.flipCamera()
+                      setIsMenuOpen(false)
+                    }}
                     style={{
                       width: 48,
                       height: 48,
@@ -406,6 +412,32 @@ function GatePageContent() {
             </div>
           </div>
         </section>
+
+        {/* Manual Code Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!manualCode.trim()) return
+            void redeemValue(manualCode.trim())
+            setManualCode('')
+          }}
+          style={{ display: 'flex', gap: 8, background: '#fff', padding: 8, borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+        >
+          <input
+            type="text"
+            placeholder="Ingresá el código manual (ej. ABCDEFGH)..."
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+            style={{ flex: 1, border: 0, padding: '0 12px', fontSize: 14, fontWeight: 700, letterSpacing: '0.05em', outline: 'none', background: 'transparent' }}
+          />
+          <button
+            type="submit"
+            disabled={!manualCode.trim()}
+            style={{ padding: '10px 18px', borderRadius: 12, background: manualCode.trim() ? '#1e3a8a' : '#cbd5e1', color: '#fff', fontWeight: 800, border: 0, cursor: manualCode.trim() ? 'pointer' : 'not-allowed' }}
+          >
+            Validar
+          </button>
+        </form>
 
         {/* Active Events List */}
         <section className="card" style={{ padding: 16, borderRadius: 20, background: '#fff' }}>

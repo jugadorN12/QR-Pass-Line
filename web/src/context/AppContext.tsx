@@ -127,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [usersSnapshot, eventsSnapshot, ticketsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'events')),
-        getDocs(query(collection(db, 'tickets'), where('issuedBy', '!=', ''))),
+        getDocs(collection(db, 'tickets')),
         getDocs(collection(db, 'qrCatalog')),
         getDocs(collection(db, 'limitations')),
         getDocs(collection(db, 'venues')),
@@ -418,7 +418,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (currentUser.role === 'vendedor') return { ok: false, message: 'El vendedor no canjea en puerta.' }
 
       const normalizedCode = code.trim().toUpperCase()
-      const ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
+      let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
+
+      // Live Firestore lookup if not present in memory yet
+      if (!ticket) {
+        try {
+          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            const d = snap.docs[0]
+            ticket = { id: d.id, ...(d.data() as any) } as Ticket
+          }
+        } catch (e) {
+          console.error('Error in live ticket lookup:', e)
+        }
+      }
 
       if (!ticket) {
         return {
