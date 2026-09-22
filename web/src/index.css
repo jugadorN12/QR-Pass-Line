@@ -508,10 +508,13 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .manager-brand img { width: 40px; height: 40px; }
 .manager-close { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #050505; color: #e5141b; font-size: 28px; line-height: 25px; transform: rotate(45deg); }
 .manager-page { position: relative; width: 100%; padding: 68px 12px 110px; color: #182940; }
-.manager-datebar { display: flex; align-items: center; justify-content: center; gap: 8px; margin: -52px auto 22px; }
-.manager-datebar strong { min-width: 96px; padding: 9px 14px; border-radius: 13px; background: #fff; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); text-align: center; font-size: 12px; }
-.date-arrow { width: 30px; height: 30px; border: 0; border-radius: 10px; background: #fff; color: #59708e; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); font-size: 23px; line-height: 20px; cursor: pointer; }
-.manager-refresh { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; background: #fff; color: #4771a3; box-shadow: 0 7px 16px rgba(33, 58, 87, .08); }
+.manager-datebar { display: flex; align-items: center; justify-content: center; gap: 10px; margin: -54px auto 24px; }
+.manager-date-pill { min-width: 140px; padding: 10px 22px; border: none; border-radius: 20px; background: #fff; box-shadow: 0 4px 14px rgba(33, 58, 87, .08); text-align: center; font-size: 15px; font-weight: 700; color: #0f172a; cursor: pointer; transition: all 0.15s ease; user-select: none; }
+.manager-date-pill:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(33, 58, 87, .12); }
+.date-arrow { width: 40px; height: 40px; border: 0; border-radius: 14px; background: #fff; color: #1e3a8a; box-shadow: 0 4px 14px rgba(33, 58, 87, .08); font-size: 24px; font-weight: bold; line-height: 1; display: grid; place-items: center; cursor: pointer; transition: all 0.15s ease; user-select: none; }
+.date-arrow:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(33, 58, 87, .12); }
+.manager-refresh { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: 0; display: grid; place-items: center; border-radius: 12px; background: #fff; color: #1e3a8a; font-size: 18px; font-weight: bold; box-shadow: 0 4px 14px rgba(33, 58, 87, .08); cursor: pointer; transition: all 0.2s ease; }
+.manager-refresh:hover { background: #f8fafc; transform: rotate(90deg); }
 .manager-heading { margin: 0 0 20px; }
 .manager-heading h1 { display: inline; font-size: 21px; letter-spacing: -.04em; }
 .manager-heading-actions { margin-left: 8px; color: #49719e; font-size: 17px; }
@@ -661,85 +664,149 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .staff-sidebar-control { border-bottom: 1px solid #e1e7ef; margin-bottom: 6px; font-size: 28px !important; }
 .sellers-main { flex: 1; min-width: 0; padding: 10px 0 110px; }
 .sellers-titlebar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 28px; }
-.back-link { color: #2164a9; font-size: 34px; line-height: 1; }
+.back-link { color: #2164a9; font-size: 34px; line-height: 1; text-decoration: none; cursor: pointer; }
 .sellers-titlebar h1 { color: #0860bd; font-size: 20px; letter-spacing: -.04em; }
-.add-person { border: 0; border-radius: 50%; background: #e8eef6; color: #54749a; font-size: 20px; cursor: pointer; }
-.add-person sup { font-size: 12px; }
-.add-person-invite { position: relative; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; }
-.add-person-invite span { line-height: 1; }
-.add-person-invite sup { position: absolute; top: 1px; right: 3px; color: #0873c7; }
-.people-symbol { margin-left: auto; color: #315a84; font-size: 28px; }
-.sellers-panel { margin-right: 0; border: 1px solid #e0e6ed; border-radius: 12px; background: #fff; box-shadow: 0 9px 20px rgba(31,54,80,.08); }
-.sellers-panel-heading { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid #e5eaf0; color: #4c5b6e; font-size: 12px; }
-.seller-grid { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 18px; padding: 14px 16px 20px; }
-.seller-card { min-width: 40; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 3px 10px rgba(15,23,52,.03); }
-.seller-avatar { width: 48px; height: 48px; float: left; display: grid; place-items: center; margin-right: 18px; border-radius: 50%; color: #fff; background: #111; font-weight: 800; background-size: cover; background-position: center; overflow: hidden; }
-.seller-avatar-demo { background: linear-gradient(135deg, #17a8b5, #1761a4); }
-.seller-info { min-height: 30px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
-.seller-info strong, .seller-info small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seller-info strong { color: #0b192c; font-size: 20px; font-weight: 100; }
-.seller-info small { margin-top: 2px; color: #64748b; font-size: 14px; font-weight: 100; }
-.seller-actions { clear: both; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 30px; }
-.seller-actions button, .seller-action-button { height: 56px; border: 1px solid #cbd5e1; border-radius: 18px; background: #F5F5F5; color: #1e293b; display: grid; place-items: center; cursor: pointer; font-size: 15px; text-decoration: none; }
-.seller-actions button:hover, .seller-action-button:hover { background: #f8fafc; border-color: #94a3b8; }
-.seller-actions b { margin-left: 5px; font-size: 12px; font-weight: 700; color: #0b192c; }
-.seller-actions b { margin-left: 5px; font-size: 12px; font-weight: 700; color: #0b192c; }
-.bulk-actions { width: min(86%, 2240px); display: grid; gap: 14px; margin: 94px auto 0; }
-.bulk-actions button { height: 32px; border: 1.5px solid #6e87a7; border-radius: 6px; background: transparent; color: #506b8c; font-size: 18px; cursor: pointer; }
-.invite-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 20px; background: rgba(20, 34, 52, .42); }
-.invite-dismiss { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; cursor: default; }
-.invite-dialog { position: relative; width: min(360px, 100%); padding: 0 18px 18px; border-radius: 7px; background: #fff; box-shadow: 0 18px 48px rgba(21, 42, 67, .24); }
-.invite-dialog-heading { display: flex; align-items: center; gap: 10px; height: 48px; margin: 0 -18px 16px; padding: 0 14px; border-bottom: 1px solid #edf1f5; color: #183e68; font-size: 15px; }
-.invite-dialog-heading button { width: 28px; height: 28px; border: 0; background: transparent; color: #7890a8; font-size: 23px; cursor: pointer; }
-.invite-dialog p { margin: 0 0 14px; color: #60758c; font-size: 12px; }
-.invite-field { display: grid; gap: 6px; color: #6e829a; font-size: 10px; font-weight: 800; }
-.invite-field input { width: 100%; box-sizing: border-box; border: 1px solid #dce4ed; border-radius: 7px; padding: 11px; outline: none; color: #405a77; background: #fbfcfe; font-size: 12px; }
-.invite-field input:focus { border-color: #74c8ee; box-shadow: 0 0 0 3px rgba(116, 200, 238, .16); }
-.scan-type-field { display: flex; flex-wrap: wrap; gap: 8px; margin: 13px 0 0; padding: 0; border: 0; color: #60758c; font-size: 10px; }
-.scan-type-field legend { width: 100%; margin-bottom: 2px; color: #5d6e81; font-size: 10px; }
-.scan-type-field label { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; cursor: pointer; }
-.scan-type-field input { margin: 0; accent-color: #1475d1; }
-.invite-error { display: block; margin-top: 8px; color: #b34b53; font-size: 10px; }
-.invite-confirm { width: 100%; margin-top: 18px; }
-.limitation-main { padding-right: 24px; }
-.limitation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 24px; }
-.limitation-delete { border: 1px solid #e0e6ed; background: #fff; color: #53657a; }
-.limitation-panel { margin: 12px 24px; }
-.limitation-row { display: grid; grid-template-columns: 1fr 48px 34px 34px; align-items: center; gap: 8px; padding: 13px 14px; border-bottom: 1px solid #edf1f5; color: #183e68; }
-.limitation-row:last-child { border-bottom: 0; }
-.limitation-row > div { display: grid; gap: 4px; }
-.limitation-row strong { font-size: 11px; }
-.limitation-row small { color: #7890a8; font-size: 9px; }
-.limitation-row > b { text-align: center; font-size: 12px; }
-.limitation-row button { height: 29px; border: 1px solid #dce4ed; border-radius: 8px; background: #f8fafc; color: #264f7c; cursor: pointer; }
-.limitation-form-title { display: flex; align-items: center; gap: 12px; padding: 10px 28px; }
-.limitation-form-title h1 { color: #0860bd; font-size: 20px; }
-.limitation-form { max-width: 760px; margin: 20px auto; padding: 18px; display: grid; gap: 14px; }
-.limitation-period-toggle { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid #dce4ed; border-radius: 12px; overflow: hidden; color: #61758d; font-size: 10px; }
-.limitation-period-toggle span { padding: 10px; }
-.limitation-period-toggle button { border: 0; border-left: 1px solid #dce4ed; background: #fff; color: #61758d; cursor: pointer; }
-.limitation-period-toggle button.selected { background: #e3f5ff; color: #2b638c; font-weight: 800; }
-.coupon-select-trigger { display: grid; grid-template-columns: 1fr auto 20px; align-items: center; gap: 8px; width: 100%; padding: 12px; border: 1px solid #8bcbea; border-radius: 9px; background: #fbfdff; color: #53657a; text-align: left; cursor: pointer; }
-.coupon-select-trigger strong { color: #183e68; font-size: 11px; }
-.coupon-select-trigger span { color: #718399; font-size: 10px; }
-.coupon-picker-backdrop { position: fixed; inset: 0; z-index: 120; background: rgba(24,35,49,.42); }
-.coupon-picker-sheet { position: absolute; right: 0; bottom: 0; left: 0; min-height: 355px; padding: 8px 18px 22px; border-radius: 15px 15px 0 0; background: #fff; box-shadow: 0 -8px 30px rgba(24,43,65,.14); }
-.coupon-search { display: flex; align-items: center; gap: 6px; margin: 8px 0 14px; padding: 7px 9px; border: 1px solid #dce4ed; border-radius: 8px; color: #9aaabd; font-size: 13px; }
-.coupon-search input { width: 100%; border: 0; outline: 0; color: #405a77; font-size: 11px; }
-.coupon-heading { display: block; margin-bottom: 6px; color: #7890a8; font-size: 9px; }
-.coupon-option { display: flex; align-items: center; width: 100%; min-height: 34px; padding: 0 10px; border: 1px solid #edf1f5; border-bottom: 0; background: #fff; color: #183e68; text-align: left; font-size: 10px; cursor: pointer; }
-.coupon-option:last-child { border-bottom: 1px solid #edf1f5; }
-.coupon-option.selected { border-color: #72c9f6; background: #e3f5ff; }
-.coupon-option span { margin-left: auto; color: #168dd0; font-size: 15px; }
-.coupon-empty { padding: 20px 8px; color: #7890a8; font-size: 11px; text-align: center; }
-.limitation-save:disabled { opacity: .5; cursor: not-allowed; }
-.limitation-edit-form { max-width: 900px; margin: 12px auto; display: grid; gap: 16px; padding: 16px; }
-.limitation-edit-form select, .limitation-edit-form input { width: 100%; box-sizing: border-box; border: 1px solid #dce4ed; border-radius: 8px; padding: 11px; color: #405a77; background: #fff; }
-.limitation-days { display: grid; gap: 8px; color: #4d6681; font-size: 11px; }
-.limitation-days > div { display: flex; justify-content: space-between; gap: 10px; }
-.limitation-days button { width: 40px; height: 40px; border: 1px solid #dce4ed; border-radius: 10px; background: #fff; color: #718399; cursor: pointer; }
-.limitation-days button.selected { border-color: #72c9f6; background: #e3f5ff; color: #2b638c; }
-.limitation-remove-button { min-height: 36px; border: 1px solid #183e68; border-radius: 8px; background: #fff; color: #183e68; font-size: 10px; font-weight: 800; cursor: pointer; }
+
+/* Doors Tickets Sellers & Limitations Styling */
+.doors-title { color: #0860bd; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.doors-add-user-btn { width: 32px; height: 32px; border-radius: 50%; background: #e0f2fe; color: #0284c7; border: none; display: grid; place-items: center; cursor: pointer; transition: transform 0.15s; }
+.doors-add-user-btn:hover { transform: scale(1.1); }
+.doors-profile-icon { margin-left: auto; display: grid; place-items: center; }
+
+.doors-panel { margin: 10px 24px 0; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.03); }
+.doors-panel-heading { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-size: 14px; font-weight: 700; user-select: none; }
+.doors-chevron { font-size: 16px; color: #64748b; font-weight: bold; }
+
+.doors-seller-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding: 16px 18px; }
+.doors-seller-card { padding: 14px; border: 1.5px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: space-between; }
+.doors-card-header { display: flex; align-items: center; gap: 12px; }
+.doors-avatar { width: 46px; height: 46px; border-radius: 50%; background: #0f172a; color: #fff; font-size: 16px; font-weight: 700; display: grid; place-items: center; background-size: cover; background-position: center; flex-shrink: 0; }
+.doors-info { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.doors-info strong { font-size: 15px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doors-info small { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+.doors-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+.doors-ticket-btn, .doors-quota-btn, .doors-trash-btn { height: 42px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #1e3a8a; display: flex; align-items: center; justify-content: center; gap: 4px; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
+.doors-ticket-btn:hover, .doors-quota-btn:hover, .doors-trash-btn:hover { background: #f1f5f9; border-color: #cbd5e1; transform: translateY(-1px); }
+.doors-quota-btn b { font-size: 12px; font-weight: 700; color: #1e3a8a; }
+
+.doors-bulk-actions { display: flex; flex-direction: column; gap: 10px; width: min(92%, 1100px); margin: 32px auto 20px; }
+.doors-bulk-actions button { height: 38px; border: 1.5px solid #94a3b8; border-radius: 8px; background: transparent; color: #475569; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: all 0.15s; }
+.doors-bulk-actions button:hover { background: #f8fafc; border-color: #64748b; color: #1e293b; }
+
+/* Limitations Page (Doors Screen 3) */
+.doors-limitation-main { padding: 10px 24px 100px; }
+.doors-limit-titlebar { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
+.doors-limit-heading { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; color: #0860bd; margin: 0; }
+.doors-add-limit-circle-btn { width: 28px; height: 28px; border-radius: 50%; background: #e0f2fe; color: #0284c7; border: none; display: grid; place-items: center; cursor: pointer; transition: transform 0.15s; }
+.doors-add-limit-circle-btn:hover { transform: scale(1.15); }
+.doors-limit-action-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.doors-export-btn { background: #193659; color: #fff; border: none; border-radius: 9999px; padding: 8px 24px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+.doors-export-btn:hover { opacity: 0.9; }
+.doors-delete-all-btn { background: transparent; border: none; color: #193659; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.doors-delete-all-btn:hover { color: #dc2626; }
+.doors-limit-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.02); overflow: hidden; }
+.doors-limit-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+.doors-limit-panel-head strong { font-size: 14px; font-weight: 700; }
+.doors-limit-panel-head span { font-size: 12px; color: #64748b; }
+.doors-limit-list { display: flex; flex-direction: column; }
+.doors-limit-empty { padding: 32px 16px; text-align: center; color: #64748b; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.doors-limit-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
+.doors-limit-row:last-child { border-bottom: none; }
+.doors-limit-row-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.doors-limit-row-title { display: flex; align-items: center; gap: 8px; }
+.doors-limit-checkbox { width: 14px; height: 14px; border: 1.5px solid #cbd5e1; border-radius: 3px; display: inline-block; }
+.doors-limit-ticket-icon { color: #64748b; flex-shrink: 0; }
+.doors-limit-row-title strong { font-size: 13px; font-weight: 700; color: #0f172a; }
+.doors-limit-row-sub { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #64748b; margin-left: 22px; }
+.doors-day-badge { display: inline-block; font-weight: 700; color: #0284c7; }
+.doors-period-text { color: #64748b; font-size: 11px; }
+.doors-limit-row-qty { margin: 0 20px; font-size: 14px; font-weight: 700; color: #0f172a; }
+.doors-limit-row-buttons { display: flex; align-items: center; gap: 8px; }
+.doors-edit-btn { width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; display: grid; place-items: center; cursor: pointer; transition: all 0.15s; }
+.doors-edit-btn:hover { background: #f0f9ff; border-color: #bae6fd; }
+.doors-del-btn { width: 32px; height: 32px; border: 1px solid #fee2e2; border-radius: 8px; background: #fff5f5; display: grid; place-items: center; cursor: pointer; transition: all 0.15s; }
+.doors-del-btn:hover { background: #fee2e2; }
+
+/* Doors Form Styling (Screen 4) */
+.doors-form-main { padding: 10px 24px 100px; }
+.doors-form-top { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.doors-back-btn { display: inline-flex; align-items: center; gap: 6px; color: #0284c7; text-decoration: none; font-size: 14px; font-weight: 600; width: fit-content; }
+.doors-back-btn:hover { text-decoration: underline; }
+.doors-form-title { font-size: 22px; font-weight: 700; color: #0860bd; margin: 0; }
+.doors-limitation-form { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; background: #fff; padding: 24px 28px; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.02); }
+.doors-field-group { display: flex; flex-direction: column; gap: 6px; }
+.doors-field-label { font-size: 12px; font-weight: 600; color: #475569; }
+.doors-toggle-container { display: flex; border: 1px solid #e2e8f0; border-radius: 9999px; padding: 2px; background: #f8fafc; }
+.doors-toggle-btn { flex: 1; height: 36px; border: none; border-radius: 9999px; background: transparent; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; transition: all 0.2s; }
+.doors-toggle-btn.active-yes { background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc; box-shadow: 0 2px 4px rgba(2,132,199,0.08); }
+.doors-toggle-btn.active-no { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; box-shadow: 0 2px 4px rgba(220,38,38,0.08); }
+.doors-input-wrapper { display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; padding: 0 12px; height: 44px; position: relative; }
+.doors-input-icon { margin-right: 10px; flex-shrink: 0; }
+.doors-input-wrapper input, .doors-input-wrapper select { width: 100%; height: 100%; border: none; outline: none; font-size: 13px; color: #1e293b; background: transparent; }
+.doors-input-wrapper select { appearance: none; cursor: pointer; }
+.doors-select-arrow { position: absolute; right: 14px; pointer-events: none; color: #64748b; font-size: 14px; font-weight: bold; }
+.doors-days-row { display: flex; gap: 10px; }
+.doors-day-box { flex: 1; max-width: 60px; height: 44px; border: 1.5px solid #cbd5e1; border-radius: 10px; background: #fff; color: #64748b; font-size: 14px; font-weight: 700; cursor: pointer; display: grid; place-items: center; transition: all 0.15s; }
+.doors-day-box.doors-day-active { border-color: #38bdf8; background: #f0f9ff; color: #0284c7; box-shadow: 0 0 0 1px #38bdf8; }
+.doors-submit-btn { height: 46px; border: none; border-radius: 9999px; background: #193659; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; margin-top: 10px; transition: background 0.15s; }
+.doors-submit-btn:hover { background: #0f2238; }
+.doors-delete-limit-btn { height: 40px; border: 1.5px solid #ef4444; border-radius: 9999px; background: transparent; color: #ef4444; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; margin-top: 6px; }
+.doors-delete-limit-btn:hover { background: #fff5f5; }
+
+/* Doors Date Range Picker Popover / Modal (Exact clone of Doors Tickets) */
+.doors-clickable-input { cursor: pointer; }
+.doors-clickable-input input { cursor: pointer; }
+
+.doors-calendar-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(2px); animation: doorsFadeIn 0.15s ease; }
+.doors-calendar-modal { background: #fff; width: min(390px, 94vw); border-radius: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); padding: 20px 22px 16px; animation: doorsPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); user-select: none; }
+@keyframes doorsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes doorsPopIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+.doors-calendar-header { text-align: center; margin-bottom: 14px; color: #1e293b; font-size: 16px; font-weight: 700; }
+.doors-calendar-nav-row { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 12px; border-bottom: 1px solid #f1f5f9; }
+.doors-calendar-nav-group { display: flex; align-items: center; gap: 8px; }
+.doors-cal-nav-btn { width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 50%; background: #fff; color: #1e3a8a; font-size: 18px; line-height: 1; font-weight: bold; display: grid; place-items: center; cursor: pointer; transition: all 0.15s; }
+.doors-cal-nav-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.doors-cal-nav-title { font-size: 13px; font-weight: 600; color: #334155; text-transform: lowercase; min-width: 70px; text-align: center; }
+
+.doors-cal-grid-head { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-top: 12px; margin-bottom: 6px; }
+.doors-cal-grid-head span { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: lowercase; }
+
+.doors-cal-grid-body { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.doors-cal-day-cell { height: 38px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
+.doors-cal-day-other { opacity: 0.3; }
+.doors-cal-day-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent; color: #1e293b; font-size: 13px; font-weight: 500; cursor: pointer; display: grid; place-items: center; z-index: 2; transition: all 0.15s; }
+.doors-cal-day-cell:hover .doors-cal-day-btn { background: #f1f5f9; }
+
+/* Range Selection Styling */
+.doors-cal-day-in-range { background: #bfdbfe; border-radius: 0; }
+.doors-cal-day-start { background: linear-gradient(to right, transparent 50%, #bfdbfe 50%); }
+.doors-cal-day-end { background: linear-gradient(to left, transparent 50%, #bfdbfe 50%); }
+.doors-cal-day-start.doors-cal-day-end { background: transparent; }
+
+.doors-cal-selected-circle { background: #2563eb !important; color: #ffffff !important; font-weight: 700; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4); }
+
+.doors-cal-footer { display: flex; justify-content: flex-end; margin-top: 14px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.doors-cal-done-btn { background: transparent; border: none; color: #1e3a8a; font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 14px; border-radius: 8px; transition: background 0.15s; }
+.doors-cal-done-btn:hover { background: #f1f5f9; }
+
+/* Doors Invite/Add Staff Modal Dialog */
+.doors-modal-backdrop { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); animation: doorsFadeIn 0.15s ease; }
+.doors-invite-dialog { background: #fff; width: min(440px, 92vw); border-radius: 20px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); padding: 22px 26px 26px; animation: doorsPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); position: relative; }
+.doors-invite-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.doors-invite-header strong { font-size: 16px; font-weight: 700; color: #1e3a8a; }
+.doors-invite-close { background: transparent; border: none; font-size: 24px; color: #64748b; cursor: pointer; padding: 0 4px; line-height: 1; transition: color 0.15s; }
+.doors-invite-close:hover { color: #0f172a; }
+.doors-invite-sub { color: #3b82f6; font-size: 13px; font-weight: 500; margin: 0 0 16px; line-height: 1.4; }
+.doors-invite-form { display: flex; flex-direction: column; gap: 14px; }
+.doors-invite-input { width: 100%; box-sizing: border-box; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 14px; font-size: 13px; color: #1e293b; outline: none; transition: border-color 0.15s; }
+.doors-invite-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+.doors-invite-error { color: #dc2626; font-size: 11px; font-weight: 600; }
+.doors-invite-btn-wrap { display: flex; justify-content: center; margin-top: 8px; }
+.doors-invite-submit { background: #193659; color: #fff; border: none; border-radius: 8px; padding: 10px 40px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.doors-invite-submit:hover { background: #0f2238; }
+
 .redeemers-panel .seller-grid { grid-template-columns: repeat(6, minmax(170px, 1fr)); }
 .access-types-page { min-height: calc(100dvh - 72px); padding: 28px 12px; background: #f2f5fa; }
 .access-types-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -868,3 +935,61 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   .redeemers-panel .seller-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bulk-actions { width: 100%; margin-top: 42px; }
 }
+
+/* Reports Grid (Doors Screen Informes) */
+.doors-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1024px) {
+  .doors-reports-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .doors-reports-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.doors-report-card {
+  position: relative;
+  min-height: 106px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.doors-report-card:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+.doors-report-card-active {
+  border-color: #2563eb !important;
+  background: #f0f7ff !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12) !important;
+}
+.doors-report-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.doors-report-card-label {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+

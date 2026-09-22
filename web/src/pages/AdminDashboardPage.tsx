@@ -2,29 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { Role } from '../types'
-import { DottedQrImage } from '../components/DottedQrImage'
-import { formatCouponSchedule } from '../lib/dateUtils'
+import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 
 export function AdminDashboardPage() {
-  const { users, venues, updateUserRole, resetUserPasswordByEmail, createVenue, deleteVenue, addMember, logout, couponTemplate, saveCouponTemplate, qrCatalog, events } = useApp()
+  const { users, venues, updateUserRole, deleteUser, resetUserPasswordByEmail, createVenue, deleteVenue, addMember, logout } = useApp()
   const [tab, setTab] = useState<'users' | 'venues' | 'settings' | 'template'>('users')
   const [globalLogo, setGlobalLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
-
-  // Template Editor State
-  const [templateConfig, setTemplateConfig] = useState(() => {
-    if (couponTemplate) return couponTemplate
-    const saved = localStorage.getItem('qr-pass-line.coupon-template')
-    if (saved) {
-      try { return JSON.parse(saved) } catch {}
-    }
-    return {
-      qrY: 180,
-      qrSize: 180,
-      qrRadius: 24,
-      brightness: 1,
-      shadow: true
-    }
-  })
 
   function handleLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -136,6 +119,22 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function handleDeleteUser(user: { id: string; name: string; email: string }) {
+    if (user.email.toLowerCase() === 'simplemente_anibal@hotmail.com') {
+      alert('No es posible eliminar al Administrador Principal.')
+      return
+    }
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a "${user.name}" (${user.email})?\n\nEsta acción borrará su cuenta del sistema y todas sus limitaciones asignadas.`)) {
+      return
+    }
+    try {
+      await deleteUser(user.id)
+      setMessage(`Usuario "${user.name}" eliminado correctamente.`)
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Error al eliminar usuario.')
+    }
+  }
+
   return (
     <div className="org-screen">
       <header className="org-header">
@@ -202,42 +201,76 @@ export function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map(user => (
-                      <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                        <td style={{ padding: '12px' }}>
-                            <strong style={{ color: '#0b192c' }}>{user.name}</strong><br/>
-                            <small className="muted" style={{ fontSize: 11 }}>{user.email}</small>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <select
-                             value={user.venueId || ''}
-                             onChange={(e) => void updateUserRole(user.id, user.role, e.target.value)}
-                             style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
-                          >
-                             <option value="">Sin local</option>
-                             {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                          </select>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <select
-                            value={user.role}
-                            onChange={(e) => void updateUserRole(user.id, e.target.value as Role, user.venueId)}
-                            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
-                          >
-                            <option value="pendiente">Pendiente</option>
-                            <option value="vendedor">Vendedor</option>
-                            <option value="canjeador">Canjeador</option>
-                            <option value="supervisor">Supervisor</option>
-                            <option value="validador">Validador</option>
-                            <option value="organizador">Encargado</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <button className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: 11 }} onClick={() => void handleResetPassword(user.email)}>Reset</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map(user => {
+                      const isMainAdmin = user.email.toLowerCase() === 'simplemente_anibal@hotmail.com'
+                      return (
+                        <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
+                          <td style={{ padding: '12px' }}>
+                              <strong style={{ color: '#0b192c' }}>{user.name}</strong><br/>
+                              <small className="muted" style={{ fontSize: 11 }}>{user.email}</small>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <select
+                               value={user.venueId || ''}
+                               onChange={(e) => void updateUserRole(user.id, user.role, e.target.value)}
+                               style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
+                            >
+                               <option value="">Sin local</option>
+                               {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <select
+                              value={user.role}
+                              onChange={(e) => void updateUserRole(user.id, e.target.value as Role, user.venueId)}
+                              style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
+                            >
+                              <option value="pendiente">Pendiente</option>
+                              <option value="vendedor">Vendedor</option>
+                              <option value="canjeador">Canjeador</option>
+                              <option value="supervisor">Supervisor</option>
+                              <option value="validador">Validador</option>
+                              <option value="organizador">Encargado</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <button
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 10px', fontSize: 11 }}
+                                onClick={() => void handleResetPassword(user.email)}
+                                title="Enviar email de reseteo de contraseña"
+                              >
+                                Reset
+                              </button>
+                              {!isMainAdmin && (
+                                <button
+                                  className="btn"
+                                  style={{
+                                    padding: '6px 10px',
+                                    fontSize: 11,
+                                    background: '#fee2e2',
+                                    color: '#dc2626',
+                                    border: '1px solid #fca5a5',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                  onClick={() => void handleDeleteUser(user)}
+                                  title="Eliminar usuario permanentemente"
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -302,137 +335,7 @@ export function AdminDashboardPage() {
         )}
 
         {tab === 'template' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-            {/* Left Column: Controls */}
-            <div className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 16, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0b192c', margin: 0 }}>Editor de Plantilla de Cupón</h2>
-              <p className="muted" style={{ fontSize: 13, margin: 0 }}>Ajustá las coordenadas, tamaños y estilos del QR y los textos. Los cambios se sincronizan en la nube para todos los vendedores y clientes.</p>
-
-              <label className="field">
-                <span>Posición vertical QR (Y): {templateConfig.qrY}px</span>
-                <input type="range" min={50} max={320} value={templateConfig.qrY} onChange={e => setTemplateConfig({ ...templateConfig, qrY: Number(e.target.value) })} style={{ width: '100%' }} />
-              </label>
-
-              <label className="field">
-                <span>Tamaño del QR: {templateConfig.qrSize}px</span>
-                <input type="range" min={120} max={280} value={templateConfig.qrSize} onChange={e => setTemplateConfig({ ...templateConfig, qrSize: Number(e.target.value) })} style={{ width: '100%' }} />
-              </label>
-
-              <label className="field">
-                <span>Radio de esquinas QR (Bordes): {templateConfig.qrRadius}px</span>
-                <input type="range" min={0} max={50} value={templateConfig.qrRadius} onChange={e => setTemplateConfig({ ...templateConfig, qrRadius: Number(e.target.value) })} style={{ width: '100%' }} />
-              </label>
-
-              <label className="field">
-                <span>Brillo del Afiche: {Math.round(templateConfig.brightness * 100)}%</span>
-                <input type="range" min={50} max={150} value={Math.round(templateConfig.brightness * 100)} onChange={e => setTemplateConfig({ ...templateConfig, brightness: Number(e.target.value) / 100 })} style={{ width: '100%' }} />
-              </label>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Sombras de texto y contenedor</span>
-                <input type="checkbox" checked={templateConfig.shadow} onChange={e => setTemplateConfig({ ...templateConfig, shadow: e.target.checked })} style={{ width: 18, height: 18 }} />
-              </div>
-
-              {message && <p className="flash flash-ok" style={{ fontSize: 13, padding: 10, borderRadius: 8 }}>{message}</p>}
-
-              <button
-                className="btn btn-primary btn-block"
-                type="button"
-                onClick={async () => {
-                  try {
-                    await saveCouponTemplate(templateConfig)
-                    setMessage('¡Plantilla de cupón guardada con éxito en la nube y aplicada a todos los dispositivos!')
-                    setTimeout(() => setMessage(''), 4000)
-                  } catch (err: any) {
-                    setMessage('Error al guardar: ' + (err?.message || 'Error desconocido'))
-                  }
-                }}
-                style={{ height: 48, borderRadius: 12, background: '#1e3a8a', fontWeight: 800, fontSize: 15 }}
-              >
-                GUARDAR CONFIGURACIÓN DE CUPÓN
-              </button>
-            </div>
-
-            {/* Right Column: Real-Time Live Preview */}
-            <div className="role-card" style={{ padding: 24, background: '#f8fafc', borderRadius: 16, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,42,.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'sticky', top: 20 }}>
-              <strong style={{ fontSize: 14, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vista Preliminar en Tiempo Real</strong>
-
-              {(() => {
-                const sampleCoupon = qrCatalog.find((q) => q.backgroundImage) || qrCatalog[0]
-                const activeEvent = events.find((e) => e.status === 'activo') || events[0]
-                const posterBg = sampleCoupon?.backgroundImage || (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || localStorage.getItem('qr-pass-line.poster') || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'
-
-                return (
-                  <div
-                    style={{
-                      width: 360,
-                      height: 520,
-                      borderRadius: 24,
-                      backgroundImage: `url(${posterBg})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      filter: `brightness(${templateConfig.brightness})`,
-                      padding: '20px',
-                      color: '#fff',
-                      boxShadow: templateConfig.shadow ? '0 20px 40px rgba(0,0,0,0.6)' : 'none',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {/* Gradient Sombra Base */}
-                    <div style={{ position: 'absolute', inset: '240px 0 0 0', background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.92))', pointerEvents: 'none' }} />
-
-                    {/* QR Box with Live Template Config */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        top: `${templateConfig.qrY}px`,
-                        width: `${templateConfig.qrSize}px`,
-                        height: `${templateConfig.qrSize}px`,
-                        borderRadius: `${templateConfig.qrRadius}px`,
-                        background: 'rgba(255, 255, 255, 0.78)',
-                        backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
-                        padding: 10,
-                        display: 'grid',
-                        placeItems: 'center',
-                        zIndex: 2,
-                        boxShadow: templateConfig.shadow ? '0 8px 32px rgba(0,0,0,0.3)' : 'none'
-                      }}
-                    >
-                      <div style={{ width: templateConfig.qrSize - 20, height: templateConfig.qrSize - 20 }}>
-                        <DottedQrImage value="DEMO-QR-CODE" size={templateConfig.qrSize - 20} />
-                      </div>
-                    </div>
-
-                    {/* Bottom Details */}
-                    <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 10px', width: '92%' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
-                          <span>Cupón</span>
-                          <span>Cant.</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
-                          <span>INGRESO GENERAL 2AM</span>
-                          <span style={{ color: '#ff4d4d' }}>1</span>
-                        </div>
-                      </div>
-
-                      <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateConfig.shadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                        {formatCouponSchedule(activeEvent, sampleCoupon)}
-                      </p>
-
-                      <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
-                        RR.PP: JOSE
-                      </strong>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
+          <CouponTemplateEditor />
         )}
       </main>
     </div>

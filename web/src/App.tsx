@@ -22,6 +22,9 @@ import { SellerLimitationsPage, NewSellerLimitationPage, EditSellerLimitationPag
 import { EstablishmentSettingsPage } from './pages/EstablishmentSettingsPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { SellerEmitPage } from './pages/SellerEmitPage'
+import { InformesPage } from './pages/InformesPage'
+import { PublicLinksPage } from './pages/PublicLinksPage'
+import { BansPage } from './pages/BansPage'
 
 function ProtectedRoutes() {
   const { currentUser, loading, logout } = useApp()
@@ -154,13 +157,18 @@ export default function App() {
         <Route path="/qr/inactivos" element={<ManagerGate><InactiveQrPage /></ManagerGate>} />
         <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
         <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
+        <Route path="/informes" element={<ManagerGate><InformesPage /></ManagerGate>} />
+        <Route path="/fechas" element={<ManagerGate><EventsPage /></ManagerGate>} />
+        <Route path="/fechas/nueva" element={<ManagerGate><NewEventPage /></ManagerGate>} />
+        <Route path="/fechas/:eventId" element={<ManagerGate><EventDetailPage /></ManagerGate>} />
+        <Route path="/links-publicos" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
+        <Route path="/publiclink" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
+        <Route path="/baneos" element={<ManagerGate><BansPage /></ManagerGate>} />
+        <Route path="/informebaneos" element={<ManagerGate><BansPage /></ManagerGate>} />
         {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
         <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
 
         <Route element={<ProtectedRoutes />}>
-          <Route path="/fechas" element={<EventsPage />} />
-          <Route path="/fechas/nueva" element={<NewEventPage />} />
-          <Route path="/fechas/:eventId" element={<EventDetailPage />} />
           <Route path="/equipo" element={<TeamPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

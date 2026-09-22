@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
-import { formatCouponSchedule } from '../lib/dateUtils'
+import { formatCouponSchedule, getTargetDateFromPeriod, parseDMY, SPANISH_DAY_NAMES } from '../lib/dateUtils'
 
 export function SellerEmitPage() {
-  const { currentUser, events, qrCatalog, issueTicket, couponTemplate } = useApp()
+  const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate } = useApp()
   const navigate = useNavigate()
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
@@ -18,14 +18,85 @@ export function SellerEmitPage() {
   const activeEvent = events.find((e) => e.status === 'activo') || events[0]
   const businessName = localStorage.getItem('qr-pass-line.business-name') || 'Cubano'
   const logo = localStorage.getItem('qr-pass-line.establishment-logo') || '/app-icon.png'
-  const couponsToDisplay = qrCatalog.length > 0 ? qrCatalog : [
-    { id: '1', name: 'INGRESO GENERAL 2AM', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 02:00', available: 200 },
-    { id: '2', name: 'INGRESO S/C 2:30', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 02:29', available: 200 },
-    { id: '3', name: 'INGRESO S/C + VIP', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 04:00', available: 200 },
-  ]
 
-  const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || '1'
+  // Filtrar estrictamente por las limitaciones asignadas a este vendedor
+  const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
+
+  const couponsToDisplay = useMemo(() => {
+    if (userLimitations.length > 0) {
+      return userLimitations.map((lim) => {
+        const catalogItem = qrCatalog.find((q) => q.id === lim.couponId)
+        const issuedCount = tickets.filter(
+          (t) => t.issuedBy === currentUser?.id && (t.couponId === lim.couponId || (!t.couponId && qrCatalog.length === 1))
+        ).length
+        const totalQuota = Number(lim.quantity) || 0
+        const available = Math.max(0, totalQuota - issuedCount)
+        const couponSchedule = formatCouponSchedule(activeEvent, {
+          ...catalogItem,
+          period: lim.period,
+          days: lim.days || catalogItem?.days,
+        })
+        return {
+          id: lim.couponId,
+          limitationId: lim.id,
+          name: catalogItem?.name || 'INGRESO GENERAL',
+          kind: catalogItem?.kind || 'consumible',
+          description: catalogItem?.description || '',
+          period: lim.period,
+          days: lim.days || catalogItem?.days,
+          from: catalogItem?.from || '23:59',
+          duration: catalogItem?.duration || '02:00',
+          scheduleMode: catalogItem?.scheduleMode,
+          schedule: couponSchedule,
+          available,
+          totalQuota,
+          issuedCount,
+          backgroundImage: catalogItem?.backgroundImage || (catalogItem as any)?.bgImage,
+        }
+      })
+    }
+
+    // Si es admin u organizador testeando la vista de vendedor:
+    const isManagerOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'organizador'
+    if (isManagerOrAdmin) {
+      return qrCatalog.map((item) => ({
+        ...item,
+        available: 200,
+        totalQuota: 200,
+        issuedCount: 0,
+        schedule: formatCouponSchedule(activeEvent, item),
+      }))
+    }
+
+    // Vendedor normal sin limitaciones asignadas
+    return []
+  }, [userLimitations, qrCatalog, tickets, currentUser, activeEvent])
+
+  const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || ''
   const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
+
+  // Calcular la fecha y cabecera del evento según las limitaciones asignadas o evento activo
+  const firstLimitation = userLimitations[0]
+  const targetHeaderDate = useMemo(() => {
+    if (firstLimitation?.period && firstLimitation.period !== 'Ilimitado') {
+      return getTargetDateFromPeriod(firstLimitation.period, firstLimitation.days)
+    }
+    if (activeEvent?.date) {
+      return parseDMY(activeEvent.date) || new Date()
+    }
+    return new Date()
+  }, [firstLimitation, activeEvent])
+
+  const headerTitle = useMemo(() => {
+    const dayName = SPANISH_DAY_NAMES[targetHeaderDate.getDay()]
+    const dayNum = targetHeaderDate.getDate()
+    const y = targetHeaderDate.getFullYear()
+    const m = String(targetHeaderDate.getMonth() + 1).padStart(2, '0')
+    const d = String(dayNum).padStart(2, '0')
+    return `${dayName} ${dayNum} (${y}-${m}-${d})`
+  }, [targetHeaderDate])
+
+  const headerDoorsOpen = selectedCoupon?.from || activeEvent?.doorsOpen || '23:59'
 
   const savedTemplate = JSON.parse(localStorage.getItem('qr-pass-line.coupon-template') || '{}')
   const template = couponTemplate || (savedTemplate.qrY ? savedTemplate : null)
@@ -34,22 +105,36 @@ export function SellerEmitPage() {
   const templateQrRadius = template?.qrRadius ?? 24
   const templateBrightness = template?.brightness ?? 1
   const templateShadow = template?.shadow ?? true
+  const templateBgZoom = template?.bgZoom ?? 100
+  const templateBgPosX = template?.bgPosX ?? 0
+  const templateBgPosY = template?.bgPosY ?? 0
 
   function updateCount(couponId: string, delta: number) {
+    const coupon = couponsToDisplay.find((c) => c.id === couponId)
+    const maxAvailable = coupon?.available ?? 200
     setCounts((prev) => {
       const current = prev[couponId] ?? 0
-      const next = Math.max(0, current + delta)
+      const next = Math.min(maxAvailable, Math.max(0, current + delta))
       return { ...prev, [couponId]: next }
     })
   }
 
   async function handleDirectEmit() {
-    if (!activeEvent || issuing) return
+    if (!activeEvent || issuing || !selectedCoupon) return
+    const count = counts[selectedCoupon.id] || 1
+    if (selectedCoupon.available <= 0) {
+      alert(`Has alcanzado el límite disponible (${selectedCoupon.totalQuota || 0}) para este cupón.`)
+      return
+    }
+    if (count > selectedCoupon.available) {
+      alert(`Solo tienes ${selectedCoupon.available} cupones disponibles para emitir.`)
+      return
+    }
     setIssuing(true)
     try {
-      const count = counts[selectedCoupon.id] || 1
       const ticket = await issueTicket({
         eventId: activeEvent.id,
+        couponId: selectedCoupon.id,
         kind: 'qr',
         holderName: `Cliente ${currentUser?.name || 'Vendedor'}`,
         dni: ''
@@ -84,7 +169,7 @@ export function SellerEmitPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
-    // 1. Draw Background Poster Image with Admin Brightness Filter
+    // 1. Draw Background Poster Image with Admin Brightness, Zoom and Position
     const bgImg = new Image()
     bgImg.crossOrigin = 'anonymous'
     await new Promise((resolve) => {
@@ -94,9 +179,30 @@ export function SellerEmitPage() {
     })
 
     if (bgImg.complete && bgImg.naturalWidth > 0) {
+      const scale = (templateBgZoom || 100) / 100
+      const posX = (templateBgPosX || 0) * 2
+      const posY = (templateBgPosY || 0) * 2
+
+      const imgRatio = bgImg.naturalWidth / bgImg.naturalHeight
+      const canvasRatio = width / height
+      let drawW = width
+      let drawH = height
+
+      if (imgRatio > canvasRatio) {
+        drawH = height
+        drawW = height * imgRatio
+      } else {
+        drawW = width
+        drawH = width / imgRatio
+      }
+
+      ctx.save()
       ctx.filter = `brightness(${templateBrightness})`
-      ctx.drawImage(bgImg, 0, 0, width, height)
-      ctx.filter = 'none'
+      ctx.translate(width / 2, height / 2)
+      ctx.scale(scale, scale)
+      ctx.translate(posX, posY)
+      ctx.drawImage(bgImg, -drawW / 2, -drawH / 2, drawW, drawH)
+      ctx.restore()
     } else {
       ctx.fillStyle = '#0f172a'
       ctx.fillRect(0, 0, width, height)
@@ -226,97 +332,118 @@ export function SellerEmitPage() {
           {/* Active Event Schedule Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: 12, marginBottom: 12 }}>
             <strong style={{ fontSize: 15, color: '#1e293b', fontWeight: 800 }}>
-              {activeEvent ? `${activeEvent.name} (${activeEvent.date ? activeEvent.date.split('T')[0] : 'Fecha activa'})` : 'Evento Activo'}
+              {headerTitle}
             </strong>
-            <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>{activeEvent?.doorsOpen ? `Apertura: ${activeEvent.doorsOpen}` : ''}</span>
+            <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Apertura: {headerDoorsOpen}</span>
           </div>
 
-          {/* Coupon List */}
-          <div className="stack" style={{ gap: 12 }}>
-            {couponsToDisplay.map((coupon) => {
-              const isSelected = activeCouponId === coupon.id
-              const count = counts[coupon.id] ?? 0
-              const formattedSchedule = formatCouponSchedule(activeEvent, coupon)
-              return (
-                <div
-                  key={coupon.id}
-                  onClick={() => setSelectedCouponId(coupon.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    borderRadius: 12,
-                    border: isSelected ? '2px solid #1e3a8a' : '1px solid #f1f5f9',
-                    background: isSelected ? '#f0f7ff' : '#fafafa',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 24, color: '#3b82f6' }}>▱</span>
-                    <div>
-                      <small style={{ color: '#64748b', fontSize: 10, display: 'block' }}>{formattedSchedule}</small>
-                      <strong style={{ fontSize: 14, color: '#0f172a', display: 'block', margin: '2px 0' }}>{coupon.name}</strong>
-                      <small style={{ color: '#94a3b8', fontSize: 10, display: 'block' }}>{(coupon as any).available ?? 200} disp.</small>
-                    </div>
-                  </div>
+          {/* Coupon List or Empty State */}
+          {couponsToDisplay.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+              <div style={{ fontSize: 38, marginBottom: 12 }}>🔒</div>
+              <strong style={{ fontSize: 16, color: '#1e293b', display: 'block', marginBottom: 8 }}>
+                Sin cupones asignados
+              </strong>
+              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+                No tenés limitaciones o cupones habilitados para emitir en este momento. Solicitá al encargado que te asigne límites de emisión.
+              </p>
+            </div>
+          ) : (
+            <div className="stack" style={{ gap: 12 }}>
+              {couponsToDisplay.map((coupon) => {
+                const isSelected = activeCouponId === coupon.id
+                const count = counts[coupon.id] ?? 0
+                const formattedSchedule = formatCouponSchedule(activeEvent, coupon)
+                const isExhausted = coupon.available <= 0
 
-                  {/* Stepper (+ / -) Box */}
+                return (
                   <div
+                    key={coupon.id}
+                    onClick={() => !isExhausted && setSelectedCouponId(coupon.id)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      background: '#1e3a8a',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: 10
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      border: isSelected ? '2px solid #1e3a8a' : '1px solid #f1f5f9',
+                      background: isExhausted ? '#f8fafc' : isSelected ? '#f0f7ff' : '#fafafa',
+                      opacity: isExhausted ? 0.6 : 1,
+                      cursor: isExhausted ? 'not-allowed' : 'pointer'
                     }}
-                    onClick={(e) => e.stopPropagation()}
                   >
-                    <button
-                      type="button"
-                      onClick={() => updateCount(coupon.id, -1)}
-                      style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', padding: '0 4px' }}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 24, color: isExhausted ? '#94a3b8' : '#3b82f6' }}>▱</span>
+                      <div>
+                        <small style={{ color: '#64748b', fontSize: 10, display: 'block' }}>{formattedSchedule}</small>
+                        <strong style={{ fontSize: 14, color: '#0f172a', display: 'block', margin: '2px 0' }}>{coupon.name}</strong>
+                        <small style={{ color: isExhausted ? '#ef4444' : '#64748b', fontSize: 11, display: 'block', fontWeight: 600 }}>
+                          {isExhausted ? 'Agotado (0 disp.)' : `${coupon.available} disp. / ${coupon.totalQuota || coupon.available} total`}
+                        </small>
+                      </div>
+                    </div>
+
+                    {/* Stepper (+ / -) Box */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: isExhausted ? '#94a3b8' : '#1e3a8a',
+                        color: '#fff',
+                        padding: '4px 8px',
+                        borderRadius: 10
+                      }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      -
-                    </button>
-                    <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
-                    <button
-                      type="button"
-                      onClick={() => updateCount(coupon.id, 1)}
-                      style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', padding: '0 4px' }}
-                    >
-                      +
-                    </button>
+                      <button
+                        type="button"
+                        disabled={isExhausted}
+                        onClick={() => updateCount(coupon.id, -1)}
+                        style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                      >
+                        -
+                      </button>
+                      <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
+                      <button
+                        type="button"
+                        disabled={isExhausted}
+                        onClick={() => updateCount(coupon.id, 1)}
+                        style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Direct Emit Action Button */}
-          <button
-            className="btn btn-block"
-            type="button"
-            disabled={issuing}
-            onClick={handleDirectEmit}
-            style={{
-              marginTop: 20,
-              height: 48,
-              borderRadius: 12,
-              background: '#1e3a8a',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 800,
-              letterSpacing: '0.04em',
-              border: 0,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(30,58,138,0.2)'
-            }}
-          >
-            {issuing ? 'GENERANDO CUPÓN...' : 'EMITIR CUPÓN'}
-          </button>
+          {couponsToDisplay.length > 0 && (
+            <button
+              className="btn btn-block"
+              type="button"
+              disabled={issuing || !selectedCoupon || selectedCoupon.available <= 0}
+              onClick={handleDirectEmit}
+              style={{
+                marginTop: 20,
+                height: 48,
+                borderRadius: 12,
+                background: (!selectedCoupon || selectedCoupon.available <= 0) ? '#94a3b8' : '#1e3a8a',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                border: 0,
+                cursor: (!selectedCoupon || selectedCoupon.available <= 0) ? 'not-allowed' : 'pointer',
+                boxShadow: (!selectedCoupon || selectedCoupon.available <= 0) ? 'none' : '0 4px 12px rgba(30,58,138,0.2)'
+              }}
+            >
+              {issuing ? 'GENERANDO CUPÓN...' : selectedCoupon && selectedCoupon.available <= 0 ? 'LÍMITE ALCANZADO' : 'EMITIR CUPÓN'}
+            </button>
+          )}
         </div>
       </main>
 
@@ -330,24 +457,46 @@ export function SellerEmitPage() {
                 width: 360,
                 height: 520,
                 borderRadius: 24,
-                backgroundImage: `url(${previewTicket.bgImage})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                filter: `brightness(${templateBrightness})`,
                 padding: '20px',
                 color: '#fff',
                 boxShadow: templateShadow ? '0 20px 40px rgba(0,0,0,0.5)' : 'none',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                background: '#0f172a'
               }}
             >
+              {/* Background Layer with Zoom and Position Transform */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'hidden',
+                  zIndex: 0,
+                }}
+              >
+                <img
+                  src={previewTicket.bgImage}
+                  alt="Afiche"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: `scale(${(templateBgZoom || 100) / 100}) translate(${templateBgPosX || 0}px, ${templateBgPosY || 0}px)`,
+                    transformOrigin: 'center center',
+                    filter: `brightness(${templateBrightness})`,
+                    pointerEvents: 'none'
+                  }}
+                />
+              </div>
+
               {/* Gradient Sombra Suave solo en la base para legibilidad */}
               <div
                 style={{
                   position: 'absolute',
                   inset: '240px 0 0 0',
                   background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.92))',
-                  pointerEvents: 'none'
+                  pointerEvents: 'none',
+                  zIndex: 1
                 }}
               />
 

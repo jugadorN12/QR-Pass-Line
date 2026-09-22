@@ -11,6 +11,7 @@ export type User = {
   role: Role
   roles?: Role[]
   venueId?: string
+  avatar?: string
   createdAt: string
 }
 
@@ -39,6 +40,7 @@ export type ClubEvent = {
 export type Ticket = {
   id: string
   eventId: string
+  couponId?: string
   kind: TicketKind
   code: string
   holderName: string
@@ -84,6 +86,9 @@ export type CouponTemplateConfig = {
   tableY?: number
   brightness: number
   shadow: boolean
+  bgZoom?: number
+  bgPosX?: number
+  bgPosY?: number
 }
 
 export const defaultCouponTemplate: CouponTemplateConfig = {
@@ -92,6 +97,9 @@ export const defaultCouponTemplate: CouponTemplateConfig = {
   qrRadius: 24,
   brightness: 1,
   shadow: true,
+  bgZoom: 100,
+  bgPosX: 0,
+  bgPosY: 0,
 }
 
 export type AppData = {

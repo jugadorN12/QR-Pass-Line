@@ -45,17 +45,19 @@ type AppContextValue = AppData & {
   addMember: (input: { name: string; email: string; password: string; role?: Role; roles?: Role[] }) => Promise<void>
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus }) => Promise<ClubEvent>
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; kind: TicketKind; holderName: string; dni?: string }) => Promise<Ticket>
-  redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket } | { ok: false; message: string }>
+  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string }) => Promise<Ticket>
+  redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
   saveQrItem: (item: QrCatalogItem) => Promise<void>
   deleteQrItem: (id: string) => Promise<void>
   saveLimitation: (limitation: Limitation) => Promise<void>
   deleteLimitation: (id: string) => Promise<void>
   updateUserRole: (userId: string, role?: Role, venueId?: string, roles?: Role[]) => Promise<void>
+  deleteUser: (userId: string) => Promise<void>
   resetUserPasswordByEmail: (email: string) => Promise<void>
   createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
   deleteVenue: (id: string) => Promise<void>
   saveCouponTemplate: (config: CouponTemplateConfig) => Promise<void>
+  updateUserAvatar: (userId: string, avatarUrl: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -68,12 +70,19 @@ function asUser(id: string, value: Record<string, unknown>): User {
   if (String(value.email).toLowerCase() === ADMIN_EMAIL) {
     role = 'admin'
   }
+  const email = String(value.email ?? '')
+  const name = String(value.name ?? (email ? email.split('@')[0] : 'Usuario'))
+  const rawAvatar = String(value.avatar ?? '')
+  const avatar = rawAvatar || (email ? `https://unavatar.io/${encodeURIComponent(email)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=193659&color=fff` : '')
+
   return {
     id,
-    name: String(value.name ?? ''),
-    email: String(value.email ?? ''),
+    name,
+    email,
     role,
+    roles: Array.isArray(value.roles) ? (value.roles as Role[]) : (role ? [role] : []),
     venueId: String(value.venueId ?? ''),
+    avatar,
     createdAt: String(value.createdAt ?? new Date().toISOString()),
   }
 }
@@ -236,6 +245,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
       await updatePassword(auth.currentUser, password)
     },
+    async updateUserAvatar(userId, avatarUrl) {
+      if (!currentUser) throw new Error('Sesión vencida.')
+      await updateDoc(doc(db, 'users', userId), { avatar: avatarUrl })
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((user) => user.id === userId ? { ...user, avatar: avatarUrl } : user),
+      }))
+    },
     async addMember({ name, email, password, role, roles }) {
       if (currentUser?.role !== 'organizador' && currentUser?.role !== 'admin') {
         throw new Error('Sin permisos para registrar personal.')
@@ -248,9 +265,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const assignedRoles: Role[] = roles && roles.length ? roles : (role ? [role] : ['vendedor'])
       const primaryRole: Role = assignedRoles[0] || 'vendedor'
 
+      // 1. If user is already in local state, assign role and update Firestore immediately
+      const existingLocalUser = data.users.find((u) => u.email.toLowerCase() === cleanEmail)
+      if (existingLocalUser) {
+        const mergedRoles = Array.from(new Set([...(existingLocalUser.roles || [existingLocalUser.role]), ...assignedRoles])).filter(Boolean) as Role[]
+        await updateDoc(doc(db, 'users', existingLocalUser.id), {
+          role: primaryRole,
+          roles: mergedRoles,
+          venueId: venueId || existingLocalUser.venueId || '',
+        })
+        const updated: User = {
+          ...existingLocalUser,
+          role: primaryRole,
+          roles: mergedRoles,
+          venueId: venueId || existingLocalUser.venueId || '',
+        }
+        setData((prev) => ({
+          ...prev,
+          users: prev.users.map((u) => (u.id === updated.id ? updated : u)),
+        }))
+        return
+      }
+
+      // 2. If user exists in Firestore database (e.g. registered on login page), update their role
+      const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        const foundDoc = snap.docs[0]
+        const docData = foundDoc.data()
+        const mergedRoles = Array.from(new Set([...(docData.roles || [docData.role]), ...assignedRoles])).filter(Boolean) as Role[]
+        await updateDoc(doc(db, 'users', foundDoc.id), {
+          role: primaryRole,
+          roles: mergedRoles,
+          venueId: venueId || docData.venueId || '',
+        })
+        const updatedUser = asUser(foundDoc.id, {
+          ...docData,
+          role: primaryRole,
+          roles: mergedRoles,
+          venueId: venueId || docData.venueId || '',
+        })
+        setData((prev) => ({
+          ...prev,
+          users: [updatedUser, ...prev.users.filter((u) => u.id !== updatedUser.id)],
+        }))
+        return
+      }
+
+      // 3. If brand new user, create account via secondaryAuth
       try {
         const credentials = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, cleanPassword)
         await updateProfile(credentials.user, { displayName: cleanName })
+        const defaultAvatar = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=193659&color=fff`
         const user: User = {
           id: credentials.user.uid,
           name: cleanName,
@@ -258,19 +324,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
           role: primaryRole,
           roles: assignedRoles,
           venueId,
-          createdAt: new Date().toISOString()
+          avatar: defaultAvatar,
+          createdAt: new Date().toISOString(),
         }
         await setDoc(doc(db, 'users', user.id), user)
         await signOut(secondaryAuth).catch(() => {})
         setData((prev) => ({
           ...prev,
-          users: [user, ...prev.users.filter((u) => u.id !== user.id)]
+          users: [user, ...prev.users.filter((u) => u.id !== user.id)],
         }))
       } catch (err: any) {
-        console.error('Error in addMember:', err)
-        const msg = err?.code === 'auth/email-already-in-use'
-          ? 'El correo electrónico ya está registrado.'
-          : err?.code === 'auth/weak-password'
+        console.error('addMember creation notice:', err)
+        if (err?.code === 'auth/email-already-in-use') {
+          // Exists in Auth, create/sync user document in Firestore so they show up immediately
+          const defaultAvatar = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=193659&color=fff`
+          const placeholderId = `auth-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`
+          const user: User = {
+            id: placeholderId,
+            name: cleanName,
+            email: cleanEmail,
+            role: primaryRole,
+            roles: assignedRoles,
+            venueId,
+            avatar: defaultAvatar,
+            createdAt: new Date().toISOString(),
+          }
+          await setDoc(doc(db, 'users', user.id), user)
+          setData((prev) => ({
+            ...prev,
+            users: [user, ...prev.users.filter((u) => u.id !== user.id && u.email !== cleanEmail)],
+          }))
+          return
+        }
+        const msg = err?.code === 'auth/weak-password'
           ? 'La contraseña es demasiado débil.'
           : err?.message || 'No se pudo registrar el usuario.'
         throw new Error(msg)
@@ -316,12 +402,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         limitations: prev.limitations.filter((l) => l.id !== id),
       }))
     },
-    async issueTicket({ eventId, kind, holderName, dni }) {
+    async issueTicket({ eventId, couponId, kind, holderName, dni }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
       if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
-      const ticket: Omit<Ticket, 'id'> = { eventId, kind, code: ticketCode(), holderName: holderName.trim(), dni: (dni ?? '').replace(/\D/g, ''), issuedBy: currentUser.id, issuedAt: new Date().toISOString(), redeemedAt: null, redeemedBy: null }
+      const ticket: Omit<Ticket, 'id'> = { eventId, couponId: couponId || '', kind, code: ticketCode(), holderName: holderName.trim(), dni: (dni ?? '').replace(/\D/g, ''), issuedBy: currentUser.id, issuedAt: new Date().toISOString(), redeemedAt: null, redeemedBy: null }
       const created = await addDoc(collection(db, 'tickets'), ticket)
       const result = { id: created.id, ...ticket }
       setData((prev) => ({ ...prev, tickets: [result, ...prev.tickets] }))
@@ -439,6 +525,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({
         ...prev,
         users: prev.users.map((u) => u.id === userId ? { ...u, ...updates } : u),
+      }))
+    },
+    async deleteUser(userId) {
+      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede eliminar usuarios.')
+      const targetUser = data.users.find((u) => u.id === userId)
+      if (targetUser && targetUser.email.toLowerCase() === ADMIN_EMAIL) {
+        throw new Error('No se puede eliminar la cuenta del administrador principal.')
+      }
+      // 1. Eliminar usuario de Firestore
+      await deleteDoc(doc(db, 'users', userId))
+
+      // 2. Eliminar limitaciones asociadas
+      const userLimits = data.limitations.filter((l) => l.personId === userId)
+      for (const lim of userLimits) {
+        await deleteDoc(doc(db, 'limitations', lim.id)).catch(() => {})
+      }
+
+      // 3. Actualizar estado local
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.filter((u) => u.id !== userId),
+        limitations: prev.limitations.filter((l) => l.personId !== userId),
       }))
     },
     async resetUserPasswordByEmail(email) {
