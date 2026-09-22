@@ -8,21 +8,22 @@ export function SellerEmitPage() {
   const { currentUser, events, qrCatalog, issueTicket } = useApp()
   const navigate = useNavigate()
 
-  const [selectedCouponId, setSelectedCouponId] = useState<string>('1')
+  const [selectedCouponId, setSelectedCouponId] = useState<string>('')
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [previewTicket, setPreviewTicket] = useState<{ code: string; couponName: string; schedule: string; quantity: number } | null>(null)
+  const [previewTicket, setPreviewTicket] = useState<{ code: string; couponName: string; schedule: string; quantity: number; bgImage: string } | null>(null)
   const [issuing, setIssuing] = useState(false)
 
   const activeEvent = events.find((e) => e.status === 'activo') || events[0]
   const businessName = localStorage.getItem('qr-pass-line.business-name') || 'Cubano'
   const logo = localStorage.getItem('qr-pass-line.establishment-logo') || '/favicon.svg'
-  const eventBg = (activeEvent as any)?.backgroundImage || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'
-
   const couponsToDisplay = qrCatalog.length > 0 ? qrCatalog : [
     { id: '1', name: 'INGRESO GENERAL 2AM', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 02:00', available: 200 },
     { id: '2', name: 'INGRESO S/C 2:30', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 02:29', available: 200 },
     { id: '3', name: 'INGRESO S/C + VIP', kind: 'consumible', schedule: 'Del 19/09 23:59 al 20/09 04:00', available: 200 },
   ]
+
+  const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || '1'
+  const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
 
   function updateCount(couponId: string, delta: number) {
     setCounts((prev) => {
@@ -36,7 +37,6 @@ export function SellerEmitPage() {
     if (!activeEvent || issuing) return
     setIssuing(true)
     try {
-      const selectedCoupon = couponsToDisplay.find((c) => c.id === selectedCouponId) || couponsToDisplay[0]
       const count = counts[selectedCoupon.id] || 1
       const ticket = await issueTicket({
         eventId: activeEvent.id,
@@ -45,11 +45,15 @@ export function SellerEmitPage() {
         dni: ''
       })
 
+      // Strict per-coupon background image resolution
+      const couponBg = (selectedCoupon as any)?.backgroundImage || (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || localStorage.getItem('qr-pass-line.poster') || ''
+
       setPreviewTicket({
         code: ticket.code,
         couponName: selectedCoupon.name,
         schedule: (selectedCoupon as any).schedule || 'Del 19/09 23:59 al 20/09 02:00',
-        quantity: count > 0 ? count : 1
+        quantity: count > 0 ? count : 1,
+        bgImage: couponBg
       })
     } catch (err: any) {
       alert(err?.message || 'Error al emitir cupón.')
@@ -68,13 +72,13 @@ export function SellerEmitPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
-    // 1. Draw Background Poster Image
+    // 1. Draw Original Bright Background Poster Image (No dark gradient overlay)
     const bgImg = new Image()
     bgImg.crossOrigin = 'anonymous'
     await new Promise((resolve) => {
       bgImg.onload = resolve
       bgImg.onerror = resolve
-      bgImg.src = eventBg
+      bgImg.src = previewTicket.bgImage
     })
 
     if (bgImg.complete && bgImg.naturalWidth > 0) {
@@ -84,43 +88,34 @@ export function SellerEmitPage() {
       ctx.fillRect(0, 0, width, height)
     }
 
-    // Gradient Overlay for text legibility
-    const grad = ctx.createLinearGradient(0, 0, 0, height)
-    grad.addColorStop(0, 'rgba(0,0,0,0.45)')
-    grad.addColorStop(0.5, 'rgba(0,0,0,0.2)')
-    grad.addColorStop(1, 'rgba(0,0,0,0.85)')
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, width, height)
+    // Gentle bottom gradient ONLY behind text for readability
+    const bottomGrad = ctx.createLinearGradient(0, height - 360, 0, height)
+    bottomGrad.addColorStop(0, 'rgba(0,0,0,0)')
+    bottomGrad.addColorStop(0.5, 'rgba(0,0,0,0.65)')
+    bottomGrad.addColorStop(1, 'rgba(0,0,0,0.95)')
+    ctx.fillStyle = bottomGrad
+    ctx.fillRect(0, height - 360, width, 360)
 
-    // 2. Draw Header Text
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#ffffff'
-    ctx.font = '900 36px sans-serif'
-    ctx.fillText('SÁBADO 19 SEPTIEMBRE', width / 2, 90)
-
-    ctx.font = '900 50px sans-serif'
-    ctx.fillText('PRE PRIMAVERA', width / 2, 155)
-
-    // 3. Draw Translucent White Rounded Card for QR Code
-    const qrCardSize = 420
+    // 2. Draw Translucent Glass Rounded Card for QR Code (Imagen 1 Blue Box & Imagen 2 Glass Clone)
+    const qrCardSize = 350
     const qrCardX = (width - qrCardSize) / 2
-    const qrCardY = 210
+    const qrCardY = 310
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.78)'
     ctx.beginPath()
     ctx.roundRect(qrCardX, qrCardY, qrCardSize, qrCardSize, 48)
     ctx.fill()
 
-    // 4. Draw Dotted QR Code onto Canvas
+    // 3. Draw Dotted QR Code onto Canvas
     const qrCanvas = document.createElement('canvas')
-    qrCanvas.width = 340
-    qrCanvas.height = 340
+    qrCanvas.width = 290
+    qrCanvas.height = 290
     const qrCtx = qrCanvas.getContext('2d')
     if (qrCtx) {
       try {
         const qr = QRCode.create(previewTicket.code, { errorCorrectionLevel: 'M' })
         const mSize = qr.modules.size
-        const cell = 340 / mSize
+        const cell = 290 / mSize
 
         qrCtx.fillStyle = '#0f172a'
 
@@ -142,7 +137,7 @@ export function SellerEmitPage() {
           const x = startCol * cell
           const y = startRow * cell
           const outerDim = 7 * cell
-          qrCtx.lineWidth = cell * 0.9
+          qrCtx.lineWidth = cell * 0.95
           qrCtx.strokeStyle = '#0f172a'
           const strokeOffset = qrCtx.lineWidth / 2
           qrCtx.beginPath()
@@ -162,16 +157,10 @@ export function SellerEmitPage() {
       }
     }
 
-    ctx.drawImage(qrCanvas, qrCardX + 40, qrCardY + 40, 340, 340)
+    ctx.drawImage(qrCanvas, qrCardX + 30, qrCardY + 30, 290, 290)
 
-    // 5. Draw Ticket Name
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#ffffff'
-    ctx.font = '900 40px sans-serif'
-    ctx.fillText(previewTicket.couponName, width / 2, 700)
-
-    // 6. Draw Table
-    const tableY = 750
+    // 4. Draw Table (Imagen 1 & 3 Design - No duplicate text above table)
+    const tableY = 740
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'
     ctx.lineWidth = 2
     ctx.beginPath()
@@ -197,14 +186,14 @@ export function SellerEmitPage() {
     ctx.textAlign = 'right'
     ctx.fillText(String(previewTicket.quantity), 620, tableY + 68)
 
-    // 7. Draw Valid Schedule & Seller Name
+    // 5. Draw Valid Schedule & Seller Name
     ctx.textAlign = 'center'
     ctx.fillStyle = '#ffffff'
     ctx.font = '24px sans-serif'
-    ctx.fillText(previewTicket.schedule, width / 2, 890)
+    ctx.fillText(previewTicket.schedule, width / 2, 895)
 
-    ctx.font = '900 32px sans-serif'
-    ctx.fillText(`VENDEDOR: ${currentUser?.name || 'Alinne'}`, width / 2, 950)
+    ctx.font = '900 34px sans-serif'
+    ctx.fillText(`VENDEDOR: ${currentUser?.name || 'JOSE'}`, width / 2, 955)
 
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -270,7 +259,7 @@ export function SellerEmitPage() {
           {/* Coupon List */}
           <div className="stack" style={{ gap: 12 }}>
             {couponsToDisplay.map((coupon) => {
-              const isSelected = selectedCouponId === coupon.id
+              const isSelected = activeCouponId === coupon.id
               const count = counts[coupon.id] ?? 0
               return (
                 <div
@@ -355,20 +344,20 @@ export function SellerEmitPage() {
         </div>
       </main>
 
-      {/* Modal Previsualización de Cupón QR Estilo Imagen 2 & 3 */}
+      {/* Modal Previsualización de Cupón QR (Exact Blue Box Position Imagen 1 & Glass Clone Imagen 2) */}
       {previewTicket && (
         <div className="qr-preview-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.85)', display: 'grid', placeItems: 'center', padding: 16, overflowY: 'auto' }}>
           <div style={{ width: 'min(360px, 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            {/* Card con Fondo de Imagen */}
+            {/* Card con Fondo de Imagen Original */}
             <div
               style={{
                 width: '100%',
                 minHeight: 520,
-                borderRadius: 20,
-                backgroundImage: `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.65)), url(${eventBg})`,
+                borderRadius: 24,
+                backgroundImage: `url(${previewTicket.bgImage})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                padding: '24px 20px',
+                padding: '20px 20px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
@@ -378,43 +367,43 @@ export function SellerEmitPage() {
                 overflow: 'hidden'
               }}
             >
-              {/* Encabezado Evento */}
-              <div style={{ textAlign: 'center' }}>
-                <h2 style={{ fontSize: 22, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0, textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                  SÁBADO 19 SEPTIEMBRE
-                </h2>
-                <strong style={{ fontSize: 26, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', margin: '4px 0 0', textShadow: '0 2px 6px rgba(0,0,0,0.9)' }}>
-                  PRE PRIMAVERA
-                </strong>
-              </div>
-
-              {/* QR Dunteado/Pelotitas Centrado con Marco Blanco Elegante (Imagen 3 Format) */}
+              {/* Gradient Sombra Suave solo en la base para legibilidad */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.92)',
-                  borderRadius: 24,
-                  padding: 18,
-                  width: 210,
-                  height: 210,
-                  margin: '12px auto',
+                  position: 'absolute',
+                  inset: '240px 0 0 0',
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.88))',
+                  pointerEvents: 'none'
+                }}
+              />
+
+              {/* QR Box En el LUGAR EXACTO del Sector Azul (Imagen 1) y Cristal Translúcido (Imagen 2) */}
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 2,
+                  background: 'rgba(255, 255, 255, 0.78)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  borderRadius: 8,
+                  padding: 1,
+                  width: 200,
+                  height: 180,
+                  margin: '155px auto 12px',
                   display: 'grid',
                   placeItems: 'center',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
                 }}
               >
-                <div style={{ width: 174, height: 174 }}>
-                  <DottedQrImage value={previewTicket.code} size={174} />
+                <div style={{ width: 170, height: 170 }}>
+                  <DottedQrImage value={previewTicket.code} size={152} />
                 </div>
               </div>
 
-              {/* Detalle Inferior del Cupón */}
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 12px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                  {previewTicket.couponName}
-                </h3>
-
+              {/* Detalle Inferior del Cupón (Imagen 1 - Sin texto encimado arriba) */}
+              <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
                 {/* Tabla de Cupón */}
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 12px', width: '90%' }}>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 10px', width: '92%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
                     <span>Cupón</span>
                     <span>Cant.</span>
@@ -425,12 +414,12 @@ export function SellerEmitPage() {
                   </div>
                 </div>
 
-                <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)' }}>
+                <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
                   {previewTicket.schedule}
                 </p>
 
-                <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                  VENDEDOR: {currentUser?.name || 'Alinne'}
+                <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
+                  VENDEDOR: {currentUser?.name || 'JOSE'}
                 </strong>
               </div>
             </div>

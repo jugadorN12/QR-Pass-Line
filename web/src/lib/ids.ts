@@ -36,10 +36,12 @@ export function qrPayload(code: string): string {
 }
 
 export function parseQrPayload(raw: string): string | null {
+  if (!raw) return null
   const text = raw.trim()
-  if (text.startsWith('QPL1|')) return text.slice(5)
+  if (text.startsWith('QPL1|')) return text.slice(5, 13).toUpperCase()
   const fromUrl = text.match(/\/t\/([A-Z0-9]{8})/i)
   if (fromUrl) return fromUrl[1].toUpperCase()
-  if (/^[A-Z0-9]{8}$/i.test(text)) return text.toUpperCase()
+  const match = text.match(/\b([A-Z0-9]{8})\b/i) || text.match(/([A-Z0-9]{8})/i)
+  if (match) return match[1].toUpperCase()
   return null
 }

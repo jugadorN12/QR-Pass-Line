@@ -76,17 +76,6 @@ function asUser(id: string, value: Record<string, unknown>): User {
   }
 }
 
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3 // metros
-  const φ1 = (lat1 * Math.PI) / 180
-  const φ2 = (lat2 * Math.PI) / 180
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c // en metros
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData)
   const [loading, setLoading] = useState(true)
@@ -321,32 +310,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!currentUser) return { ok: false, message: 'Sesión vencida.' }
       if (currentUser.role === 'vendedor') return { ok: false, message: 'El vendedor no canjea en puerta.' }
 
-      // Validación Geográfica
-      if (currentUser.venueId) {
-        const venue = data.venues.find(v => v.id === currentUser.venueId)
-        if (venue && venue.radius > 0) {
-          try {
-            const pos: any = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 }))
-            const dist = getDistance(pos.coords.latitude, pos.coords.longitude, venue.latitude, venue.longitude)
-            if (dist > venue.radius) {
-              return { ok: false, message: `Estás fuera del radio permitido para canjear (${Math.round(dist)}m de distancia).` }
-            }
-          } catch {
-            return { ok: false, message: 'No se pudo obtener tu ubicación GPS necesaria para el canje.' }
-          }
+      const normalizedCode = code.trim().toUpperCase()
+      const ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
+
+      if (!ticket) {
+        return {
+          ok: false,
+          reason: 'not_found',
+          message: 'El código QR no existe o no se encuentra registrado en el sistema.'
         }
       }
 
-      const normalized = code.trim().toUpperCase()
-      const match = data.tickets.find((ticket) => ticket.code === normalized)
-      if (!match) return { ok: false, message: 'Ese código no existe.' }
-      const event = data.events.find((item) => item.id === match.eventId)
-      if (event?.status !== 'activo') return { ok: false, message: 'La fecha de este acceso no está activa.' }
-      if (match.redeemedAt) return { ok: false, message: 'Ya fue canjeado.' }
-      const redeemed = { ...match, redeemedAt: new Date().toISOString(), redeemedBy: currentUser.id }
-      await updateDoc(doc(db, 'tickets', match.id), { redeemedAt: redeemed.redeemedAt, redeemedBy: redeemed.redeemedBy })
-      setData((prev) => ({ ...prev, tickets: prev.tickets.map((ticket) => ticket.id === match.id ? redeemed : ticket) }))
-      return { ok: true, ticket: redeemed }
+      // Lookup Seller / RRPP Name
+      const seller = data.users.find((u) => u.id === ticket.issuedBy)
+      const sellerName = seller ? seller.name : 'Vendedor General'
+
+      // Lookup Event & Venue
+      const event = data.events.find((e) => e.id === ticket.eventId)
+      const ticketVenue = event?.venue || ''
+
+      // 1. Check Establishment / Venue Match
+      const currentVenueName = currentUser.venueId
+        ? (data.venues.find((v) => v.id === currentUser.venueId)?.name || '')
+        : ''
+
+      if (currentVenueName && ticketVenue && !ticketVenue.toLowerCase().includes(currentVenueName.toLowerCase()) && !currentVenueName.toLowerCase().includes(ticketVenue.toLowerCase())) {
+        return {
+          ok: false,
+          reason: 'wrong_venue',
+          message: `Este cupón pertenece al local "${ticketVenue}" y estás operando en "${currentVenueName}".`,
+          sellerName,
+          ticketVenue
+        }
+      }
+
+      // 2. Check Event Status / Active Date
+      if (event && event.status !== 'activo') {
+        return {
+          ok: false,
+          reason: 'inactive_event',
+          message: `La fecha de este acceso ("${event.name}") no está activa hoy.`,
+          sellerName,
+          eventName: event.name
+        }
+      }
+
+      // 3. Check Single Use / Already Redeemed
+      if (ticket.redeemedAt) {
+        const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
+        const redeemerName = redeemer ? redeemer.name : 'Personal de Puerta'
+        const redeemedDate = new Date(ticket.redeemedAt)
+        const formattedTime = !isNaN(redeemedDate.getTime())
+          ? redeemedDate.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : ticket.redeemedAt
+
+        return {
+          ok: false,
+          reason: 'already_used',
+          message: `Este QR ya fue utilizado anteriormente.`,
+          sellerName,
+          redeemedAtFormatted: formattedTime,
+          redeemerName,
+          holderName: ticket.holderName || 'Portador'
+        }
+      }
+
+      // 4. Mark Ticket as Redeemed in Firestore & Local State
+      const redeemed = {
+        ...ticket,
+        redeemedAt: new Date().toISOString(),
+        redeemedBy: currentUser.id
+      }
+
+      await updateDoc(doc(db, 'tickets', ticket.id), {
+        redeemedAt: redeemed.redeemedAt,
+        redeemedBy: redeemed.redeemedBy
+      })
+
+      setData((prev) => ({
+        ...prev,
+        tickets: prev.tickets.map((t) => t.id === ticket.id ? redeemed : t)
+      }))
+
+      return {
+        ok: true,
+        ticket: redeemed,
+        sellerName,
+        eventName: event?.name || 'Evento Activo',
+        venueName: ticketVenue || currentVenueName || 'Local Principal',
+        schedule: 'Del 19/09 23:59 al 20/09 02:00',
+        quantity: 1
+      }
     },
     async updateUserRole(userId, role, venueId, roles) {
       if (currentUser?.role !== 'admin' && currentUser?.role !== 'organizador') throw new Error('Sin permisos para asignar roles.')

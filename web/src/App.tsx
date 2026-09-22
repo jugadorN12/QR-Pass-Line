@@ -137,6 +137,7 @@ export default function App() {
         <Route path="/encargado" element={<ManagerGate><ManagerPage /></ManagerGate>} />
         <Route path="/encargado/configuracion" element={<ManagerGate><EstablishmentSettingsPage /></ManagerGate>} />
         <Route path="/vendedor" element={<RoleGate><SellerEmitPage /></RoleGate>} />
+        <Route path="/puerta" element={<RoleGate><GatePage /></RoleGate>} />
         <Route path="/vendedores" element={<ManagerGate><SellersPage /></ManagerGate>} />
         <Route path="/vendedores/:sellerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
         <Route path="/vendedores/:sellerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
@@ -160,7 +161,6 @@ export default function App() {
           <Route path="/fechas" element={<EventsPage />} />
           <Route path="/fechas/nueva" element={<NewEventPage />} />
           <Route path="/fechas/:eventId" element={<EventDetailPage />} />
-          <Route path="/puerta" element={<GatePage />} />
           <Route path="/equipo" element={<TeamPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
