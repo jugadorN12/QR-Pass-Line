@@ -19,10 +19,65 @@ export function SellerEmitPage() {
   const businessName = localStorage.getItem('qr-pass-line.business-name') || 'Cubano'
   const logo = localStorage.getItem('qr-pass-line.establishment-logo') || '/app-icon.png'
 
-  // Filtrar estrictamente por las limitaciones asignadas a este vendedor
+  // Determinar si es encargado / admin / organizador con acceso total
+  const isManagerOrAdmin =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'organizador' ||
+    Boolean(currentUser?.roles?.includes('admin')) ||
+    Boolean(currentUser?.roles?.includes('organizador'))
+
+  // Filtrar estrictamente por las limitaciones asignadas a este vendedor (para vendedores regulares)
   const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
 
   const couponsToDisplay = useMemo(() => {
+    // Si es admin u organizador (Encargado), tiene acceso TOTAL e ILIMITADO a todos los cupones creados
+    if (isManagerOrAdmin) {
+      if (qrCatalog.length > 0) {
+        return qrCatalog.map((item) => {
+          const issuedCount = tickets.filter(
+            (t) => t.issuedBy === currentUser?.id && t.couponId === item.id
+          ).length
+          return {
+            id: item.id,
+            limitationId: 'unlimited-' + item.id,
+            name: item.name || 'INGRESO GENERAL',
+            kind: item.kind || 'consumible',
+            description: item.description || '',
+            period: 'Ilimitado',
+            days: item.days,
+            from: item.from || '23:59',
+            duration: item.duration || '02:00',
+            scheduleMode: item.scheduleMode,
+            schedule: formatCouponSchedule(activeEvent, item),
+            available: 9999,
+            totalQuota: 9999,
+            issuedCount,
+            backgroundImage: item.backgroundImage || (item as any)?.bgImage || (activeEvent as any)?.backgroundImage || '',
+          }
+        })
+      } else {
+        // En caso de que aún no hayan agregado ítems al catálogo, proveer ingreso general por defecto
+        return [{
+          id: 'default-coupon',
+          limitationId: 'unlimited-default',
+          name: 'INGRESO GENERAL',
+          kind: 'consumible' as const,
+          description: 'Acceso general',
+          period: 'Ilimitado',
+          days: undefined,
+          from: activeEvent?.doorsOpen || '23:59',
+          duration: '02:00',
+          scheduleMode: 'end' as const,
+          schedule: `Válido hasta las ${activeEvent?.doorsOpen || '23:59'} hs`,
+          available: 9999,
+          totalQuota: 9999,
+          issuedCount: 0,
+          backgroundImage: (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || '',
+        }]
+      }
+    }
+
+    // Para vendedor normal, filtrar por las limitaciones asignadas
     if (userLimitations.length > 0) {
       return userLimitations.map((lim) => {
         const catalogItem = qrCatalog.find((q) => q.id === lim.couponId)
@@ -56,21 +111,9 @@ export function SellerEmitPage() {
       })
     }
 
-    // Si es admin u organizador testeando la vista de vendedor:
-    const isManagerOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'organizador'
-    if (isManagerOrAdmin) {
-      return qrCatalog.map((item) => ({
-        ...item,
-        available: 200,
-        totalQuota: 200,
-        issuedCount: 0,
-        schedule: formatCouponSchedule(activeEvent, item),
-      }))
-    }
-
     // Vendedor normal sin limitaciones asignadas
     return []
-  }, [userLimitations, qrCatalog, tickets, currentUser, activeEvent])
+  }, [isManagerOrAdmin, userLimitations, qrCatalog, tickets, currentUser, activeEvent])
 
   const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || ''
   const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
@@ -78,14 +121,14 @@ export function SellerEmitPage() {
   // Calcular la fecha y cabecera del evento según las limitaciones asignadas o evento activo
   const firstLimitation = userLimitations[0]
   const targetHeaderDate = useMemo(() => {
-    if (firstLimitation?.period && firstLimitation.period !== 'Ilimitado') {
+    if (!isManagerOrAdmin && firstLimitation?.period && firstLimitation.period !== 'Ilimitado') {
       return getTargetDateFromPeriod(firstLimitation.period, firstLimitation.days)
     }
     if (activeEvent?.date) {
       return parseDMY(activeEvent.date) || new Date()
     }
     return new Date()
-  }, [firstLimitation, activeEvent])
+  }, [isManagerOrAdmin, firstLimitation, activeEvent])
 
   const headerTitle = useMemo(() => {
     const dayName = SPANISH_DAY_NAMES[targetHeaderDate.getDay()]
@@ -111,7 +154,7 @@ export function SellerEmitPage() {
 
   function updateCount(couponId: string, delta: number) {
     const coupon = couponsToDisplay.find((c) => c.id === couponId)
-    const maxAvailable = coupon?.available ?? 200
+    const maxAvailable = isManagerOrAdmin ? 999 : (coupon?.available ?? 200)
     setCounts((prev) => {
       const current = prev[couponId] ?? 0
       const next = Math.min(maxAvailable, Math.max(0, current + delta))
@@ -378,7 +421,7 @@ export function SellerEmitPage() {
                         <small style={{ color: '#64748b', fontSize: 10, display: 'block' }}>{formattedSchedule}</small>
                         <strong style={{ fontSize: 14, color: '#0f172a', display: 'block', margin: '2px 0' }}>{coupon.name}</strong>
                         <small style={{ color: isExhausted ? '#ef4444' : '#64748b', fontSize: 11, display: 'block', fontWeight: 600 }}>
-                          {isExhausted ? 'Agotado (0 disp.)' : `${coupon.available} disp. / ${coupon.totalQuota || coupon.available} total`}
+                          {isExhausted ? 'Agotado (0 disp.)' : isManagerOrAdmin ? 'Ilimitado (Encargado)' : `${coupon.available} disp. / ${coupon.totalQuota || coupon.available} total`}
                         </small>
                       </div>
                     </div>

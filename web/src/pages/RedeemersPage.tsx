@@ -20,7 +20,12 @@ export function RedeemersPage() {
   const [panelOpen, setPanelOpen] = useState(true)
 
   const redeemers: Redeemer[] = users
-    .filter((user) => user.role === 'canjeador' || (user.roles && user.roles.includes('canjeador')))
+    .filter((user) =>
+      user.role === 'canjeador' ||
+      user.role === 'organizador' ||
+      user.role === 'admin' ||
+      Boolean(user.roles && (user.roles.includes('canjeador') || user.roles.includes('organizador') || user.roles.includes('admin')))
+    )
     .map((user) => ({
       id: user.id,
       name: user.name || user.email.split('@')[0],

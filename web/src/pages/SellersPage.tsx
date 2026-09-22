@@ -20,7 +20,12 @@ export function SellersPage() {
   const [panelOpen, setPanelOpen] = useState(true)
 
   const sellers: Seller[] = users
-    .filter((user) => user.role === 'vendedor' || (user.roles && user.roles.includes('vendedor')))
+    .filter((user) =>
+      user.role === 'vendedor' ||
+      user.role === 'organizador' ||
+      user.role === 'admin' ||
+      Boolean(user.roles && (user.roles.includes('vendedor') || user.roles.includes('organizador') || user.roles.includes('admin')))
+    )
     .map((user) => ({
       id: user.id,
       name: user.name || user.email.split('@')[0],
