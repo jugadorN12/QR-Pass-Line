@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 
 type UserAvatarProps = {
@@ -8,6 +8,7 @@ type UserAvatarProps = {
   avatar?: string
   size?: number
   canEdit?: boolean
+  showBadge?: boolean
   className?: string
   onAvatarChange?: (newUrl: string) => void
 }
@@ -19,6 +20,7 @@ export function UserAvatar({
   avatar,
   size = 46,
   canEdit = true,
+  showBadge = false,
   className = '',
   onAvatarChange,
 }: UserAvatarProps) {
@@ -26,24 +28,31 @@ export function UserAvatar({
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Standard email avatar fallback (Unavatar based on email, falling back to UI Avatars)
   const cleanEmail = email?.trim().toLowerCase() || ''
   const cleanName = name?.trim() || cleanEmail.split('@')[0] || 'U'
-  
-  const standardEmailAvatar = cleanEmail
-    ? `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=${encodeURIComponent(
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0f172a&color=fff&bold=true&size=128`
-      )}`
-    : `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0f172a&color=fff&bold=true&size=128`
 
-  const currentPhoto = avatar || standardEmailAvatar
-  const [imgSrc, setImgSrc] = useState(currentPhoto)
+  const getFallbackUrl = () =>
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0f172a&color=fff&bold=true&size=128`
 
-  // Allow editing if canEdit is true and user is logged in
+  const getInitialPhoto = () => {
+    if (avatar) return avatar
+    if (cleanEmail) {
+      return `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=${encodeURIComponent(getFallbackUrl())}`
+    }
+    return getFallbackUrl()
+  }
+
+  const [imgSrc, setImgSrc] = useState(getInitialPhoto)
+
+  useEffect(() => {
+    setImgSrc(getInitialPhoto())
+  }, [avatar, email, name])
+
   const isEditable = canEdit && Boolean(userId || currentUser?.id)
 
-  function handleClick() {
+  function handleClick(e: React.MouseEvent) {
     if (isEditable && !uploading && fileInputRef.current) {
+      e.stopPropagation()
       fileInputRef.current.click()
     }
   }
@@ -58,7 +67,6 @@ export function UserAvatar({
     reader.onload = (e) => {
       const img = new Image()
       img.onload = async () => {
-        // Resize and optimize to max 256x256 JPEG to keep Firestore documents lightweight
         const canvas = document.createElement('canvas')
         const maxDim = 256
         let w = img.width
@@ -113,37 +121,70 @@ export function UserAvatar({
         position: 'relative',
         cursor: isEditable ? 'pointer' : 'default',
         flexShrink: 0,
-        overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-        background: '#0f172a',
+        display: 'inline-block',
       }}
       onClick={handleClick}
       title={isEditable ? 'Clic para cambiar o subir foto de perfil' : name}
       role={isEditable ? 'button' : undefined}
       tabIndex={isEditable ? 0 : undefined}
     >
-      <img
-        src={imgSrc}
-        alt={name}
-        onError={() => {
-          // Fallback on error to clean UI-avatars
-          setImgSrc(`https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0f172a&color=fff&bold=true&size=128`)
-        }}
+      <div
         style={{
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
-          display: 'block',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          background: '#0f172a',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+          position: 'relative',
         }}
-      />
+      >
+        <img
+          src={imgSrc}
+          alt={name}
+          onError={() => {
+            setImgSrc(getFallbackUrl())
+          }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
 
-      {isEditable && (
-        <div className="user-avatar-hover-overlay">
-          {uploading ? (
-            <span className="user-avatar-spinner">⌛</span>
-          ) : (
-            <span className="user-avatar-camera-icon">📷</span>
-          )}
+        {isEditable && (
+          <div className="user-avatar-hover-overlay">
+            {uploading ? (
+              <span className="user-avatar-spinner">⏳</span>
+            ) : (
+              <span className="user-avatar-camera-icon">📷</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isEditable && (showBadge || size >= 40) && (
+        <div
+          className="user-avatar-badge"
+          style={{
+            position: 'absolute',
+            bottom: -2,
+            right: -2,
+            width: Math.max(18, Math.round(size * 0.38)),
+            height: Math.max(18, Math.round(size * 0.38)),
+            borderRadius: '50%',
+            background: '#0284c7',
+            color: '#fff',
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: Math.max(10, Math.round(size * 0.22)),
+            border: '2px solid #fff',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+            pointerEvents: 'none',
+          }}
+        >
+          {uploading ? '⏳' : '📷'}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { UserAvatar } from '../components/UserAvatar'
 import {
   getTodayDateString,
   formatDateLabel,
@@ -32,7 +33,6 @@ export function ManagerPage() {
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
-  const [profilePhoto] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
   const navigate = useNavigate()
 
   // Always initialize to the current day in real time
@@ -76,7 +76,16 @@ export function ManagerPage() {
     <div className="manager-screen">
       <header className="manager-header">
         <div className="manager-brand"><img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="Logo Nexo Software" /><strong>QR Pass Line</strong></div>
-        <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="Logo del boliche" /></button>
+        <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
+          <UserAvatar
+            userId={currentUser?.id}
+            name={currentUser?.name || ''}
+            email={currentUser?.email}
+            avatar={currentUser?.avatar}
+            size={36}
+            canEdit={false}
+          />
+        </button>
       </header>
       <main className="manager-page">
       <div className="manager-datebar">
@@ -195,7 +204,39 @@ export function ManagerPage() {
         ))}
       </section>
       </main>
-      {profileOpen ? <div className="profile-drawer-backdrop"><button className="profile-drawer-dismiss" type="button" aria-label="Cerrar perfil" onClick={() => setProfileOpen(false)} /><aside className="profile-drawer"><button className="profile-drawer-close" type="button" onClick={() => setProfileOpen(false)}>×</button><div className="profile-card"><img className="profile-avatar-image" src={profilePhoto || '/app-icon.png'} alt="Foto del encargado" /><div><strong>{currentUser?.name ?? 'Usuario'}</strong><small>{currentUser?.email ?? ''}</small></div></div><div className="profile-actions"><button type="button" onClick={() => navigate('/seleccionar-rol')}>♙<strong>Cambiar<br />rol</strong></button><button type="button">▣<strong>Cupones<br />comprados</strong></button><button type="button" onClick={() => window.open('https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', '_blank')}>?<strong>Ayuda</strong></button></div><div className="profile-links"><button type="button" onClick={() => { setProfileDialog('name'); setProfileValue(currentUser?.name ?? ''); setProfileError('') }}>♧ &nbsp; Cambiar nombre</button><button type="button" onClick={() => { setProfileDialog('password'); setProfileValue(''); setProfileError('') }}>⚿ &nbsp; Cambiar contraseña</button><button className="profile-logout" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Cerrar sesión</button></div></aside></div> : null}
+      {profileOpen ? (
+        <div className="profile-drawer-backdrop">
+          <button className="profile-drawer-dismiss" type="button" aria-label="Cerrar perfil" onClick={() => setProfileOpen(false)} />
+          <aside className="profile-drawer">
+            <button className="profile-drawer-close" type="button" onClick={() => setProfileOpen(false)}>×</button>
+            <div className="profile-card">
+              <UserAvatar
+                userId={currentUser?.id}
+                name={currentUser?.name || ''}
+                email={currentUser?.email}
+                avatar={currentUser?.avatar}
+                size={54}
+                showBadge={true}
+                canEdit={true}
+              />
+              <div>
+                <strong>{currentUser?.name ?? 'Usuario'}</strong>
+                <small>{currentUser?.email ?? ''}</small>
+              </div>
+            </div>
+            <div className="profile-actions">
+              <button type="button" onClick={() => navigate('/seleccionar-rol')}>♙<strong>Cambiar<br />rol</strong></button>
+              <button type="button">▣<strong>Cupones<br />comprados</strong></button>
+              <button type="button" onClick={() => window.open('https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', '_blank')}>?<strong>Ayuda</strong></button>
+            </div>
+            <div className="profile-links">
+              <button type="button" onClick={() => { setProfileDialog('name'); setProfileValue(currentUser?.name ?? ''); setProfileError('') }}>♧ &nbsp; Cambiar nombre</button>
+              <button type="button" onClick={() => { setProfileDialog('password'); setProfileValue(''); setProfileError('') }}>⚿ &nbsp; Cambiar contraseña</button>
+              <button className="profile-logout" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Cerrar sesión</button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
       {profileDialog ? <div className="profile-dialog-backdrop"><form className="profile-dialog" onSubmit={saveProfile}><button className="profile-dialog-close" type="button" onClick={() => setProfileDialog(null)}>×</button><h2>{profileDialog === 'name' ? 'Cambiar nombre' : 'Cambiar contraseña'}</h2><label>{profileDialog === 'name' ? 'Nuevo nombre' : 'Nueva contraseña'}<input autoFocus type={profileDialog === 'password' ? 'password' : 'text'} value={profileValue} onChange={(event) => setProfileValue(event.target.value)} minLength={profileDialog === 'password' ? 6 : undefined} required /></label>{profileError ? <p className="error">{profileError}</p> : null}<button className="btn btn-primary" type="submit">Guardar</button></form></div> : null}
     </div>
   )
