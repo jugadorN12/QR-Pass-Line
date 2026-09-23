@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { Role } from '../types'
 import { StaffHeader } from '../components/StaffHeader'
+import { UserAvatar } from '../components/UserAvatar'
 
 type Props = { role: Extract<Role, 'supervisor' | 'validador'>; title: string }
 
@@ -141,12 +142,13 @@ export function StaffRolePage({ role, title }: Props) {
                 {staffMembers.map((member) => (
                   <article className="seller-card doors-seller-card" key={member.id}>
                     <div className="doors-card-header">
-                      <div
-                        className="seller-avatar doors-avatar"
-                        style={member.avatar ? { backgroundImage: `url(${member.avatar})` } : undefined}
-                      >
-                        {!member.avatar ? member.initials : ''}
-                      </div>
+                      <UserAvatar
+                        userId={member.id}
+                        name={member.name}
+                        email={member.email}
+                        avatar={member.avatar}
+                        size={46}
+                      />
                       <div className="seller-info doors-info">
                         <strong>{member.name}</strong>
                         <small>{member.email}</small>

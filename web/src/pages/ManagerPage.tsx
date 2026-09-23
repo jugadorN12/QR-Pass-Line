@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import {
+  getTodayDateString,
+  formatDateLabel,
+  getTicketActivitySummary,
+} from '../lib/dateUtils'
 
 type ManagerTile = {
   label: string
@@ -19,30 +24,8 @@ const tiles: ManagerTile[] = [
   { label: 'SOPORTE', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2z"/><circle cx="12" cy="14" r="2"/></svg>', to: 'https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', external: true },
 ]
 
-function getTodayDateString(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function formatDateLabel(dateStr: string): string {
-  const parts = dateStr.split('-').map(Number)
-  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
-    return dateStr
-  }
-  const d = new Date(parts[0], parts[1] - 1, parts[2])
-  const weekdays = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab']
-  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']
-  const w = weekdays[d.getDay()]
-  const dayNum = d.getDate()
-  const m = months[d.getMonth()]
-  return `${w}, ${dayNum} ${m}`
-}
-
 export function ManagerPage() {
-  const { events, tickets, currentUser, logout, updateName, updateUserPassword } = useApp()
+  const { tickets, currentUser, logout, updateName, updateUserPassword } = useApp()
   const [staffOpen, setStaffOpen] = useState(false)
   const [accessOpen, setAccessOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -69,9 +52,11 @@ export function ManagerPage() {
     setSelectedDate(getTodayDateString())
   }
 
-  const activeEvent = events.find((event) => (event.status === 'activo' || (event.date && event.date.startsWith(selectedDate)))) || events[0]
-  const eventTickets = activeEvent ? tickets.filter((ticket) => ticket.eventId === activeEvent.id) : []
-  const redeemed = eventTickets.filter((ticket) => ticket.redeemedAt).length
+  // Actividad diaria o resumen semanal de sábados
+  const summary = useMemo(() => {
+    return getTicketActivitySummary(tickets, selectedDate)
+  }, [tickets, selectedDate])
+
   const dateLabel = formatDateLabel(selectedDate)
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -110,11 +95,63 @@ export function ManagerPage() {
         </div>
       </section>
 
+      {/* 4 Botones KPI Interactivos */}
       <section className="manager-kpis">
-        <article className="manager-kpi manager-kpi-sales"><span className="manager-kpi-icon">$</span><div><strong>$0</strong><small>VENTAS</small></div></article>
-        <article className="manager-kpi manager-kpi-issued"><span className="manager-kpi-icon">▣</span><div><strong>{eventTickets.length}</strong><small>EMITIDOS</small></div></article>
-        <article className="manager-kpi manager-kpi-redeemed"><span className="manager-kpi-icon">✓</span><div><strong>{redeemed}</strong><small>CANJEADOS</small></div></article>
-        <article className="manager-kpi manager-kpi-pending"><span className="manager-kpi-icon">⌛</span><div><strong>{Math.max(0, eventTickets.length - redeemed)}</strong><small>POR CANJEAR</small></div></article>
+        <article
+          className="manager-kpi manager-kpi-sales manager-kpi-interactive"
+          onClick={() => navigate(`/informeventa?dia=${selectedDate}`)}
+          role="button"
+          tabIndex={0}
+          title="Ver Informe de Ventas"
+        >
+          <span className="manager-kpi-icon">$</span>
+          <div>
+            <strong>${summary.sales}</strong>
+            <small>VENTAS</small>
+          </div>
+        </article>
+
+        <article
+          className="manager-kpi manager-kpi-issued manager-kpi-interactive"
+          onClick={() => navigate(`/informelec?ver=si&dia=${selectedDate}`)}
+          role="button"
+          tabIndex={0}
+          title="Ver Limitados Emitidos Canjeados (Emitidos)"
+        >
+          <span className="manager-kpi-icon">▣</span>
+          <div>
+            <strong>{summary.issuedCount}</strong>
+            <small>EMITIDOS</small>
+          </div>
+        </article>
+
+        <article
+          className="manager-kpi manager-kpi-redeemed manager-kpi-interactive"
+          onClick={() => navigate(`/informecanjeo?dia=${selectedDate}`)}
+          role="button"
+          tabIndex={0}
+          title="Ver Informe de Canjeo"
+        >
+          <span className="manager-kpi-icon">✓</span>
+          <div>
+            <strong>{summary.redeemedCount}</strong>
+            <small>CANJEADOS</small>
+          </div>
+        </article>
+
+        <article
+          className="manager-kpi manager-kpi-pending manager-kpi-interactive"
+          onClick={() => navigate(`/informelec?ver=no&dia=${selectedDate}`)}
+          role="button"
+          tabIndex={0}
+          title="Ver Por Canjear"
+        >
+          <span className="manager-kpi-icon">⌛</span>
+          <div>
+            <strong>{summary.pendingCount}</strong>
+            <small>POR CANJEAR</small>
+          </div>
+        </article>
       </section>
 
       <p className="manager-section-label">Accesos Principales</p>

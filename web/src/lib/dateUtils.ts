@@ -1,136 +1,173 @@
-import type { ClubEvent, QrCatalogItem } from '../types'
+import type { ClubEvent, Ticket } from '../types'
 
-const DAY_LETTERS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'] // 0=Dom, 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab
-export const SPANISH_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+export const SPANISH_DAY_NAMES = [
+  'domingo',
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+]
 
-export function parseDMY(str: string): Date | null {
-  if (!str) return null
-  const clean = str.trim()
-  if (clean.includes('-') && clean.length === 10 && clean[4] === '-' && clean[7] === '-') {
-    const [y, m, d] = clean.split('-').map(Number)
-    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-      return new Date(y, m - 1, d)
-    }
+export function getTodayDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function parseDate(dateStr: string): Date {
+  if (!dateStr) return new Date()
+  const parts = dateStr.split('-').map(Number)
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+    return new Date()
   }
-  const parts = clean.split(/[/.-]/).map(Number)
-  if (parts.length === 3) {
+  return new Date(parts[0], parts[1] - 1, parts[2])
+}
+
+export function parseDMY(dmyStr: string): Date {
+  if (!dmyStr) return new Date()
+  const parts = dmyStr.split(/[\/-]/).map(Number)
+  if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    // If format is DD/MM/YYYY or YYYY-MM-DD
     if (parts[0] > 1000) {
       return new Date(parts[0], parts[1] - 1, parts[2])
     }
-    const d = parts[0]
-    const m = parts[1] - 1
-    const y = parts[2]
-    if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-      return new Date(y, m, d)
-    }
+    return new Date(parts[2], parts[1] - 1, parts[0])
   }
-  return null
+  return new Date()
 }
 
-export function getTargetDateFromPeriod(period?: string, days?: string[]): Date {
-  const now = new Date()
-  if (!period || period === 'Ilimitado') {
-    return now
-  }
-
-  const parts = period.split('-').map((s) => s.trim())
-  const startDate = parseDMY(parts[0]) || now
-  const endDate = parts[1] ? parseDMY(parts[1]) || startDate : startDate
-
-  if (days && days.length > 0 && days.length < 7) {
-    const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-    const endLimit = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
-    let matchedDate: Date | null = null
-
-    // Si hoy está en rango y coincide con uno de los días habilitados, priorizar hoy
-    const todayLetter = DAY_LETTERS[now.getDay()]
-    if (now >= cur && now <= endLimit && days.includes(todayLetter)) {
-      return now
-    }
-
-    while (cur.getTime() <= endLimit.getTime()) {
-      const letter = DAY_LETTERS[cur.getDay()]
-      if (days.includes(letter)) {
-        matchedDate = new Date(cur)
-        break
-      }
-      cur.setDate(cur.getDate() + 1)
-    }
-    if (matchedDate) return matchedDate
-  }
-
-  if (now >= startDate && now <= endDate) {
-    return now
-  }
-
-  return startDate
+export function formatDateLabel(dateStr: string): string {
+  const d = parseDate(dateStr)
+  const weekdays = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab']
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']
+  const w = weekdays[d.getDay()]
+  const dayNum = d.getDate()
+  const m = months[d.getMonth()]
+  return `${w}, ${dayNum} ${m}`
 }
 
-export type CouponScheduleInput = Partial<QrCatalogItem> & {
-  period?: string
-  days?: string[]
-  from?: string
-  duration?: string
-  scheduleMode?: 'full' | 'end' | 'hidden'
-  name?: string
-  [key: string]: any
+export function formatDateDmy(dateStr: string): string {
+  const d = parseDate(dateStr)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}-${month}-${year}`
 }
 
-export function formatCouponSchedule(
-  event?: ClubEvent,
-  coupon?: CouponScheduleInput
-): string {
-  let targetDate = new Date()
-
-  if (coupon?.period && coupon.period !== 'Ilimitado') {
-    targetDate = getTargetDateFromPeriod(coupon.period, coupon.days)
-  } else if (event?.date) {
-    const parsed = parseDMY(event.date)
-    if (parsed) targetDate = parsed
-  }
-
-  const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
-  const nextDate = new Date(startDate)
-  nextDate.setDate(nextDate.getDate() + 1)
-
-  const startDay = String(startDate.getDate()).padStart(2, '0')
-  const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
-  const nextDay = String(nextDate.getDate()).padStart(2, '0')
-  const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0')
-
-  let startTime = coupon?.from || event?.doorsOpen || '23:59'
-  if (startTime.length === 5 && !startTime.includes(':')) {
-    startTime = '23:59'
-  }
-
-  // Extraer el horario límite del cupón (ej: "02:30", "2AM", "04:00")
-  let limitTime = '02:00'
-  if (coupon?.duration) {
-    const match = coupon.duration.match(/(\d{1,2}:\d{2})/)
-    if (match) limitTime = match[1]
-    else {
-      const singleMatch = coupon.duration.match(/(\d{1,2})\s*(?:AM|am|PM|pm|hs|HS)/)
-      if (singleMatch) limitTime = `${singleMatch[1].padStart(2, '0')}:00`
-    }
-  } else if (coupon?.name) {
-    const match = coupon.name.match(/(\d{1,2}:\d{2})/) || coupon.name.match(/(\d{1,2})\s*(?:AM|am|PM|pm|hs|HS)/)
-    if (match) {
-      if (match[1].includes(':')) limitTime = match[1]
-      else limitTime = `${match[1].padStart(2, '0')}:00`
-    }
-  }
-
-  const [limitH] = limitTime.split(':').map(Number)
-  const isNextDay = isNaN(limitH) || limitH < 18
-
-  if (coupon?.scheduleMode === 'end') {
-    return `Válido hasta las ${limitTime} hs (${isNextDay ? `${nextDay}/${nextMonth}` : `${startDay}/${startMonth}`})`
-  }
-
-  if (coupon?.scheduleMode === 'hidden') {
-    return `Válido para la fecha ${startDay}/${startMonth}`
-  }
-
-  return `Del ${startDay}/${startMonth} ${startTime} al ${isNextDay ? `${nextDay}/${nextMonth}` : `${startDay}/${startMonth}`} ${limitTime}`
+export function isSaturday(dateStr: string): boolean {
+  const d = parseDate(dateStr)
+  return d.getDay() === 6
 }
 
+export function getWeeklyDateRange(dateStr: string): { startStr: string; endStr: string; label: string } {
+  const target = parseDate(dateStr)
+  const dayOfWeek = target.getDay() // 0 = Sun, 6 = Sat
+  
+  // Calculate Sunday of the current week (or Monday depending on cycle)
+  const sunday = new Date(target)
+  sunday.setDate(target.getDate() - dayOfWeek)
+  
+  const saturday = new Date(sunday)
+  saturday.setDate(sunday.getDate() + 6)
+  
+  const toIso = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  const startStr = toIso(sunday)
+  const endStr = toIso(saturday)
+  const label = `${formatDateDmy(startStr)} - ${formatDateDmy(endStr)}`
+
+  return { startStr, endStr, label }
+}
+
+export function getTargetDateFromPeriod(period?: string, daysOrDate?: string[] | string): Date {
+  if (typeof daysOrDate === 'string' && daysOrDate) {
+    return parseDate(daysOrDate)
+  }
+  if (!period || period.toLowerCase() === 'hoy' || period.toLowerCase() === 'ilimitado') {
+    return new Date()
+  }
+  return new Date()
+}
+
+export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
+  if (!coupon) return 'Válido para el evento'
+  
+  const mode = coupon.scheduleMode || 'end'
+  const from = coupon.from || event?.doorsOpen || '23:59'
+  const duration = coupon.duration || '02:00'
+
+  if (mode === 'hidden') {
+    return 'Sin restricción horaria'
+  }
+  if (mode === 'full') {
+    return `Válido de ${from} a ${duration} hs`
+  }
+  return `Válido hasta las ${duration || from || '02:00'} hs`
+}
+
+export function getTicketActivitySummary(tickets: Ticket[], selectedDate: string) {
+  const sat = isSaturday(selectedDate)
+  
+  if (sat) {
+    // Sábados: Resumen semanal total
+    const { startStr, endStr } = getWeeklyDateRange(selectedDate)
+    const weekStart = new Date(startStr + 'T00:00:00').getTime()
+    const weekEnd = new Date(endStr + 'T23:59:59').getTime()
+
+    const weekIssued = tickets.filter((t) => {
+      const time = new Date(t.issuedAt).getTime()
+      if (isNaN(time)) return t.issuedAt?.startsWith(selectedDate)
+      return time >= weekStart && time <= weekEnd
+    })
+
+    const weekRedeemed = tickets.filter((t) => {
+      if (!t.redeemedAt) return false
+      const time = new Date(t.redeemedAt).getTime()
+      if (isNaN(time)) return t.redeemedAt?.startsWith(selectedDate)
+      return time >= weekStart && time <= weekEnd
+    })
+
+    const sales = weekIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
+    const issuedCount = weekIssued.length
+    const redeemedCount = weekRedeemed.length
+    const pendingCount = Math.max(0, issuedCount - redeemedCount)
+
+    return {
+      isWeeklySummary: true,
+      issuedTickets: weekIssued,
+      redeemedTickets: weekRedeemed,
+      sales,
+      issuedCount,
+      redeemedCount,
+      pendingCount,
+    }
+  } else {
+    // Días Domingo a Viernes: Actividad exclusiva del día
+    const dayIssued = tickets.filter((t) => t.issuedAt?.startsWith(selectedDate))
+    const dayRedeemed = tickets.filter((t) => t.redeemedAt?.startsWith(selectedDate))
+
+    const sales = dayIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
+    const issuedCount = dayIssued.length
+    const redeemedCount = dayRedeemed.length
+    const pendingCount = Math.max(0, issuedCount - redeemedCount)
+
+    return {
+      isWeeklySummary: false,
+      issuedTickets: dayIssued,
+      redeemedTickets: dayRedeemed,
+      sales,
+      issuedCount,
+      redeemedCount,
+      pendingCount,
+    }
+  }
+}

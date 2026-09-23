@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
+import { UserAvatar } from '../components/UserAvatar'
 
 type Redeemer = {
   id: string
@@ -151,12 +152,13 @@ export function RedeemersPage() {
                   return (
                     <article className="seller-card doors-seller-card" key={redeemer.id}>
                       <div className="doors-card-header">
-                        <div
-                          className="seller-avatar doors-avatar"
-                          style={redeemer.avatar ? { backgroundImage: `url(${redeemer.avatar})` } : undefined}
-                        >
-                          {!redeemer.avatar ? redeemer.initials : ''}
-                        </div>
+                        <UserAvatar
+                          userId={redeemer.id}
+                          name={redeemer.name}
+                          email={redeemer.email}
+                          avatar={redeemer.avatar}
+                          size={46}
+                        />
                         <div className="seller-info doors-info">
                           <strong>{redeemer.name}</strong>
                           <small>{redeemer.email}</small>

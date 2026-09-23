@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import type { Role } from '../types'
 import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
+import { UserAvatar } from '../components/UserAvatar'
 
 export function AdminDashboardPage() {
   const { users, venues, updateUserRole, deleteUser, resetUserPasswordByEmail, createVenue, deleteVenue, addMember, logout } = useApp()
@@ -206,8 +207,19 @@ export function AdminDashboardPage() {
                       return (
                         <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
                           <td style={{ padding: '12px' }}>
-                              <strong style={{ color: '#0b192c' }}>{user.name}</strong><br/>
-                              <small className="muted" style={{ fontSize: 11 }}>{user.email}</small>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <UserAvatar
+                                userId={user.id}
+                                name={user.name}
+                                email={user.email}
+                                avatar={user.avatar}
+                                size={36}
+                              />
+                              <div>
+                                <strong style={{ color: '#0b192c' }}>{user.name}</strong><br/>
+                                <small className="muted" style={{ fontSize: 11 }}>{user.email}</small>
+                              </div>
+                            </div>
                           </td>
                           <td style={{ padding: '12px' }}>
                             <select

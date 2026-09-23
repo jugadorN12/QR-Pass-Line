@@ -23,6 +23,9 @@ import { EstablishmentSettingsPage } from './pages/EstablishmentSettingsPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { SellerEmitPage } from './pages/SellerEmitPage'
 import { InformesPage } from './pages/InformesPage'
+import { InformeVentasPage } from './pages/InformeVentasPage'
+import { InformeLecPage } from './pages/InformeLecPage'
+import { InformeCanjeoPage } from './pages/InformeCanjeoPage'
 import { PublicLinksPage } from './pages/PublicLinksPage'
 import { BansPage } from './pages/BansPage'
 
@@ -150,6 +153,9 @@ export default function App() {
         <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
         <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
         <Route path="/informes" element={<ManagerGate><InformesPage /></ManagerGate>} />
+        <Route path="/informeventa" element={<ManagerGate><InformeVentasPage /></ManagerGate>} />
+        <Route path="/informelec" element={<ManagerGate><InformeLecPage /></ManagerGate>} />
+        <Route path="/informecanjeo" element={<ManagerGate><InformeCanjeoPage /></ManagerGate>} />
         <Route path="/fechas" element={<ManagerGate><EventsPage /></ManagerGate>} />
         <Route path="/fechas/nueva" element={<ManagerGate><NewEventPage /></ManagerGate>} />
         <Route path="/fechas/:eventId" element={<ManagerGate><EventDetailPage /></ManagerGate>} />
