@@ -6,24 +6,36 @@ export function TeamPage() {
   const { currentUser, users, addMember, updateUserRole } = useApp()
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const pendingUsers = users.filter(u => u.role === 'pendiente')
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (saving) return
     const form = new FormData(e.currentTarget)
+    const email = String(form.get('email')).trim().toLowerCase()
+    const existing = users.find(u => u.email.toLowerCase() === email)
+    if (existing) {
+      setError(`El email "${email}" ya está registrado en el equipo.`)
+      return
+    }
+
+    setSaving(true)
+    setError('')
     try {
       await addMember({
         name: String(form.get('name')),
-        email: String(form.get('email')),
+        email,
         password: String(form.get('password')),
         role: String(form.get('role')) as Role
       })
       setDone(true)
-      setError('')
       e.currentTarget.reset()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo sumar al equipo.')
+    } finally {
+      setSaving(false)
     }
   }
 

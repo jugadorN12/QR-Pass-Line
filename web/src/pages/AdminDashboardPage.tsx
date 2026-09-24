@@ -38,23 +38,35 @@ export function AdminDashboardPage() {
   const [lng, setLng] = useState('')
   const [radius, setRadius] = useState('50')
 
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false)
   const [message, setMessage] = useState('')
   const [isGeocoding, setIsGeocoding] = useState(false)
   const navigate = useNavigate()
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
+    if (isSubmittingUser) return
+    const cleanMail = newUserEmail.trim().toLowerCase()
+    if (!cleanMail) return
+
+    const existing = users.find((u) => u.email.toLowerCase() === cleanMail)
+    if (existing) {
+      setMessage(`El usuario "${cleanMail}" ya está registrado en el sistema. Puedes modificar sus roles directamente en la tabla inferior.`)
+      return
+    }
+
+    setIsSubmittingUser(true)
     setMessage('Creando usuario...')
     try {
       await addMember({
         name: newUserName,
-        email: newUserEmail,
+        email: cleanMail,
         password: newUserPass,
         role: newUserRole
       })
-      const usersSnap = users.find(u => u.email === newUserEmail)
+      const usersSnap = users.find(u => u.email.toLowerCase() === cleanMail)
       if (usersSnap && newUserVenue) {
-          await updateUserRole(usersSnap.id, newUserRole, newUserVenue)
+        await updateUserRole(usersSnap.id, newUserRole, newUserVenue)
       }
 
       setNewUserName('')
@@ -62,9 +74,11 @@ export function AdminDashboardPage() {
       setNewUserPass('')
       setNewUserRole('pendiente')
       setNewUserVenue('')
-      setMessage('Usuario creado con éxito.')
+      setMessage('Usuario registrado con éxito.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al crear usuario.')
+    } finally {
+      setIsSubmittingUser(false)
     }
   }
 
@@ -183,7 +197,9 @@ export function AdminDashboardPage() {
                     <option value="admin">Superusuario (Admin)</option>
                   </select>
                 </label>
-                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }}>CREAR USUARIO</button>
+                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }} disabled={isSubmittingUser}>
+                  {isSubmittingUser ? 'CREANDO USUARIO...' : 'CREAR USUARIO'}
+                </button>
               </form>
             </section>
 

@@ -103,19 +103,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const profile = await getDoc(userDocRef)
 
       let currentUserObj: User
+      const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
       if (!profile.exists()) {
-        const usersSnap = await getDocs(collection(db, 'users'))
-        const isFirst = usersSnap.empty
-        const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
-        const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
-        currentUserObj = {
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
-          email,
-          role: assignedRole,
-          createdAt: new Date().toISOString(),
+        // Check if there was an existing user document by email (e.g. pre-created or alternate id)
+        let existingUserDoc: any = null
+        if (email) {
+          try {
+            const q = query(collection(db, 'users'), where('email', '==', email))
+            const snap = await getDocs(q)
+            if (!snap.empty) {
+              existingUserDoc = snap.docs[0]
+            }
+          } catch {}
         }
-        await setDoc(userDocRef, currentUserObj)
+
+        if (existingUserDoc) {
+          const existingData = existingUserDoc.data()
+          currentUserObj = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || existingData.name || (email ? email.split('@')[0] : 'Usuario'),
+            email,
+            role: existingData.role || ((email === ADMIN_EMAIL) ? 'admin' : 'pendiente'),
+            roles: existingData.roles || (existingData.role ? [existingData.role] : []),
+            venueId: existingData.venueId || '',
+            avatar: existingData.avatar || '',
+            createdAt: existingData.createdAt || new Date().toISOString(),
+          }
+          await setDoc(userDocRef, currentUserObj)
+          if (existingUserDoc.id !== firebaseUser.uid) {
+            await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => {})
+          }
+        } else {
+          const usersSnap = await getDocs(collection(db, 'users'))
+          const isFirst = usersSnap.empty
+          const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+          currentUserObj = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
+            email,
+            role: assignedRole,
+            roles: [assignedRole],
+            createdAt: new Date().toISOString(),
+          }
+          await setDoc(userDocRef, currentUserObj)
+        }
       } else {
         currentUserObj = asUser(firebaseUser.uid, profile.data())
         // Forzar admin si es el mail configurado aunque el doc diga otra cosa
@@ -135,10 +166,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
       ])
 
-      const allUsers = usersSnapshot.docs.map((item) => asUser(item.id, item.data()))
-      if (!allUsers.some((u) => u.id === currentUserObj.id)) {
-        allUsers.push(currentUserObj)
+      // Deduplicate users list by email so UI never shows duplicate rows
+      const userMap = new Map<string, User>()
+      for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
+        const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+        if (!userMap.has(key)) {
+          userMap.set(key, rawUser)
+        } else {
+          const existing = userMap.get(key)!
+          // Prefer the document that has active roles or matches current user
+          if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+            userMap.set(key, rawUser)
+          }
+        }
       }
+      if (!userMap.has(currentUserObj.email.toLowerCase())) {
+        userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
+      }
+      const allUsers = Array.from(userMap.values())
 
       let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
       if (!qrCatalog.length) {
@@ -335,38 +380,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
           createdAt: new Date().toISOString(),
         }
         await setDoc(doc(db, 'users', user.id), user)
-        await signOut(secondaryAuth).catch(() => {})
         setData((prev) => ({
           ...prev,
-          users: [user, ...prev.users.filter((u) => u.id !== user.id)],
+          users: [user, ...prev.users.filter((u) => u.id !== user.id && u.email.toLowerCase() !== cleanEmail)],
         }))
       } catch (err: any) {
         console.error('addMember creation notice:', err)
         if (err?.code === 'auth/email-already-in-use') {
-          // Exists in Auth, create/sync user document in Firestore so they show up immediately
-          const defaultAvatar = `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=193659&color=fff`
-          const placeholderId = `auth-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`
-          const user: User = {
-            id: placeholderId,
-            name: cleanName,
-            email: cleanEmail,
-            role: primaryRole,
-            roles: assignedRoles,
-            venueId,
-            avatar: defaultAvatar,
-            createdAt: new Date().toISOString(),
+          // If already in Auth, look up existing Firestore user by email and sync roles
+          const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            const foundDoc = snap.docs[0]
+            const docData = foundDoc.data()
+            const mergedRoles = Array.from(new Set([...(docData.roles || [docData.role]), ...assignedRoles])).filter(Boolean) as Role[]
+            await updateDoc(doc(db, 'users', foundDoc.id), {
+              role: primaryRole,
+              roles: mergedRoles,
+              venueId: venueId || docData.venueId || '',
+            })
+            const updatedUser = asUser(foundDoc.id, {
+              ...docData,
+              role: primaryRole,
+              roles: mergedRoles,
+              venueId: venueId || docData.venueId || '',
+            })
+            setData((prev) => ({
+              ...prev,
+              users: [updatedUser, ...prev.users.filter((u) => u.id !== updatedUser.id)],
+            }))
+            return
           }
-          await setDoc(doc(db, 'users', user.id), user)
-          setData((prev) => ({
-            ...prev,
-            users: [user, ...prev.users.filter((u) => u.id !== user.id && u.email !== cleanEmail)],
-          }))
-          return
+          throw new Error(`El email "${cleanEmail}" ya está registrado en el sistema. El usuario puede ingresar directamente con su contraseña.`)
         }
         const msg = err?.code === 'auth/weak-password'
-          ? 'La contraseña es demasiado débil.'
+          ? 'La contraseña es demasiado débil (mínimo 6 caracteres).'
           : err?.message || 'No se pudo registrar el usuario.'
         throw new Error(msg)
+      } finally {
+        await signOut(secondaryAuth).catch(() => {})
       }
     },
     async createEvent(input) {

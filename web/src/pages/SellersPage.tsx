@@ -35,13 +35,25 @@ export function SellersPage() {
       avatar: (user as any).avatar || '',
     }))
 
+  const [inviting, setInviting] = useState(false)
+
   async function inviteSeller(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (inviting) return
     const email = inviteEmail.trim().toLowerCase()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setInviteError('Ingresá un email válido.')
       return
     }
+
+    const existing = users.find(u => u.email.toLowerCase() === email)
+    if (existing) {
+      setInviteError(`El email "${email}" ya está registrado. Podés asignarle cupones directamente.`)
+      return
+    }
+
+    setInviting(true)
+    setInviteError('')
     try {
       await addMember({
         name: email.split('@')[0],
@@ -50,10 +62,11 @@ export function SellersPage() {
         role: 'vendedor',
       })
       setInviteEmail('')
-      setInviteError('')
       setInviteOpen(false)
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'No se pudo registrar el vendedor.')
+    } finally {
+      setInviting(false)
     }
   }
 
