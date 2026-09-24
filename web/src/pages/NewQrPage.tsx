@@ -27,8 +27,9 @@ export function NewQrPage() {
   const [pickerHour, setPickerHour] = useState('08')
   const [pickerMinute, setPickerMinute] = useState('00')
   const [dayMode, setDayMode] = useState<'current' | 'next'>('current')
-  const [fromLabel, setFromLabel] = useState(existingQr?.from ?? '08:00 del día corriente')
-  const [durationLabel, setDurationLabel] = useState(existingQr?.duration ?? '23:59 (hasta las 07:59 del día siguiente)')
+  const cleanExistingDuration = existingQr?.duration ? (existingQr.duration.match(/\d{1,2}:\d{2}/)?.[0] || '02:00') : '02:00'
+  const [fromLabel, setFromLabel] = useState(existingQr?.from ?? '23:59 del día corriente')
+  const [durationLabel, setDurationLabel] = useState(cleanExistingDuration)
 
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
@@ -42,8 +43,9 @@ export function NewQrPage() {
       setActive(existingQr.active ?? true)
       setScheduleMode(existingQr.scheduleMode ?? 'full')
       setDays(existingQr.days ?? ['L', 'M', 'X', 'J', 'V', 'S', 'D'])
-      setFromLabel(existingQr.from ?? '08:00 del día corriente')
-      setDurationLabel(existingQr.duration ?? '23:59 (hasta las 07:59 del día siguiente)')
+      setFromLabel(existingQr.from ?? '23:59 del día corriente')
+      const cleanDur = existingQr.duration ? (existingQr.duration.match(/\d{1,2}:\d{2}/)?.[0] || '02:00') : '02:00'
+      setDurationLabel(cleanDur)
     }
   }, [existingQr])
 
@@ -91,9 +93,25 @@ export function NewQrPage() {
 
   function openPicker(type: 'from' | 'duration') {
     setPicker(type)
-    if (type === 'duration') {
-      setPickerHour('23')
-      setPickerMinute('59')
+    if (type === 'from') {
+      const match = fromLabel.match(/(\d{1,2}):(\d{2})/)
+      if (match) {
+        setPickerHour(match[1].padStart(2, '0'))
+        setPickerMinute(match[2].padStart(2, '0'))
+      } else {
+        setPickerHour('23')
+        setPickerMinute('59')
+      }
+      setDayMode(fromLabel.toLowerCase().includes('siguiente') ? 'next' : 'current')
+    } else {
+      const match = durationLabel.match(/(\d{1,2}):(\d{2})/)
+      if (match) {
+        setPickerHour(match[1].padStart(2, '0'))
+        setPickerMinute(match[2].padStart(2, '0'))
+      } else {
+        setPickerHour('02')
+        setPickerMinute('00')
+      }
     }
   }
 
@@ -101,7 +119,7 @@ export function NewQrPage() {
     if (picker === 'from') {
       setFromLabel(`${pickerHour}:${pickerMinute} del día ${dayMode === 'current' ? 'corriente' : 'siguiente'}`)
     } else if (picker === 'duration') {
-      setDurationLabel(`${pickerHour}:${pickerMinute} (hasta las ${pickerHour === '23' ? '07' : pickerHour}:${pickerMinute} del día siguiente)`)
+      setDurationLabel(`${pickerHour}:${pickerMinute}`)
     }
     setPicker(null)
   }

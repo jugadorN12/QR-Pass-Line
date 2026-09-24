@@ -352,9 +352,6 @@ export function CouponTemplateEditor() {
             />
           </div>
 
-          {/* Gradient Sombra Base */}
-          <div style={{ position: 'absolute', inset: '240px 0 0 0', background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.92))', pointerEvents: 'none', zIndex: 1 }} />
-
           {/* QR Box with Live Template Config */}
           <div
             style={{

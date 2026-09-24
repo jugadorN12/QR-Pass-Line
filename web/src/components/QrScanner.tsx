@@ -14,6 +14,7 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isStartingRef = useRef(false)
   const lastScannedTimeRef = useRef<number>(0)
+  const lastScannedCodeRef = useRef<string>('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [active, setActive] = useState(false)
   const [error, setError] = useState('')
@@ -95,36 +96,60 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
         scannerRef.current = null
       }
 
-      // Initialize Html5Qrcode with standard QR engine for universal compatibility
+      // Initialize Html5Qrcode with hardware-accelerated BarcodeDetector if available
       const scanner = new Html5Qrcode('qr-reader', {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        verbose: false
+        verbose: false,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true,
+        }
       })
       scannerRef.current = scanner
 
       const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
         const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
-        const qrboxSize = Math.floor(minEdge * 0.85)
+        const qrboxSize = Math.floor(minEdge * 0.92)
         return {
-          width: Math.max(220, qrboxSize),
-          height: Math.max(220, qrboxSize),
+          width: Math.max(240, qrboxSize),
+          height: Math.max(240, qrboxSize),
         }
       }
 
       await scanner.start(
         { facingMode: mode },
         {
-          fps: 20,
+          fps: 30, // 30 FPS for instant frame capture
           qrbox: qrboxFunction,
           aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: mode,
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+          }
         },
         (decodedText) => {
           if (!decodedText) return
           const now = Date.now()
-          if (now - lastScannedTimeRef.current < 1200) {
+          const isSameCode = decodedText === lastScannedCodeRef.current
+
+          // If scanning the exact same code repeatedly, wait 1.5s
+          // If scanning different customers in line, allow instant reading after only 350ms
+          if (isSameCode && now - lastScannedTimeRef.current < 1500) {
             return
           }
+          if (!isSameCode && now - lastScannedTimeRef.current < 350) {
+            return
+          }
+
           lastScannedTimeRef.current = now
+          lastScannedCodeRef.current = decodedText
+
+          // Instant haptic feedback for door staff
+          try {
+            if (navigator.vibrate) {
+              navigator.vibrate([45])
+            }
+          } catch {}
 
           // Play subtle confirmation beep
           try {
@@ -133,12 +158,12 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
             const gain = audioCtx.createGain()
             osc.type = 'sine'
             osc.frequency.setValueAtTime(880, audioCtx.currentTime)
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime)
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15)
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime)
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12)
             osc.connect(gain)
             gain.connect(audioCtx.destination)
             osc.start()
-            osc.stop(audioCtx.currentTime + 0.15)
+            osc.stop(audioCtx.currentTime + 0.12)
           } catch {}
 
           try {

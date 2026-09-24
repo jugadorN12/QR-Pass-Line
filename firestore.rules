@@ -5,53 +5,59 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function profile() {
+    function isMasterAdmin() {
+      return signedIn() && request.auth.token.email == 'simplemente_anibal@hotmail.com';
+    }
+
+    function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function organizer() {
-      return signedIn() && (profile().role == 'organizador' || profile().role == 'admin');
-    }
-
-    function gateStaff() {
-      return signedIn() && (profile().role == 'organizador' || profile().role == 'admin' || profile().role == 'canjeador');
+    function isOrganizerOrAdmin() {
+      return signedIn() && (
+        isMasterAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          userDoc().role == 'admin' ||
+          userDoc().role == 'organizador' ||
+          ('roles' in userDoc() && ('admin' in userDoc().roles || 'organizador' in userDoc().roles))
+        ))
+      );
     }
 
     match /users/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && (request.auth.uid == userId || organizer());
-      allow update, delete: if organizer() || request.auth.uid == userId;
+      allow create: if signedIn() && (request.auth.uid == userId || isOrganizerOrAdmin());
+      allow update, delete: if isOrganizerOrAdmin() || request.auth.uid == userId;
     }
 
     match /events/{eventId} {
       allow read: if signedIn();
-      allow create, update: if signedIn();
+      allow create, update, delete: if signedIn();
     }
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn();
+      allow create, update, delete: if signedIn();
     }
 
     match /qrCatalog/{qrId} {
       allow read: if signedIn();
-      allow create, update, delete: if organizer();
+      allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /limitations/{limitId} {
       allow read: if signedIn();
-      allow create, update, delete: if organizer();
+      allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /venues/{venueId} {
       allow read: if signedIn();
-      allow create, update, delete: if organizer();
+      allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if signedIn();
-      allow create, update, delete: if organizer();
+      allow create, update, delete: if isOrganizerOrAdmin();
     }
   }
 }

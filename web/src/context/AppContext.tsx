@@ -31,6 +31,7 @@ import {
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
 import { defaultQrCatalog } from '../lib/qrCatalog'
+import { formatCouponSchedule } from '../lib/dateUtils'
 import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
 import { defaultCouponTemplate } from '../types'
 
@@ -258,10 +259,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async addMember({ name, email, password, role, roles }) {
-      if (currentUser?.role !== 'organizador' && currentUser?.role !== 'admin') {
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) {
         throw new Error('Sin permisos para registrar personal.')
       }
-      const venueId = currentUser.venueId || ''
+      const venueId = currentUser?.venueId || ''
       const cleanEmail = email.trim().toLowerCase()
       const cleanName = name.trim() || cleanEmail.split('@')[0]
       const cleanPassword = password || 'Password123!'
@@ -450,9 +453,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
       const ticketVenue = event?.venue || ''
       const ticketName = coupon?.name || 'INGRESO GENERAL'
-      const schedule = coupon?.from && coupon?.duration
-        ? `Del ${coupon.from} al ${coupon.duration}`
-        : (coupon?.duration ? `Hasta las ${coupon.duration} hs` : 'Del 23:59 a 02:00 hs')
+      const schedule = formatCouponSchedule(event, coupon)
       let formattedDate = 'Fecha de hoy'
       if (event?.date) {
         try {
@@ -561,7 +562,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     async updateUserRole(userId, role, venueId, roles) {
-      if (currentUser?.role !== 'admin' && currentUser?.role !== 'organizador') throw new Error('Sin permisos para asignar roles.')
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) throw new Error('Sin permisos para asignar roles.')
       const updates: any = {}
       if (role !== undefined) {
         updates.role = role
@@ -579,7 +582,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async deleteUser(userId) {
-      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede eliminar usuarios.')
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) throw new Error('Solo el superusuario o encargado puede eliminar usuarios.')
       const targetUser = data.users.find((u) => u.id === userId)
       if (targetUser && targetUser.email.toLowerCase() === ADMIN_EMAIL) {
         throw new Error('No se puede eliminar la cuenta del administrador principal.')
@@ -601,11 +606,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async resetUserPasswordByEmail(email) {
-      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede blanquear contraseñas.')
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      if (!isMasterAdmin) throw new Error('Solo el superusuario puede blanquear contraseñas.')
       await sendPasswordResetEmail(auth, email.trim().toLowerCase())
     },
     async createVenue(input) {
-      if (currentUser?.role !== 'admin') throw new Error('Solo el superusuario puede registrar locales.')
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) throw new Error('Solo administradores pueden registrar locales.')
       const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
       const created = await addDoc(collection(db, 'venues'), { ...venue, createdAt: serverTimestamp() })
       const result = { id: created.id, ...venue }
@@ -613,7 +621,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result
     },
     async deleteVenue(id) {
-      if (currentUser?.role !== 'admin') throw new Error('Solo el administrador puede eliminar locales.')
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) throw new Error('Solo administradores pueden eliminar locales.')
       await deleteDoc(doc(db, 'venues', id))
       setData((prev) => ({ ...prev, venues: prev.venues.filter((v) => v.id !== id) }))
     },

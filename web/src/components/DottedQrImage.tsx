@@ -104,3 +104,4 @@ export function DottedQrImage({ value, size = 220 }: { value: string; size?: num
     />
   )
 }
+

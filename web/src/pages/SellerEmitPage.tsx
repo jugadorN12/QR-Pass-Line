@@ -251,14 +251,6 @@ export function SellerEmitPage() {
       ctx.fillRect(0, 0, width, height)
     }
 
-    // Gentle bottom gradient ONLY behind table/text for readability
-    const bottomGrad = ctx.createLinearGradient(0, height - 380, 0, height)
-    bottomGrad.addColorStop(0, 'rgba(0,0,0,0)')
-    bottomGrad.addColorStop(0.4, 'rgba(0,0,0,0.6)')
-    bottomGrad.addColorStop(1, 'rgba(0,0,0,0.92)')
-    ctx.fillStyle = bottomGrad
-    ctx.fillRect(0, height - 380, width, 380)
-
     // 2. Draw Translucent Glass Rounded Card for QR Code (Proportional 2x scale from Preview 360x520)
     const canvasQrSize = templateQrSize * 2
     const qrCardX = (width - canvasQrSize) / 2
@@ -531,17 +523,6 @@ export function SellerEmitPage() {
                   }}
                 />
               </div>
-
-              {/* Gradient Sombra Suave solo en la base para legibilidad */}
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: '240px 0 0 0',
-                  background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.92))',
-                  pointerEvents: 'none',
-                  zIndex: 1
-                }}
-              />
 
               {/* QR Box Usando Configuración del Admin Panel */}
               <div

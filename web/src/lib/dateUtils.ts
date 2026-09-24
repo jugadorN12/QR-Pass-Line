@@ -101,17 +101,49 @@ export function getTargetDateFromPeriod(period?: string, daysOrDate?: string[] |
 export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   if (!coupon) return 'Válido para el evento'
   
-  const mode = coupon.scheduleMode || 'end'
-  const from = coupon.from || event?.doorsOpen || '23:59'
-  const duration = coupon.duration || '02:00'
-
+  const mode = coupon.scheduleMode || 'full'
   if (mode === 'hidden') {
     return 'Sin restricción horaria'
   }
-  if (mode === 'full') {
-    return `Válido de ${from} a ${duration} hs`
-  }
-  return `Válido hasta las ${duration || from || '02:00'} hs`
+
+  // 1. Obtener fecha base del evento (o fecha actual)
+  const baseDate = event?.date ? parseDate(event.date) : new Date()
+
+  // 2. Extraer y limpiar horario de inicio ("from")
+  const rawFrom = String(coupon.from || event?.doorsOpen || '23:59').trim()
+  const fromMatch = rawFrom.match(/(\d{1,2}:\d{2})/)
+  const cleanFrom = fromMatch ? fromMatch[1] : '23:59'
+  const isFromNextDay = rawFrom.toLowerCase().includes('siguiente')
+
+  const startDate = isFromNextDay ? new Date(baseDate.getTime() + 86400000) : new Date(baseDate)
+  const startDay = String(startDate.getDate()).padStart(2, '0')
+  const startMonth = String(startDate.getMonth() + 1).padStart(2, '0')
+  const startDateStr = `${startDay}/${startMonth}`
+
+  // 3. Extraer y limpiar horario de fin ("duration")
+  const rawDuration = String(coupon.duration || '02:00').trim()
+  const durMatch = rawDuration.match(/(\d{1,2}:\d{2})/)
+  const cleanDuration = durMatch ? durMatch[1] : '02:00'
+
+  // 4. Calcular si el horario de fin pasa al día siguiente
+  const [fromH, fromM] = cleanFrom.split(':').map(Number)
+  const [durH, durM] = cleanDuration.split(':').map(Number)
+
+  const isDurationNextDay =
+    rawDuration.toLowerCase().includes('siguiente') ||
+    durH < fromH ||
+    (durH === fromH && durM < fromM) ||
+    (fromH >= 18 && durH <= 12)
+
+  const endDate = isDurationNextDay ? new Date(startDate.getTime() + 86400000) : new Date(startDate)
+  const endDay = String(endDate.getDate()).padStart(2, '0')
+  const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+  const endDateStr = `${endDay}/${endMonth}`
+
+  const fromDaySuffix = isFromNextDay ? 'del día siguiente' : 'del día corriente'
+
+  // Formato requerido: "Del 26/09 23:59 del día corriente al 27/09 02:00"
+  return `Del ${startDateStr} ${cleanFrom} ${fromDaySuffix} al ${endDateStr} ${cleanDuration}`
 }
 
 export function getTicketActivitySummary(tickets: Ticket[], selectedDate: string) {
