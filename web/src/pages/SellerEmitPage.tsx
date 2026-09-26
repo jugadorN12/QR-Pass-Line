@@ -195,6 +195,12 @@ export function SellerEmitPage() {
         bgImage: couponBg,
         sellerName: sellerDisplayName.toUpperCase()
       })
+
+      // Restablecer el contador a 0 automáticamente tras emitir
+      setCounts((prev) => ({
+        ...prev,
+        [selectedCoupon.id]: 0
+      }))
     } catch (err: any) {
       alert(err?.message || 'Error al emitir cupón.')
     } finally {
