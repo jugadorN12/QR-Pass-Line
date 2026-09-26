@@ -1,33 +1,39 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { useApp } from './context/AppContext'
 import { Shell } from './components/Shell'
-import { AuthPage } from './pages/AuthPage'
-import { HomePage } from './pages/HomePage'
-import { EventsPage } from './pages/EventsPage'
-import { NewEventPage } from './pages/NewEventPage'
-import { EventDetailPage } from './pages/EventDetailPage'
-import { GatePage } from './pages/GatePage'
-import { TeamPage } from './pages/TeamPage'
-import { RoleSelectionPage } from './pages/RoleSelectionPage'
-import { ManagerPage } from './pages/ManagerPage'
-import { SellersPage } from './pages/SellersPage'
-import { RedeemersPage } from './pages/RedeemersPage'
-import { AccessTypesPage } from './pages/AccessTypesPage'
-import { QrTypesPage } from './pages/QrTypesPage'
-import { NewQrPage } from './pages/NewQrPage'
-import { StaffRolePage } from './pages/StaffRolePage'
-import { QrInfoPage, QrGroupsPage, InactiveQrPage } from './pages/QrInfoPage'
-import { SellerLimitationsPage, NewSellerLimitationPage, EditSellerLimitationPage } from './pages/SellerLimitationsPage'
-import { EstablishmentSettingsPage } from './pages/EstablishmentSettingsPage'
-import { AdminDashboardPage } from './pages/AdminDashboardPage'
-import { SellerEmitPage } from './pages/SellerEmitPage'
-import { InformesPage } from './pages/InformesPage'
-import { InformeVentasPage } from './pages/InformeVentasPage'
-import { InformeLecPage } from './pages/InformeLecPage'
-import { InformeCanjeoPage } from './pages/InformeCanjeoPage'
-import { PublicLinksPage } from './pages/PublicLinksPage'
-import { BansPage } from './pages/BansPage'
+
+const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m.AuthPage })))
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })))
+const EventsPage = lazy(() => import('./pages/EventsPage').then((m) => ({ default: m.EventsPage })))
+const NewEventPage = lazy(() => import('./pages/NewEventPage').then((m) => ({ default: m.NewEventPage })))
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage').then((m) => ({ default: m.EventDetailPage })))
+const GatePage = lazy(() => import('./pages/GatePage').then((m) => ({ default: m.GatePage })))
+const TeamPage = lazy(() => import('./pages/TeamPage').then((m) => ({ default: m.TeamPage })))
+const RoleSelectionPage = lazy(() => import('./pages/RoleSelectionPage').then((m) => ({ default: m.RoleSelectionPage })))
+const ManagerPage = lazy(() => import('./pages/ManagerPage').then((m) => ({ default: m.ManagerPage })))
+const SellersPage = lazy(() => import('./pages/SellersPage').then((m) => ({ default: m.SellersPage })))
+const RedeemersPage = lazy(() => import('./pages/RedeemersPage').then((m) => ({ default: m.RedeemersPage })))
+const AccessTypesPage = lazy(() => import('./pages/AccessTypesPage').then((m) => ({ default: m.AccessTypesPage })))
+const QrTypesPage = lazy(() => import('./pages/QrTypesPage').then((m) => ({ default: m.QrTypesPage })))
+const NewQrPage = lazy(() => import('./pages/NewQrPage').then((m) => ({ default: m.NewQrPage })))
+const StaffRolePage = lazy(() => import('./pages/StaffRolePage').then((m) => ({ default: m.StaffRolePage })))
+const QrInfoPage = lazy(() => import('./pages/QrInfoPage').then((m) => ({ default: m.QrInfoPage })))
+const QrGroupsPage = lazy(() => import('./pages/QrInfoPage').then((m) => ({ default: m.QrGroupsPage })))
+const InactiveQrPage = lazy(() => import('./pages/QrInfoPage').then((m) => ({ default: m.InactiveQrPage })))
+const SellerLimitationsPage = lazy(() => import('./pages/SellerLimitationsPage').then((m) => ({ default: m.SellerLimitationsPage })))
+const NewSellerLimitationPage = lazy(() => import('./pages/SellerLimitationsPage').then((m) => ({ default: m.NewSellerLimitationPage })))
+const EditSellerLimitationPage = lazy(() => import('./pages/SellerLimitationsPage').then((m) => ({ default: m.EditSellerLimitationPage })))
+const EstablishmentSettingsPage = lazy(() => import('./pages/EstablishmentSettingsPage').then((m) => ({ default: m.EstablishmentSettingsPage })))
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })))
+const SellerEmitPage = lazy(() => import('./pages/SellerEmitPage').then((m) => ({ default: m.SellerEmitPage })))
+const InformesPage = lazy(() => import('./pages/InformesPage').then((m) => ({ default: m.InformesPage })))
+const InformeVentasPage = lazy(() => import('./pages/InformeVentasPage').then((m) => ({ default: m.InformeVentasPage })))
+const InformeLecPage = lazy(() => import('./pages/InformeLecPage').then((m) => ({ default: m.InformeLecPage })))
+const InformeCanjeoPage = lazy(() => import('./pages/InformeCanjeoPage').then((m) => ({ default: m.InformeCanjeoPage })))
+const PublicLinksPage = lazy(() => import('./pages/PublicLinksPage').then((m) => ({ default: m.PublicLinksPage })))
+const BansPage = lazy(() => import('./pages/BansPage').then((m) => ({ default: m.BansPage })))
+
 
 function PendingApprovalScreen() {
   const { currentUser, logout } = useApp()
@@ -127,50 +133,52 @@ function HomeRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomeRedirect />} />
-        <Route path="/ingresar" element={<AuthPage />} />
-        <Route path="/seleccionar-rol" element={<RoleGate />} />
-        <Route path="/admin" element={<AdminGate><AdminDashboardPage /></AdminGate>} />
-        <Route path="/encargado" element={<ManagerGate><ManagerPage /></ManagerGate>} />
-        <Route path="/encargado/configuracion" element={<ManagerGate><EstablishmentSettingsPage /></ManagerGate>} />
-        <Route path="/vendedor" element={<RoleGate><SellerEmitPage /></RoleGate>} />
-        <Route path="/puerta" element={<RoleGate><GatePage /></RoleGate>} />
-        <Route path="/vendedores" element={<ManagerGate><SellersPage /></ManagerGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
-        <Route path="/vendedores/:sellerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
-        <Route path="/canjeadores" element={<ManagerGate><RedeemersPage /></ManagerGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
-        <Route path="/canjeadores/:redeemerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
-        <Route path="/accesos" element={<ManagerGate><AccessTypesPage /></ManagerGate>} />
-        <Route path="/qr" element={<ManagerGate><QrTypesPage /></ManagerGate>} />
-        <Route path="/qr/nuevo" element={<ManagerGate><NewQrPage /></ManagerGate>} />
-        <Route path="/qr/informacion" element={<ManagerGate><QrInfoPage /></ManagerGate>} />
-        <Route path="/qr/grupos" element={<ManagerGate><QrGroupsPage /></ManagerGate>} />
-        <Route path="/qr/inactivos" element={<ManagerGate><InactiveQrPage /></ManagerGate>} />
-        <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
-        <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
-        <Route path="/informes" element={<ManagerGate><InformesPage /></ManagerGate>} />
-        <Route path="/informeventa" element={<ManagerGate><InformeVentasPage /></ManagerGate>} />
-        <Route path="/informelec" element={<ManagerGate><InformeLecPage /></ManagerGate>} />
-        <Route path="/informecanjeo" element={<ManagerGate><InformeCanjeoPage /></ManagerGate>} />
-        <Route path="/fechas" element={<ManagerGate><EventsPage /></ManagerGate>} />
-        <Route path="/fechas/nueva" element={<ManagerGate><NewEventPage /></ManagerGate>} />
-        <Route path="/fechas/:eventId" element={<ManagerGate><EventDetailPage /></ManagerGate>} />
-        <Route path="/links-publicos" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
-        <Route path="/publiclink" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
-        <Route path="/baneos" element={<ManagerGate><BansPage /></ManagerGate>} />
-        <Route path="/informebaneos" element={<ManagerGate><BansPage /></ManagerGate>} />
-        {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
-        <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
+      <Suspense fallback={<main className="role-screen"><div className="role-main"><div className="role-card">Cargando...</div></div></main>}>
+        <Routes>
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/ingresar" element={<AuthPage />} />
+          <Route path="/seleccionar-rol" element={<RoleGate />} />
+          <Route path="/admin" element={<AdminGate><AdminDashboardPage /></AdminGate>} />
+          <Route path="/encargado" element={<ManagerGate><ManagerPage /></ManagerGate>} />
+          <Route path="/encargado/configuracion" element={<ManagerGate><EstablishmentSettingsPage /></ManagerGate>} />
+          <Route path="/vendedor" element={<RoleGate><SellerEmitPage /></RoleGate>} />
+          <Route path="/puerta" element={<RoleGate><GatePage /></RoleGate>} />
+          <Route path="/vendedores" element={<ManagerGate><SellersPage /></ManagerGate>} />
+          <Route path="/vendedores/:sellerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
+          <Route path="/vendedores/:sellerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
+          <Route path="/vendedores/:sellerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
+          <Route path="/canjeadores" element={<ManagerGate><RedeemersPage /></ManagerGate>} />
+          <Route path="/canjeadores/:redeemerId/limitaciones/nueva" element={<ManagerGate><NewSellerLimitationPage /></ManagerGate>} />
+          <Route path="/canjeadores/:redeemerId/limitaciones" element={<ManagerGate><SellerLimitationsPage /></ManagerGate>} />
+          <Route path="/canjeadores/:redeemerId/limitaciones/:limitId/editar" element={<ManagerGate><EditSellerLimitationPage /></ManagerGate>} />
+          <Route path="/accesos" element={<ManagerGate><AccessTypesPage /></ManagerGate>} />
+          <Route path="/qr" element={<ManagerGate><QrTypesPage /></ManagerGate>} />
+          <Route path="/qr/nuevo" element={<ManagerGate><NewQrPage /></ManagerGate>} />
+          <Route path="/qr/informacion" element={<ManagerGate><QrInfoPage /></ManagerGate>} />
+          <Route path="/qr/grupos" element={<ManagerGate><QrGroupsPage /></ManagerGate>} />
+          <Route path="/qr/inactivos" element={<ManagerGate><InactiveQrPage /></ManagerGate>} />
+          <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
+          <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
+          <Route path="/informes" element={<ManagerGate><InformesPage /></ManagerGate>} />
+          <Route path="/informeventa" element={<ManagerGate><InformeVentasPage /></ManagerGate>} />
+          <Route path="/informelec" element={<InformeLecPage />} />
+          <Route path="/informecanjeo" element={<ManagerGate><InformeCanjeoPage /></ManagerGate>} />
+          <Route path="/fechas" element={<ManagerGate><EventsPage /></ManagerGate>} />
+          <Route path="/fechas/nueva" element={<ManagerGate><NewEventPage /></ManagerGate>} />
+          <Route path="/fechas/:eventId" element={<ManagerGate><EventDetailPage /></ManagerGate>} />
+          <Route path="/links-publicos" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
+          <Route path="/publiclink" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
+          <Route path="/baneos" element={<ManagerGate><BansPage /></ManagerGate>} />
+          <Route path="/informebaneos" element={<ManagerGate><BansPage /></ManagerGate>} />
+          {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
+          <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
 
-        <Route element={<ProtectedRoutes />}>
-          <Route path="/equipo" element={<TeamPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route element={<ProtectedRoutes />}>
+            <Route path="/equipo" element={<TeamPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

@@ -1,6 +1,11 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCEBMURnLR9qHpCstt-E4xlsUNWMTpMYdU',
@@ -13,9 +18,22 @@ const firebaseConfig = {
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig)
 export const auth = getAuth(firebaseApp)
-export const db = getFirestore(firebaseApp)
+
+let firestoreInstance
+try {
+  firestoreInstance = initializeFirestore(firebaseApp, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  })
+} catch {
+  firestoreInstance = getFirestore(firebaseApp)
+}
+
+export const db = firestoreInstance
 
 export const secondaryApp = getApps().some((app) => app.name === 'member-creation')
   ? getApp('member-creation')
   : initializeApp(firebaseConfig, 'member-creation')
 export const secondaryAuth = getAuth(secondaryApp)
+

@@ -22,6 +22,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -92,154 +93,235 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
-      setData(emptyData)
-      setLoading(false)
-      return
-    }
-    try {
-      const userDocRef = doc(db, 'users', firebaseUser.uid)
-      const profile = await getDoc(userDocRef)
+  useEffect(() => {
+    let unsubscribeTickets: (() => void) | null = null
+    let unsubscribeEvents: (() => void) | null = null
 
-      let currentUserObj: User
-      const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
-      if (!profile.exists()) {
-        // Check if there was an existing user document by email (e.g. pre-created or alternate id)
-        let existingUserDoc: any = null
-        if (email) {
+    let unsubscribeUsers: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubscribeTickets) {
+        unsubscribeTickets()
+        unsubscribeTickets = null
+      }
+      if (unsubscribeEvents) {
+        unsubscribeEvents()
+        unsubscribeEvents = null
+      }
+      if (unsubscribeUsers) {
+        unsubscribeUsers()
+        unsubscribeUsers = null
+      }
+
+      if (!firebaseUser) {
+        localStorage.removeItem('qr-pass-line.cached-user')
+        setData(emptyData)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const userDocRef = doc(db, 'users', firebaseUser.uid)
+        const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
+
+        // Check if we have a locally cached user profile to render instantly
+        const cachedUserRaw = localStorage.getItem('qr-pass-line.cached-user')
+        let initialUser: User | null = null
+        if (cachedUserRaw) {
           try {
-            const q = query(collection(db, 'users'), where('email', '==', email))
-            const snap = await getDocs(q)
-            if (!snap.empty) {
-              existingUserDoc = snap.docs[0]
+            const parsed = JSON.parse(cachedUserRaw)
+            if (parsed && parsed.id === firebaseUser.uid) {
+              initialUser = parsed
             }
           } catch {}
         }
 
-        if (existingUserDoc) {
-          const existingData = existingUserDoc.data()
-          currentUserObj = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || existingData.name || (email ? email.split('@')[0] : 'Usuario'),
-            email,
-            role: existingData.role || ((email === ADMIN_EMAIL) ? 'admin' : 'pendiente'),
-            roles: existingData.roles || (existingData.role ? [existingData.role] : []),
-            venueId: existingData.venueId || '',
-            avatar: existingData.avatar || '',
-            createdAt: existingData.createdAt || new Date().toISOString(),
+        // Set quick initial state if cached to avoid any loading screen flicker
+        if (initialUser) {
+          setData((prev) => ({
+            ...prev,
+            users: prev.users.some((u) => u.id === initialUser!.id)
+              ? prev.users
+              : [initialUser!, ...prev.users],
+            session: { userId: initialUser!.id },
+          }))
+          setLoading(false)
+        }
+
+        const profile = await getDoc(userDocRef)
+
+        let currentUserObj: User
+        if (!profile.exists()) {
+          // Check if there was an existing user document by email (e.g. pre-created or alternate id)
+          let existingUserDoc: any = null
+          if (email) {
+            try {
+              const q = query(collection(db, 'users'), where('email', '==', email))
+              const snap = await getDocs(q)
+              if (!snap.empty) {
+                existingUserDoc = snap.docs[0]
+              }
+            } catch {}
           }
-          await setDoc(userDocRef, currentUserObj)
-          if (existingUserDoc.id !== firebaseUser.uid) {
-            await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => {})
+
+          if (existingUserDoc) {
+            const existingData = existingUserDoc.data()
+            currentUserObj = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || existingData.name || (email ? email.split('@')[0] : 'Usuario'),
+              email,
+              role: existingData.role || ((email === ADMIN_EMAIL) ? 'admin' : 'pendiente'),
+              roles: existingData.roles || (existingData.role ? [existingData.role] : []),
+              venueId: existingData.venueId || '',
+              avatar: existingData.avatar || '',
+              createdAt: existingData.createdAt || new Date().toISOString(),
+            }
+            await setDoc(userDocRef, currentUserObj)
+            if (existingUserDoc.id !== firebaseUser.uid) {
+              await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => {})
+            }
+          } else {
+            const usersSnap = await getDocs(collection(db, 'users'))
+            const isFirst = usersSnap.empty
+            const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+            currentUserObj = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
+              email,
+              role: assignedRole,
+              roles: [assignedRole],
+              createdAt: new Date().toISOString(),
+            }
+            await setDoc(userDocRef, currentUserObj)
           }
         } else {
-          const usersSnap = await getDocs(collection(db, 'users'))
-          const isFirst = usersSnap.empty
-          const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
-          currentUserObj = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
-            email,
-            role: assignedRole,
-            roles: [assignedRole],
-            createdAt: new Date().toISOString(),
+          currentUserObj = asUser(firebaseUser.uid, profile.data())
+          // Forzar admin si es el mail configurado aunque el doc diga otra cosa
+          if (currentUserObj.email.toLowerCase() === ADMIN_EMAIL && currentUserObj.role !== 'admin') {
+            currentUserObj.role = 'admin'
+            await updateDoc(userDocRef, { role: 'admin' })
           }
-          await setDoc(userDocRef, currentUserObj)
         }
-      } else {
-        currentUserObj = asUser(firebaseUser.uid, profile.data())
-        // Forzar admin si es el mail configurado aunque el doc diga otra cosa
-        if (currentUserObj.email.toLowerCase() === ADMIN_EMAIL && currentUserObj.role !== 'admin') {
-          currentUserObj.role = 'admin'
-          await updateDoc(userDocRef, { role: 'admin' })
-        }
-      }
 
-      const [usersSnapshot, eventsSnapshot, ticketsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'events')),
-        getDocs(collection(db, 'tickets')),
-        getDocs(collection(db, 'qrCatalog')),
-        getDocs(collection(db, 'limitations')),
-        getDocs(collection(db, 'venues')),
-        getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
-      ])
+        localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
-      // Deduplicate users list by email so UI never shows duplicate rows
-      const userMap = new Map<string, User>()
-      for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
-        const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
-        if (!userMap.has(key)) {
-          userMap.set(key, rawUser)
-        } else {
-          const existing = userMap.get(key)!
-          // Prefer the document that has active roles or matches current user
-          if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+        // Fast parallel fetch for lightweight collections (excluding full tickets collection which is handled via live snapshot)
+        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'events')),
+          getDocs(collection(db, 'qrCatalog')),
+          getDocs(collection(db, 'limitations')),
+          getDocs(collection(db, 'venues')),
+          getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
+        ])
+
+        // Deduplicate users list by email so UI never shows duplicate rows
+        const userMap = new Map<string, User>()
+        for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
+          const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+          if (!userMap.has(key)) {
             userMap.set(key, rawUser)
+          } else {
+            const existing = userMap.get(key)!
+            // Prefer the document that has active roles or matches current user
+            if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+              userMap.set(key, rawUser)
+            }
           }
         }
-      }
-      if (!userMap.has(currentUserObj.email.toLowerCase())) {
-        userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
-      }
-      const allUsers = Array.from(userMap.values())
-
-      let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
-      if (!qrCatalog.length) {
-        const defaults = defaultQrCatalog()
-        for (const item of defaults) {
-          await setDoc(doc(db, 'qrCatalog', item.id), item)
+        if (!userMap.has(currentUserObj.email.toLowerCase())) {
+          userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
         }
-        qrCatalog = defaults
-      }
+        const allUsers = Array.from(userMap.values())
 
-      const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
-      const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
-
-      let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
-      if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
-        couponTemplate = { ...defaultCouponTemplate, ...(settingsSnapshot as any).data() }
-      } else {
-        const localSaved = localStorage.getItem('qr-pass-line.coupon-template')
-        if (localSaved) {
-          try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch {}
+        let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+        if (!qrCatalog.length) {
+          const defaults = defaultQrCatalog()
+          for (const item of defaults) {
+            await setDoc(doc(db, 'qrCatalog', item.id), item)
+          }
+          qrCatalog = defaults
         }
-      }
-      localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
 
-      setData({
-        users: allUsers,
-        events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
-        tickets: ticketsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket)),
-        qrCatalog,
-        limitations,
-        venues,
-        couponTemplate,
-        session: { userId: currentUserObj.id },
-      })
-    } catch (error) {
-      console.error('No se pudieron cargar los datos de Firebase.', error)
-      const fallbackUser: User = {
-        id: firebaseUser.uid,
-        name: firebaseUser.displayName || 'Usuario',
-        email: firebaseUser.email || '',
-        role: 'pendiente',
-        createdAt: new Date().toISOString(),
+        const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
+        const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+
+        let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
+        if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
+          couponTemplate = { ...defaultCouponTemplate, ...(settingsSnapshot as any).data() }
+        } else {
+          const localSaved = localStorage.getItem('qr-pass-line.coupon-template')
+          if (localSaved) {
+            try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch {}
+          }
+        }
+        localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
+
+        setData((prev) => ({
+          ...prev,
+          users: allUsers,
+          events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
+          qrCatalog,
+          limitations,
+          venues,
+          couponTemplate,
+          session: { userId: currentUserObj.id },
+        }))
+
+        // Sincronización en tiempo real de tickets (lee de IndexedDB inmediatamente y sincroniza cambios del servidor)
+        unsubscribeTickets = onSnapshot(
+          collection(db, 'tickets'),
+          (snap) => {
+            const liveTickets = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket))
+            setData((prev) => ({ ...prev, tickets: liveTickets }))
+          },
+          (err) => {
+            console.warn('Aviso sincronización de tickets en vivo:', err)
+          }
+        )
+
+        // Sincronización en tiempo real de eventos (fechas activas)
+        unsubscribeEvents = onSnapshot(
+          collection(db, 'events'),
+          (snap) => {
+            const liveEvents = snap.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
+            setData((prev) => ({ ...prev, events: liveEvents }))
+          },
+          (err) => {
+            console.warn('Aviso sincronización de eventos en vivo:', err)
+          }
+        )
+      } catch (error) {
+        console.error('No se pudieron cargar los datos de Firebase.', error)
+        const fallbackUser: User = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Usuario',
+          email: firebaseUser.email || '',
+          role: 'pendiente',
+          createdAt: new Date().toISOString(),
+        }
+        setData({
+          users: [fallbackUser],
+          events: [],
+          tickets: [],
+          qrCatalog: defaultQrCatalog(),
+          limitations: [],
+          venues: [],
+          couponTemplate: defaultCouponTemplate,
+          session: { userId: fallbackUser.id },
+        })
+      } finally {
+        setLoading(false)
       }
-      setData({
-        users: [fallbackUser],
-        events: [],
-        tickets: [],
-        qrCatalog: defaultQrCatalog(),
-        limitations: [],
-        venues: [],
-        session: { userId: fallbackUser.id },
-      })
-    } finally {
-      setLoading(false)
+    })
+
+    return () => {
+      if (unsubscribeTickets) unsubscribeTickets()
+      if (unsubscribeEvents) unsubscribeEvents()
+      if (unsubscribeUsers) unsubscribeUsers()
+      unsubscribeAuth()
     }
-  }), [])
+  }, [])
 
   const currentUser = useMemo(
     () => data.users.find((user) => user.id === data.session?.userId) ?? null,
@@ -476,16 +558,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const normalizedCode = code.trim().toUpperCase()
       let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
 
-      // Always fetch latest live status from Firestore
-      try {
-        const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
-        const snap = await getDocs(q)
-        if (!snap.empty) {
-          const d = snap.docs[0]
-          ticket = { id: d.id, ...(d.data() as any) } as Ticket
+      // If not yet present in memory, try a direct query (checks local IndexedDB cache and Firestore)
+      if (!ticket) {
+        try {
+          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            const d = snap.docs[0]
+            ticket = { id: d.id, ...(d.data() as any) } as Ticket
+          }
+        } catch (e) {
+          console.error('Error in live ticket lookup:', e)
         }
-      } catch (e) {
-        console.error('Error in live ticket lookup:', e)
       }
 
       if (!ticket) {
@@ -585,21 +669,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         redeemedBy: currentUser?.id || 'staff_puerta'
       }
 
-      try {
-        await updateDoc(doc(db, 'tickets', ticket.id), {
-          redeemedAt: redeemed.redeemedAt,
-          redeemedBy: redeemed.redeemedBy
-        })
-      } catch (e) {
-        console.error('Error updating ticket redemption in Firestore:', e)
-      }
-
+      // Update in local state immediately for instant feedback on screen
       setData((prev) => ({
         ...prev,
         tickets: prev.tickets.some((t) => t.id === ticket.id)
           ? prev.tickets.map((t) => (t.id === ticket.id ? redeemed : t))
           : [redeemed, ...prev.tickets]
       }))
+
+      // Persist in Firestore (updates IndexedDB immediately and queues cloud sync if offline)
+      updateDoc(doc(db, 'tickets', ticket.id), {
+        redeemedAt: redeemed.redeemedAt,
+        redeemedBy: redeemed.redeemedBy
+      }).catch((e) => {
+        console.error('Error updating ticket redemption in Firestore:', e)
+      })
 
       return {
         ok: true,
