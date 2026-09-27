@@ -32,7 +32,8 @@ import {
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
 import { defaultQrCatalog } from '../lib/qrCatalog'
-import { formatCouponSchedule } from '../lib/dateUtils'
+import { formatCouponSchedule, checkCouponScheduleValidity } from '../lib/dateUtils'
+
 import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
 import { defaultCouponTemplate } from '../types'
 
@@ -699,7 +700,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 3. Check Single Use / Already Redeemed (Bloqueo estricto para que un QR no pueda canjearse 2 veces)
+      // 3. Check Coupon Time Limit / Schedule Validity for this specific coupon
+      const scheduleValidity = checkCouponScheduleValidity(event, coupon)
+      if (!scheduleValidity.ok) {
+        return {
+          ok: false,
+          reason: scheduleValidity.reason,
+          message: scheduleValidity.message,
+          sellerName,
+          eventName: event?.name || 'Evento Activo',
+          venueName: ticketVenue || currentVenueName || 'Local Principal',
+          ticketName,
+          date: formattedDate,
+          schedule,
+          quantity: quantityText,
+          holderName: ticket.holderName || 'Portador'
+        }
+      }
+
+      // 4. Check Single Use / Already Redeemed (Bloqueo estricto para que un QR no pueda canjearse 2 veces)
+
       if (ticket.redeemedAt) {
         const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
         const redeemerName = redeemer ? redeemer.name : 'Personal de Puerta'

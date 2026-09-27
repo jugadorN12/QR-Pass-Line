@@ -116,7 +116,14 @@ function GatePageContent() {
       } else {
         setScanResult({
           ok: false,
-          title: result.reason === 'already_used' ? '✕ QR YA UTILIZADO' : '✕ QR NO VÁLIDO',
+          title:
+            result.reason === 'expired_schedule'
+              ? '✕ QR FUERA DE HORARIO'
+              : result.reason === 'early_schedule'
+              ? '✕ ACCESO AÚN NO INICIADO'
+              : result.reason === 'already_used'
+              ? '✕ QR YA UTILIZADO'
+              : '✕ QR NO VÁLIDO',
           reason: result.reason,
           message: result.message || 'El acceso no es válido para ingresar.',
           sellerName: result.sellerName,
