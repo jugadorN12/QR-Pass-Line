@@ -150,7 +150,7 @@ export function checkCouponScheduleValidity(
   event?: ClubEvent,
   coupon?: any,
   now: Date = new Date()
-): { ok: true } | { ok: false; reason: 'early_schedule' | 'expired_schedule'; message: string; limitTime: string; startTime: string } {
+): { ok: true } | { ok: false; reason: 'expired_schedule'; message: string; limitTime: string } {
   if (!coupon) return { ok: true }
 
   const mode = coupon.scheduleMode || 'full'
@@ -161,38 +161,35 @@ export function checkCouponScheduleValidity(
   // 1. Obtener fecha base del evento (o fecha actual si no hay fecha definida)
   const baseDate = event?.date ? parseDate(event.date) : new Date()
 
-  // 2. Extraer y limpiar horario de inicio ("from")
-  const rawFrom = String(coupon.from || event?.doorsOpen || '23:59').trim()
-  const fromMatch = rawFrom.match(/(\d{1,2}):(\d{2})/)
-  const fromH = fromMatch ? Number(fromMatch[1]) : 23
-  const fromM = fromMatch ? Number(fromMatch[2]) : 59
-  const isFromNextDay = rawFrom.toLowerCase().includes('siguiente')
-
-  const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + (isFromNextDay ? 1 : 0), fromH, fromM, 0, 0)
-
-  // 3. Extraer y limpiar horario límite de fin ("duration")
+  // 2. Extraer y limpiar horario límite tope ("duration")
   const rawDuration = String(coupon.duration || '02:00').trim()
   const durMatch = rawDuration.match(/(\d{1,2}):(\d{2})/)
   const durH = durMatch ? Number(durMatch[1]) : 2
   const durM = durMatch ? Number(durMatch[2]) : 0
 
+  // 3. Extraer horario de inicio referencial para evaluar si el tope cruza medianoche
+  const rawFrom = String(coupon.from || event?.doorsOpen || '23:59').trim()
+  const fromMatch = rawFrom.match(/(\d{1,2}):(\d{2})/)
+  const fromH = fromMatch ? Number(fromMatch[1]) : 23
+  const fromM = fromMatch ? Number(fromMatch[2]) : 59
+
   const isDurationNextDay =
     rawDuration.toLowerCase().includes('siguiente') ||
     durH < fromH ||
     (durH === fromH && durM < fromM) ||
-    (fromH >= 18 && durH <= 12)
+    (fromH >= 18 && durH <= 14) ||
+    (durH <= 12)
 
   const endDate = new Date(
-    startDate.getFullYear(),
-    startDate.getMonth(),
-    startDate.getDate() + (isDurationNextDay ? 1 : 0),
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate() + (isDurationNextDay ? 1 : 0),
     durH,
     durM,
-    59, // permitimos hasta el final del minuto límite (ej: 02:00:59)
+    59, // permitimos hasta el último segundo del minuto límite (ej: 02:00:59)
     999
   )
 
-  const startTimeStr = `${String(fromH).padStart(2, '0')}:${String(fromM).padStart(2, '0')}`
   const limitTimeStr = `${String(durH).padStart(2, '0')}:${String(durM).padStart(2, '0')}`
   const scannedTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
@@ -203,21 +200,10 @@ export function checkCouponScheduleValidity(
       reason: 'expired_schedule',
       message: `El horario límite para este cupón venció a las ${limitTimeStr} hs (escaneado a las ${scannedTimeStr} hs).`,
       limitTime: limitTimeStr,
-      startTime: startTimeStr,
     }
   }
 
-  // Si se escanea antes del horario de inicio habilitado
-  if (now.getTime() < startDate.getTime()) {
-    return {
-      ok: false,
-      reason: 'early_schedule',
-      message: `Este cupón solo es válido a partir de las ${startTimeStr} hs (escaneado a las ${scannedTimeStr} hs).`,
-      limitTime: limitTimeStr,
-      startTime: startTimeStr,
-    }
-  }
-
+  // Solo es limitante el horario tope; el horario inicial NO restringe el ingreso
   return { ok: true }
 }
 
