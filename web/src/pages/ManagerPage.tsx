@@ -170,8 +170,10 @@ export function ManagerPage() {
             <Link className="staff-subtile" to="/vendedores"><span>♙</span><strong>VENDEDORES</strong></Link>
             <Link className="staff-subtile" to="/canjeadores"><span>⌗</span><strong>CANJEADORES</strong></Link>
             <Link className="staff-subtile" to="/supervisores"><span>▣</span><strong>SUPERVISORES</strong></Link>
-            <Link className="staff-subtile" to="/validadores"><span>♙</span><strong>VALIDADORES</strong></Link>
           </div>
+
+
+
         ) : (
           <button className="manager-tile manager-tile-button" type="button" onClick={() => setStaffOpen(true)}>
             <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[0].icon }} />

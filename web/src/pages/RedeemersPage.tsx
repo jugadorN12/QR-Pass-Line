@@ -60,11 +60,19 @@ export function RedeemersPage() {
   async function handleDeleteRedeemer(redeemerId: string, redeemerName: string) {
     if (!window.confirm(`¿Estás seguro de eliminar al canjeador "${redeemerName}"?`)) return
     try {
-      await updateUserRole(redeemerId, 'pendiente', undefined, [])
+      const targetUser = users.find(u => u.id === redeemerId)
+      const currentRoles = targetUser?.roles || (targetUser?.role ? [targetUser.role] : [])
+      const remainingRoles = currentRoles.filter(r => r !== 'canjeador')
+      if (remainingRoles.length > 0) {
+        await updateUserRole(redeemerId, remainingRoles[0], targetUser?.venueId, remainingRoles)
+      } else {
+        await updateUserRole(redeemerId, 'pendiente', targetUser?.venueId, [])
+      }
     } catch (err) {
       console.error(err)
     }
   }
+
 
   return (
     <div className="staff-page">

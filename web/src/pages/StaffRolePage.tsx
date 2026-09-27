@@ -5,7 +5,7 @@ import type { Role } from '../types'
 import { StaffHeader } from '../components/StaffHeader'
 import { UserAvatar } from '../components/UserAvatar'
 
-type Props = { role: Extract<Role, 'supervisor' | 'validador'>; title: string }
+type Props = { role: Extract<Role, 'supervisor'>; title: string }
 
 export function StaffRolePage({ role, title }: Props) {
   const { users, addMember, updateUserRole } = useApp()
@@ -40,12 +40,6 @@ export function StaffRolePage({ role, title }: Props) {
       return
     }
 
-    const existing = users.find(u => u.email.toLowerCase() === email)
-    if (existing) {
-      setInviteError(`El email "${email}" ya está registrado en el sistema. Podés asignarle roles directamente.`)
-      return
-    }
-
     setInviting(true)
     setInviteError('')
     try {
@@ -67,11 +61,19 @@ export function StaffRolePage({ role, title }: Props) {
   async function handleDeleteMember(memberId: string, memberName: string) {
     if (!window.confirm(`¿Estás seguro de eliminar a "${memberName}"?`)) return
     try {
-      await updateUserRole(memberId, 'pendiente', undefined, [])
+      const targetUser = users.find(u => u.id === memberId)
+      const currentRoles = targetUser?.roles || (targetUser?.role ? [targetUser.role] : [])
+      const remainingRoles = currentRoles.filter(r => r !== role)
+      if (remainingRoles.length > 0) {
+        await updateUserRole(memberId, remainingRoles[0], targetUser?.venueId, remainingRoles)
+      } else {
+        await updateUserRole(memberId, 'pendiente', targetUser?.venueId, [])
+      }
     } catch (err) {
       console.error(err)
     }
   }
+
 
   return (
     <div className="staff-page">

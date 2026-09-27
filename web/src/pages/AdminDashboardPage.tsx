@@ -192,7 +192,6 @@ export function AdminDashboardPage() {
                     <option value="vendedor">Vendedor</option>
                     <option value="canjeador">Canjeador</option>
                     <option value="supervisor">Supervisor</option>
-                    <option value="validador">Validador</option>
                     <option value="organizador">Encargado (Organizador)</option>
                     <option value="admin">Superusuario (Admin)</option>
                   </select>
@@ -213,13 +212,14 @@ export function AdminDashboardPage() {
                     <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f1', color: '#64748b', fontSize: 12 }}>
                       <th style={{ padding: '10px 12px' }}>Nombre / Email</th>
                       <th style={{ padding: '10px 12px' }}>Local</th>
-                      <th style={{ padding: '10px 12px' }}>Rol Actual</th>
+                      <th style={{ padding: '10px 12px' }}>Roles Asignados</th>
                       <th style={{ padding: '10px 12px' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map(user => {
                       const isMainAdmin = user.email.toLowerCase() === 'simplemente_anibal@hotmail.com'
+                      const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
                       return (
                         <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
                           <td style={{ padding: '12px' }}>
@@ -240,7 +240,7 @@ export function AdminDashboardPage() {
                           <td style={{ padding: '12px' }}>
                             <select
                                value={user.venueId || ''}
-                               onChange={(e) => void updateUserRole(user.id, user.role, e.target.value)}
+                               onChange={(e) => void updateUserRole(user.id, user.role, e.target.value, userRoles)}
                                style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
                             >
                                <option value="">Sin local</option>
@@ -248,20 +248,41 @@ export function AdminDashboardPage() {
                             </select>
                           </td>
                           <td style={{ padding: '12px' }}>
-                            <select
-                              value={user.role}
-                              onChange={(e) => void updateUserRole(user.id, e.target.value as Role, user.venueId)}
-                              style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
-                            >
-                              <option value="pendiente">Pendiente</option>
-                              <option value="vendedor">Vendedor</option>
-                              <option value="canjeador">Canjeador</option>
-                              <option value="supervisor">Supervisor</option>
-                              <option value="validador">Validador</option>
-                              <option value="organizador">Encargado</option>
-                              <option value="admin">Admin</option>
-                            </select>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {(['vendedor', 'canjeador', 'supervisor', 'organizador', 'admin'] as Role[]).map(r => {
+                                const isActive = userRoles.includes(r)
+                                return (
+                                  <button
+                                    key={r}
+                                    type="button"
+                                    onClick={() => {
+                                      let newRoles: Role[]
+                                      if (isActive) {
+                                        newRoles = userRoles.filter(x => x !== r)
+                                      } else {
+                                        newRoles = [...userRoles.filter(x => x !== 'pendiente'), r]
+                                      }
+                                      if (newRoles.length === 0) newRoles = ['pendiente']
+                                      void updateUserRole(user.id, newRoles[0], user.venueId, newRoles)
+                                    }}
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: 12,
+                                      border: isActive ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                                      background: isActive ? '#dbeafe' : '#f8fafc',
+                                      color: isActive ? '#1e40af' : '#94a3b8',
+                                      fontSize: 11,
+                                      fontWeight: isActive ? 700 : 400,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {isActive ? '✓ ' : '+ '}{r.charAt(0).toUpperCase() + r.slice(1)}
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </td>
+
                           <td style={{ padding: '12px' }}>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                               <button

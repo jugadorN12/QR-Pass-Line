@@ -229,7 +229,7 @@ export function InformeCanjeoPage() {
                     <span>Canjeador:</span>
                     <select value={selectedRedeemer} onChange={(e) => setSelectedRedeemer(e.target.value)}>
                       <option value="all">Todos los canjeadores</option>
-                      {users.filter((u) => u.role === 'canjeador' || u.roles?.includes('canjeador') || u.role === 'validador').map((u) => (
+                      {users.filter((u) => u.role === 'canjeador' || u.roles?.includes('canjeador')).map((u) => (
                         <option key={u.id} value={u.id}>{u.name}</option>
                       ))}
                     </select>

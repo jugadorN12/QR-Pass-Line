@@ -50,13 +50,21 @@ export function RoleSelectionPage() {
 
   const getUserRoles = (user: typeof currentUser) => {
     if (!user) return []
-    if (user.roles && user.roles.length) return user.roles
-    return user.role ? [user.role] : []
+    const set = new Set<string>()
+    if (user.role) set.add(user.role === ('validador' as any) ? 'canjeador' : user.role)
+    if (user.roles && Array.isArray(user.roles)) {
+      user.roles.forEach((r) => set.add(r === ('validador' as any) ? 'canjeador' : r))
+    }
+    return Array.from(set)
   }
 
   const canUse = (role: RoleOption['key']) => {
     const roles = getUserRoles(currentUser)
-    const isManager = roles.includes('organizador' as any) || roles.includes('admin' as any) || currentUser.role === 'organizador' || currentUser.role === 'admin'
+    const isMasterAdmin = currentUser.email?.toLowerCase() === 'simplemente_anibal@hotmail.com' || roles.includes('admin') || currentUser.role === 'admin'
+    const isManager = isMasterAdmin || roles.includes('organizador') || currentUser.role === 'organizador'
+    if (role === 'encargado' || role === 'organizador') {
+      return isManager
+    }
     if (isManager) return true
     return roles.includes(role as any)
   }
@@ -68,6 +76,7 @@ export function RoleSelectionPage() {
     if (role === 'canjeador') return navigate('/puerta')
     navigate(role === 'encargado' ? '/encargado' : '/resumen')
   }
+
 
   const extendedRoleOptions = [...roleOptions]
   if ((currentUser.role as string) === 'admin') {

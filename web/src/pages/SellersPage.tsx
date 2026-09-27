@@ -46,12 +46,6 @@ export function SellersPage() {
       return
     }
 
-    const existing = users.find(u => u.email.toLowerCase() === email)
-    if (existing) {
-      setInviteError(`El email "${email}" ya está registrado. Podés asignarle cupones directamente.`)
-      return
-    }
-
     setInviting(true)
     setInviteError('')
     try {
@@ -73,11 +67,19 @@ export function SellersPage() {
   async function handleDeleteSeller(sellerId: string, sellerName: string) {
     if (!window.confirm(`¿Estás seguro de eliminar al vendedor "${sellerName}"?`)) return
     try {
-      await updateUserRole(sellerId, 'pendiente', undefined, [])
+      const targetUser = users.find(u => u.id === sellerId)
+      const currentRoles = targetUser?.roles || (targetUser?.role ? [targetUser.role] : [])
+      const remainingRoles = currentRoles.filter(r => r !== 'vendedor')
+      if (remainingRoles.length > 0) {
+        await updateUserRole(sellerId, remainingRoles[0], targetUser?.venueId, remainingRoles)
+      } else {
+        await updateUserRole(sellerId, 'pendiente', targetUser?.venueId, [])
+      }
     } catch (err) {
       console.error(err)
     }
   }
+
 
   return (
     <div className="staff-page">

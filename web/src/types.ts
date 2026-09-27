@@ -1,4 +1,4 @@
-export type Role = 'organizador' | 'vendedor' | 'canjeador' | 'supervisor' | 'validador' | 'admin' | 'pendiente' | ''
+export type Role = 'organizador' | 'vendedor' | 'canjeador' | 'supervisor' | 'admin' | 'pendiente' | ''
 
 export type EventStatus = 'borrador' | 'activo' | 'cerrado'
 
@@ -45,11 +45,13 @@ export type Ticket = {
   code: string
   holderName: string
   dni: string
+  quantity?: number
   issuedBy: string
   issuedAt: string
   redeemedAt: string | null
   redeemedBy: string | null
 }
+
 
 export type Session = {
   userId: string

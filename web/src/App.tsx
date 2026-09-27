@@ -158,7 +158,7 @@ export default function App() {
           <Route path="/qr/grupos" element={<ManagerGate><QrGroupsPage /></ManagerGate>} />
           <Route path="/qr/inactivos" element={<ManagerGate><InactiveQrPage /></ManagerGate>} />
           <Route path="/supervisores" element={<ManagerGate><StaffRolePage role="supervisor" title="Supervisores" /></ManagerGate>} />
-          <Route path="/validadores" element={<ManagerGate><StaffRolePage role="validador" title="Validadores" /></ManagerGate>} />
+          <Route path="/validadores" element={<Navigate to="/canjeadores" replace />} />
           <Route path="/informes" element={<ManagerGate><InformesPage /></ManagerGate>} />
           <Route path="/informeventa" element={<ManagerGate><InformeVentasPage /></ManagerGate>} />
           <Route path="/informelec" element={<InformeLecPage />} />

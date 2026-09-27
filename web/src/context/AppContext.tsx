@@ -46,9 +46,13 @@ type AppContextValue = AppData & {
   updateUserPassword: (password: string) => Promise<void>
   addMember: (input: { name: string; email: string; password: string; role?: Role; roles?: Role[] }) => Promise<void>
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus }) => Promise<ClubEvent>
+
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string }) => Promise<Ticket>
+  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number }) => Promise<Ticket>
+
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
+
+
   saveQrItem: (item: QrCatalogItem) => Promise<void>
   deleteQrItem: (id: string) => Promise<void>
   saveLimitation: (limitation: Limitation) => Promise<void>
@@ -69,6 +73,9 @@ const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
 
 function asUser(id: string, value: Record<string, unknown>): User {
   let role = (value.role as Role) ?? 'pendiente'
+  if (role === ('validador' as any)) {
+    role = 'canjeador'
+  }
   if (String(value.email).toLowerCase() === ADMIN_EMAIL) {
     role = 'admin'
   }
@@ -77,17 +84,24 @@ function asUser(id: string, value: Record<string, unknown>): User {
   const rawAvatar = String(value.avatar ?? '')
   const avatar = rawAvatar || (email ? `https://unavatar.io/${encodeURIComponent(email)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=193659&color=fff` : '')
 
+  let rawRoles = Array.isArray(value.roles) ? (value.roles as Role[]) : (role ? [role] : [])
+  rawRoles = rawRoles.map((r) => (r === ('validador' as any) ? 'canjeador' : r)).filter(Boolean) as Role[]
+  if (role && !rawRoles.includes(role)) {
+    rawRoles.push(role)
+  }
+
   return {
     id,
     name,
     email,
     role,
-    roles: Array.isArray(value.roles) ? (value.roles as Role[]) : (role ? [role] : []),
+    roles: Array.from(new Set(rawRoles)),
     venueId: String(value.venueId ?? ''),
     avatar,
     createdAt: String(value.createdAt ?? new Date().toISOString()),
   }
 }
+
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData)
@@ -268,6 +282,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
           session: { userId: currentUserObj.id },
         }))
 
+        // Sincronización en tiempo real de usuarios y roles
+        unsubscribeUsers = onSnapshot(
+          collection(db, 'users'),
+          (snap) => {
+            const liveUsers = snap.docs.map((item) => asUser(item.id, item.data()))
+            const userMap = new Map<string, User>()
+            for (const rawUser of liveUsers) {
+              const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+              if (!userMap.has(key)) {
+                userMap.set(key, rawUser)
+              } else {
+                const existing = userMap.get(key)!
+                if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+                  userMap.set(key, rawUser)
+                }
+              }
+            }
+            const updatedUsers = Array.from(userMap.values())
+            const updatedCurrentUser = updatedUsers.find((u) => u.id === firebaseUser.uid)
+            if (updatedCurrentUser) {
+              localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(updatedCurrentUser))
+            }
+            setData((prev) => ({ ...prev, users: updatedUsers }))
+          },
+          (err) => {
+            console.warn('Aviso sincronización de usuarios en vivo:', err)
+          }
+        )
+
         // Sincronización en tiempo real de tickets (lee de IndexedDB inmediatamente y sincroniza cambios del servidor)
         unsubscribeTickets = onSnapshot(
           collection(db, 'tickets'),
@@ -291,6 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             console.warn('Aviso sincronización de eventos en vivo:', err)
           }
         )
+
       } catch (error) {
         console.error('No se pudieron cargar los datos de Firebase.', error)
         const fallbackUser: User = {
@@ -543,12 +587,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         limitations: prev.limitations.filter((l) => l.id !== id),
       }))
     },
-    async issueTicket({ eventId, couponId, kind, holderName, dni }) {
+    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
       if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
-      const ticket: Omit<Ticket, 'id'> = { eventId, couponId: couponId || '', kind, code: ticketCode(), holderName: holderName.trim(), dni: (dni ?? '').replace(/\D/g, ''), issuedBy: currentUser.id, issuedAt: new Date().toISOString(), redeemedAt: null, redeemedBy: null }
+      const ticketQty = typeof quantity === 'number' && quantity > 0 ? quantity : 1
+      const ticket: Omit<Ticket, 'id'> = {
+        eventId,
+        couponId: couponId || '',
+        kind,
+        code: ticketCode(),
+        holderName: holderName.trim(),
+        dni: (dni ?? '').replace(/\D/g, ''),
+        quantity: ticketQty,
+        issuedBy: currentUser.id,
+        issuedAt: new Date().toISOString(),
+        redeemedAt: null,
+        redeemedBy: null
+      }
       const created = await addDoc(collection(db, 'tickets'), ticket)
       const result = { id: created.id, ...ticket }
       setData((prev) => ({ ...prev, tickets: [result, ...prev.tickets] }))
@@ -580,6 +637,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      const numBenefited = typeof ticket.quantity === 'number' && ticket.quantity > 0 ? ticket.quantity : 1
+      const quantityText = numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`
+
       // Lookup Seller / RRPP Name
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
       const sellerName = seller ? seller.name : 'Vendedor General'
@@ -593,11 +653,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let formattedDate = 'Fecha de hoy'
       if (event?.date) {
         try {
-          const parts = event.date.split('-')
+          const cleanDateStr = event.date.split('T')[0]
+          const parts = cleanDateStr.split('-')
           if (parts.length === 3) {
             formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`
           } else {
-            formattedDate = event.date
+            formattedDate = cleanDateStr
           }
         } catch {
           formattedDate = event.date
@@ -618,7 +679,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: '1 persona beneficiada',
+          quantity: quantityText,
           ticketVenue
         }
       }
@@ -634,7 +695,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: '1 persona beneficiada'
+          quantity: quantityText
         }
       }
 
@@ -658,7 +719,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: '1 persona beneficiada'
+          quantity: quantityText
         }
       }
 
@@ -694,9 +755,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ticketName,
         date: formattedDate,
         schedule,
-        quantity: '1 persona beneficiada'
+        quantity: quantityText
       }
     },
+
     async updateUserRole(userId, role, venueId, roles) {
       const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')

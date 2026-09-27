@@ -175,13 +175,17 @@ export function SellerEmitPage() {
     }
     setIssuing(true)
     try {
+      const quantityToIssue = count > 0 ? count : 1
       const ticket = await issueTicket({
         eventId: activeEvent.id,
         couponId: selectedCoupon.id,
         kind: 'qr',
         holderName: `Cliente ${currentUser?.name || 'Vendedor'}`,
-        dni: ''
+        dni: '',
+        quantity: quantityToIssue
       })
+
+
 
       const couponBg = (selectedCoupon as any)?.backgroundImage || (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || ''
 
