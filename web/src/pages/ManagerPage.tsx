@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { UserAvatar } from '../components/UserAvatar'
 import {
   getTodayDateString,
@@ -26,7 +26,7 @@ const tiles: ManagerTile[] = [
 ]
 
 export function ManagerPage() {
-  const { tickets, currentUser, logout, updateName, updateUserPassword } = useApp()
+  const { tickets, currentUser, logout, updateName, updateUserPassword, activeVenue, venues } = useApp()
   const [staffOpen, setStaffOpen] = useState(false)
   const [accessOpen, setAccessOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -52,10 +52,16 @@ export function ManagerPage() {
     setSelectedDate(getTodayDateString())
   }
 
-  // Actividad diaria o resumen semanal de sábados
+  // Actividad diaria o resumen semanal filtrado por el establecimiento activo
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueTickets = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
+    return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
+  }, [tickets, currentUser, targetVenueId, venues])
+
   const summary = useMemo(() => {
-    return getTicketActivitySummary(tickets, selectedDate)
-  }, [tickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate)
+  }, [venueTickets, selectedDate])
 
   const dateLabel = formatDateLabel(selectedDate)
 
@@ -99,7 +105,7 @@ export function ManagerPage() {
 
       <section className="manager-heading">
         <div>
-          <h1>{currentUser?.name ?? 'QR Pass Line'}</h1>
+          <h1>{activeVenue?.name || currentUser?.name || 'QR Pass Line'}</h1>
           <span className="manager-heading-actions"><Link to="/encargado/configuracion" aria-label="Configurar establecimiento">⚙</Link><span>◉</span></span>
         </div>
       </section>

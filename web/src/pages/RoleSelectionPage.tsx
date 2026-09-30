@@ -34,12 +34,19 @@ const roleOptions: RoleOption[] = [
 ]
 
 export function RoleSelectionPage() {
-  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar } = useApp()
+  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar, activeVenue, venues } = useApp()
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
   const navigate = useNavigate()
+
+  const userVenue = currentUser?.venueId
+    ? venues.find(v => v.id === currentUser.venueId) || null
+    : (activeVenue || venues.find(v => (v.name || '').toLowerCase().includes('cubano')) || venues[0] || null)
+
+  const businessName = userVenue?.name || 'QR Pass Line'
+  const businessLogo = userVenue?.logo || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'
 
   if (!currentUser) return null
 
@@ -189,9 +196,9 @@ export function RoleSelectionPage() {
 
         <section className="role-card role-business-card">
           <div className="business-heading">
-            <div className="business-logo"><img src={localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" /></div>
+            <div className="business-logo"><img src={businessLogo} alt="" /></div>
             <div>
-              <strong>{localStorage.getItem('qr-pass-line.business-name') || 'QR Pass Line'}</strong>
+              <strong>{businessName}</strong>
               <small>{currentUser.role === 'admin' ? 'Modo Superusuario' : `${availableRoleOptions.length} ${availableRoleOptions.length === 1 ? 'rol disponible' : 'roles disponibles'}`}</small>
             </div>
           </div>

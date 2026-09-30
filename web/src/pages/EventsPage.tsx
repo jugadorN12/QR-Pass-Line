@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { formatDate } from '../lib/ids'
 
 export function EventsPage() {
-  const { events, tickets, createEvent, updateEventStatus } = useApp()
+  const { events, tickets, createEvent, updateEventStatus, currentUser, activeVenue, venues } = useApp()
+
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueEvents = events.filter(e => isEntityForVenue(e.venueId, targetVenueId, venues))
 
   const [modalOpen, setModalOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
@@ -161,7 +164,7 @@ export function EventsPage() {
               overflow: 'hidden'
             }}
           >
-            {events.length === 0 ? (
+            {venueEvents.length === 0 ? (
               <div style={{ padding: '34px 20px', textAlign: 'center', color: '#64748b', fontSize: 13, fontWeight: 500 }}>
                 No tenés fechas cargadas.
               </div>
@@ -169,9 +172,9 @@ export function EventsPage() {
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #f1f5f9', background: '#fafbfc', color: '#1e293b', fontSize: 13, fontWeight: 700 }}>
                   <span>Noche / Evento</span>
-                  <span>{events.length} {events.length === 1 ? 'fecha' : 'fechas'}</span>
+                  <span>{venueEvents.length} {venueEvents.length === 1 ? 'fecha' : 'fechas'}</span>
                 </div>
-                {events.map((event) => {
+                {venueEvents.map((event) => {
                   const eventTickets = tickets.filter((t) => t.eventId === event.id)
                   const redeemedCount = eventTickets.filter((t) => t.redeemedAt).length
                   const isClosed = event.status === 'cerrado'

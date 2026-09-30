@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { UserAvatar } from '../components/UserAvatar'
 
@@ -13,20 +13,26 @@ type Redeemer = {
 }
 
 export function RedeemersPage() {
-  const { users, limitations, addMember, updateUserRole } = useApp()
+  const { users, limitations, addMember, updateUserRole, currentUser, activeVenue, venues } = useApp()
   const navigate = useNavigate()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteError, setInviteError] = useState('')
   const [panelOpen, setPanelOpen] = useState(true)
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
   const redeemers: Redeemer[] = users
-    .filter((user) =>
-      user.role !== 'admin' &&
-      (user.role === 'canjeador' ||
+    .filter((user) => {
+      if (user.role === 'admin') return false
+      const matchesVenue = isEntityForVenue(user.venueId, targetVenueId, venues)
+      if (!matchesVenue) return false
+      return (
+        user.role === 'canjeador' ||
         user.role === 'organizador' ||
-        Boolean(user.roles && (user.roles.includes('canjeador') || user.roles.includes('organizador'))))
-    )
+        Boolean(user.roles && (user.roles.includes('canjeador') || user.roles.includes('organizador')))
+      )
+    })
     .map((user) => ({
       id: user.id,
       name: user.name || user.email.split('@')[0],

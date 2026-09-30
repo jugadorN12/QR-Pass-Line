@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { useApp } from './context/AppContext'
 import { Shell } from './components/Shell'
+import { ForceChangePasswordModal } from './components/ForceChangePasswordModal'
 
 const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m.AuthPage })))
 const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })))
@@ -133,6 +134,7 @@ function HomeRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ForceChangePasswordModal />
       <Suspense fallback={<main className="role-screen"><div className="role-main"><div className="role-card">Cargando...</div></div></main>}>
         <Routes>
           <Route path="/" element={<HomeRedirect />} />

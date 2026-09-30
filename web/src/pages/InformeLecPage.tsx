@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import {
   getTodayDateString,
@@ -9,7 +9,7 @@ import {
 } from '../lib/dateUtils'
 
 export function InformeLecPage() {
-  const { tickets, users, qrCatalog, limitations } = useApp()
+  const { tickets, users, qrCatalog, limitations, currentUser, activeVenue, venues } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
   const initialVer = searchParams.get('ver')?.toLowerCase() === 'no' ? 'no' : 'si'
@@ -44,16 +44,28 @@ export function InformeLecPage() {
     setSearchParams({ ver: mode, dia: selectedDate })
   }
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
+  const venueTickets = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
+    return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
+  }, [tickets, currentUser, targetVenueId, venues])
+
   // Summary for selectedDate (daily or weekly if Saturday)
   const summary = useMemo(() => {
-    return getTicketActivitySummary(tickets, selectedDate)
-  }, [tickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate)
+  }, [venueTickets, selectedDate])
 
   const dateLabel = formatDateLabel(selectedDate)
 
   // Calculate LEC Rows: Vendedor + Cupón -> L (Limitados), E (Emitidos), C (Canjeados), N (No cargados)
   const lecData = useMemo(() => {
-    const sellers = users.filter((u) => u.role === 'vendedor' || u.roles?.includes('vendedor'))
+    const sellers = users.filter((u) => {
+      if (u.role === 'admin') return false
+      const matchesVenue = isEntityForVenue(u.venueId, targetVenueId, venues)
+      if (!matchesVenue) return false
+      return u.role === 'vendedor' || u.roles?.includes('vendedor')
+    })
     const rows: Array<{
       id: string
       sellerId: string

@@ -3,13 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 
 export function StaffHeader() {
-  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar } = useApp()
+  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar, venues, activeVenue, setAdminActiveVenue } = useApp()
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
   const [profileError, setProfileError] = useState('')
-  const profilePhoto = currentUser?.avatar || localStorage.getItem('qr-pass-line.establishment-logo') || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'
+  const profilePhoto = currentUser?.avatar || (currentUser?.email ? `https://unavatar.io/${encodeURIComponent(currentUser.email)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'User')}&background=193659&color=fff` : '/app-icon.png')
   const navigate = useNavigate()
+
+  const isMasterAdmin =
+    currentUser?.email?.toLowerCase() === 'simplemente_anibal@hotmail.com' ||
+    currentUser?.role === 'admin' ||
+    Boolean(currentUser?.roles?.includes('admin'))
 
   async function handleAvatarUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -43,11 +48,39 @@ export function StaffHeader() {
 
   return (
     <>
-      <header className="staff-header">
-        <div className="staff-brand">
+      <header className="staff-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', gap: 8 }}>
+        <div className="staff-brand" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigate(isMasterAdmin ? '/admin' : '/encargado')}>
           <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="Nexo Software" />
           <strong>QR Pass Line</strong>
         </div>
+
+        {isMasterAdmin && venues.length > 0 && (
+          <div className="admin-header-venue-switcher" style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 20, padding: '3px 10px', gap: 6 }}>
+            <span style={{ fontSize: 13, color: '#fff' }}>🏢</span>
+            <select
+              value={activeVenue?.id || ''}
+              onChange={(e) => setAdminActiveVenue(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                outline: 'none',
+                cursor: 'pointer',
+                maxWidth: 130,
+              }}
+              title="Cambiar local activo"
+            >
+              {venues.map((v) => (
+                <option key={v.id} value={v.id} style={{ color: '#0b192c', background: '#fff' }}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <button className="manager-profile-trigger" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
           <img src={profilePhoto} alt="Perfil" />
         </button>
@@ -71,6 +104,11 @@ export function StaffHeader() {
               <button type="button" onClick={() => window.open('https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', '_blank')}>?<strong>Ayuda</strong></button>
             </div>
             <div className="profile-links">
+              {isMasterAdmin && (
+                <button type="button" style={{ color: '#1e3a8a', fontWeight: 700 }} onClick={() => { setProfileOpen(false); navigate('/admin') }}>
+                  👑 &nbsp; Panel Super Admin
+                </button>
+              )}
               <label className="profile-avatar-upload-btn" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <span>📷 &nbsp; Cambiar foto de perfil</span>
                 <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />

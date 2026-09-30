@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import type { Role } from '../types'
 import { StaffHeader } from '../components/StaffHeader'
 import { UserAvatar } from '../components/UserAvatar'
@@ -8,19 +8,25 @@ import { UserAvatar } from '../components/UserAvatar'
 type Props = { role: Extract<Role, 'supervisor'>; title: string }
 
 export function StaffRolePage({ role, title }: Props) {
-  const { users, addMember, updateUserRole } = useApp()
+  const { users, addMember, updateUserRole, currentUser, activeVenue, venues } = useApp()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteError, setInviteError] = useState('')
   const [panelOpen, setPanelOpen] = useState(true)
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
   const staffMembers = users
-    .filter((user) =>
-      user.role !== 'admin' &&
-      (user.role === role ||
+    .filter((user) => {
+      if (user.role === 'admin') return false
+      const matchesVenue = isEntityForVenue(user.venueId, targetVenueId, venues)
+      if (!matchesVenue) return false
+      return (
+        user.role === role ||
         user.role === 'organizador' ||
-        Boolean(user.roles && (user.roles.includes(role) || user.roles.includes('organizador'))))
-    )
+        Boolean(user.roles && (user.roles.includes(role) || user.roles.includes('organizador')))
+      )
+    })
     .map((user) => ({
       id: user.id,
       name: user.name || user.email.split('@')[0],

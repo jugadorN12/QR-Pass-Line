@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
-import { formatCouponSchedule, getTargetDateFromPeriod, parseDMY, SPANISH_DAY_NAMES } from '../lib/dateUtils'
+import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES } from '../lib/dateUtils'
 
 export function SellerEmitPage() {
-  const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate } = useApp()
+  const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate, activeVenue, venues } = useApp()
   const navigate = useNavigate()
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
@@ -15,9 +15,13 @@ export function SellerEmitPage() {
 
   const sellerDisplayName = currentUser?.name || 'JOSE'
 
-  const activeEvent = events.find((e) => e.status === 'activo') || events[0]
-  const businessName = localStorage.getItem('qr-pass-line.business-name') || 'Cubano'
-  const logo = localStorage.getItem('qr-pass-line.establishment-logo') || '/app-icon.png'
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueEvents = events.filter(e => isEntityForVenue(e.venueId, targetVenueId, venues))
+  const activeEvent = venueEvents.find((e) => e.status === 'activo') || venueEvents[0]
+  const venueQrCatalog = qrCatalog.filter(q => isEntityForVenue(q.venueId, targetVenueId, venues))
+
+  const businessName = activeVenue?.name || localStorage.getItem('qr-pass-line.business-name') || 'Mi Establecimiento'
+  const logo = activeVenue?.logo || localStorage.getItem('qr-pass-line.establishment-logo') || '/app-icon.png'
 
   // Determinar si es encargado / admin / organizador con acceso total
   const isManagerOrAdmin =
@@ -30,10 +34,10 @@ export function SellerEmitPage() {
   const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
 
   const couponsToDisplay = useMemo(() => {
-    // Si es admin u organizador (Encargado), tiene acceso TOTAL e ILIMITADO a todos los cupones creados
+    // Si es admin u organizador (Encargado), tiene acceso TOTAL e ILIMITADO a todos los cupones creados de su local
     if (isManagerOrAdmin) {
-      if (qrCatalog.length > 0) {
-        return qrCatalog.map((item) => {
+      if (venueQrCatalog.length > 0) {
+        return venueQrCatalog.map((item) => {
           const issuedCount = tickets.filter(
             (t) => t.issuedBy === currentUser?.id && t.couponId === item.id
           ).length
@@ -86,10 +90,11 @@ export function SellerEmitPage() {
         ).length
         const totalQuota = Number(lim.quantity) || 0
         const available = Math.max(0, totalQuota - issuedCount)
+        const couponDays = (catalogItem?.days && catalogItem.days.length > 0) ? catalogItem.days : lim.days
         const couponSchedule = formatCouponSchedule(activeEvent, {
           ...catalogItem,
           period: lim.period,
-          days: lim.days || catalogItem?.days,
+          days: couponDays,
         })
         return {
           id: lim.couponId,
@@ -98,7 +103,7 @@ export function SellerEmitPage() {
           kind: catalogItem?.kind || 'consumible',
           description: catalogItem?.description || '',
           period: lim.period,
-          days: lim.days || catalogItem?.days,
+          days: couponDays,
           from: catalogItem?.from || '23:59',
           duration: catalogItem?.duration || '02:00',
           scheduleMode: catalogItem?.scheduleMode,
@@ -118,17 +123,16 @@ export function SellerEmitPage() {
   const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || ''
   const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
 
-  // Calcular la fecha y cabecera del evento según las limitaciones asignadas o evento activo
-  const firstLimitation = userLimitations[0]
+  // Calcular la fecha y cabecera del evento según el cupón seleccionado o evento activo
   const targetHeaderDate = useMemo(() => {
-    if (!isManagerOrAdmin && firstLimitation?.period && firstLimitation.period !== 'Ilimitado') {
-      return getTargetDateFromPeriod(firstLimitation.period, firstLimitation.days)
+    if (selectedCoupon) {
+      return getCouponBaseDate(activeEvent, selectedCoupon)
     }
     if (activeEvent?.date) {
       return parseDMY(activeEvent.date) || new Date()
     }
     return new Date()
-  }, [isManagerOrAdmin, firstLimitation, activeEvent])
+  }, [selectedCoupon, activeEvent])
 
   const headerTitle = useMemo(() => {
     const dayName = SPANISH_DAY_NAMES[targetHeaderDate.getDay()]

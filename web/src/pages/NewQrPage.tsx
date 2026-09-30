@@ -11,7 +11,7 @@ const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(
 export function NewQrPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const { qrCatalog, saveQrItem } = useApp()
+  const { qrCatalog, saveQrItem, currentUser, activeVenue } = useApp()
   const editingId = params.get('id')
   const existingQr = editingId ? qrCatalog.find((qr) => qr.id === editingId) : undefined
 
@@ -147,6 +147,7 @@ export function NewQrPage() {
         days,
         scheduleMode,
         backgroundImage,
+        venueId: existingQr?.venueId || currentUser?.venueId || activeVenue?.id || '',
       }
 
       await saveQrItem(item)

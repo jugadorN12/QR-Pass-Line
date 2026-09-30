@@ -5,7 +5,7 @@ import { DottedQrImage } from './DottedQrImage'
 import { formatCouponSchedule } from '../lib/dateUtils'
 
 export function CouponTemplateEditor() {
-  const { couponTemplate, saveCouponTemplate, qrCatalog, events } = useApp()
+  const { couponTemplate, saveCouponTemplate, qrCatalog, events, activeVenue } = useApp()
   const [message, setMessage] = useState('')
 
   // Template Editor State
@@ -52,13 +52,15 @@ export function CouponTemplateEditor() {
     }
   }
 
-  const sampleCoupon = qrCatalog.find((q) => q.backgroundImage) || qrCatalog[0]
-  const activeEvent = events.find((e) => e.status === 'activo') || events[0]
+  const isCubano = !activeVenue || (activeVenue.name || '').toLowerCase().includes('cubano')
+  const sampleCoupon = qrCatalog.find((q) => q.backgroundImage && (!activeVenue || q.venueId === activeVenue.id || (isCubano && !q.venueId)))
+  const activeEvent = events.find((e) => e.status === 'activo' && (!activeVenue || e.venueId === activeVenue.id || (isCubano && !e.venueId))) || events[0]
   const posterBg =
+    activeVenue?.qrBackground ||
     sampleCoupon?.backgroundImage ||
     (activeEvent as any)?.backgroundImage ||
     (activeEvent as any)?.imageUrl ||
-    localStorage.getItem('qr-pass-line.poster') ||
+    (isCubano ? localStorage.getItem('qr-pass-line.poster') : '') ||
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'
 
   const scale = (templateConfig.bgZoom || 100) / 100

@@ -12,6 +12,8 @@ export type User = {
   roles?: Role[]
   venueId?: string
   avatar?: string
+  mustChangePassword?: boolean
+  tempPassword?: string
   createdAt: string
 }
 
@@ -22,6 +24,12 @@ export type Venue = {
   latitude: number
   longitude: number
   radius: number // en metros
+  logo?: string
+  qrBackground?: string
+  minAgeMen?: string
+  minAgeWomen?: string
+  visibleDays?: string
+  couponTemplate?: CouponTemplateConfig
   createdAt: string
 }
 
@@ -29,6 +37,7 @@ export type ClubEvent = {
   id: string
   name: string
   venue: string
+  venueId?: string
   date: string
   doorsOpen: string
   status: EventStatus
@@ -40,6 +49,7 @@ export type ClubEvent = {
 export type Ticket = {
   id: string
   eventId: string
+  venueId?: string
   couponId?: string
   kind: TicketKind
   code: string
@@ -52,13 +62,13 @@ export type Ticket = {
   redeemedBy: string | null
 }
 
-
 export type Session = {
   userId: string
 }
 
 export type QrCatalogItem = {
   id: string
+  venueId?: string
   name: string
   description: string
   kind: 'viral' | 'consumible'
@@ -74,6 +84,7 @@ export type QrCatalogItem = {
 
 export type Limitation = {
   id: string
+  venueId?: string
   personId: string
   couponId: string
   quantity: number
@@ -114,4 +125,3 @@ export type AppData = {
   couponTemplate?: CouponTemplateConfig
   session: Session | null
 }
-

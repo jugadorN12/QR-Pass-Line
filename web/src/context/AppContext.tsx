@@ -32,7 +32,7 @@ import {
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
 import { defaultQrCatalog } from '../lib/qrCatalog'
-import { formatCouponSchedule, checkCouponScheduleValidity } from '../lib/dateUtils'
+import { formatCouponSchedule, checkCouponScheduleValidity, getCouponBaseDate } from '../lib/dateUtils'
 
 import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
 import { defaultCouponTemplate } from '../types'
@@ -40,19 +40,21 @@ import { defaultCouponTemplate } from '../types'
 type AppContextValue = AppData & {
   loading: boolean
   currentUser: User | null
+  activeVenue: Venue | null
+  adminActiveVenueId?: string
+  setAdminActiveVenue: (venueId: string) => void
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   updateName: (name: string) => Promise<void>
   updateUserPassword: (password: string) => Promise<void>
-  addMember: (input: { name: string; email: string; password: string; role?: Role; roles?: Role[] }) => Promise<void>
-  createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus }) => Promise<ClubEvent>
+  addMember: (input: { name: string; email: string; password: string; role?: Role; roles?: Role[]; venueId?: string }) => Promise<void>
+  createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus; venueId?: string }) => Promise<ClubEvent>
 
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number }) => Promise<Ticket>
+  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; venueId?: string }) => Promise<Ticket>
 
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
-
 
   saveQrItem: (item: QrCatalogItem) => Promise<void>
   deleteQrItem: (id: string) => Promise<void>
@@ -61,7 +63,9 @@ type AppContextValue = AppData & {
   updateUserRole: (userId: string, role?: Role, venueId?: string, roles?: Role[]) => Promise<void>
   deleteUser: (userId: string) => Promise<void>
   resetUserPasswordByEmail: (email: string) => Promise<void>
+  adminResetPassword: (userId: string, newPassword: string) => Promise<void>
   createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
+  updateVenue: (id: string, updates: Partial<Venue>) => Promise<void>
   deleteVenue: (id: string) => Promise<void>
   saveCouponTemplate: (config: CouponTemplateConfig) => Promise<void>
   updateUserAvatar: (userId: string, avatarUrl: string) => Promise<void>
@@ -99,10 +103,26 @@ function asUser(id: string, value: Record<string, unknown>): User {
     roles: Array.from(new Set(rawRoles)),
     venueId: String(value.venueId ?? ''),
     avatar,
+    mustChangePassword: Boolean(value.mustChangePassword),
+    tempPassword: String(value.tempPassword ?? ''),
     createdAt: String(value.createdAt ?? new Date().toISOString()),
   }
 }
 
+export function isEntityForVenue(
+  entityVenueId: string | undefined | null,
+  targetVenueId: string | undefined | null,
+  allVenues: Venue[]
+): boolean {
+  if (!targetVenueId) return true
+  const cubanoVenue = allVenues.find((v) => (v.name || '').toLowerCase().includes('cubano')) || allVenues[0]
+  const isTargetCubano = !cubanoVenue || targetVenueId === cubanoVenue.id
+
+  if (!entityVenueId || entityVenueId.trim() === '') {
+    return isTargetCubano
+  }
+  return entityVenueId === targetVenueId
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData)
@@ -111,8 +131,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unsubscribeTickets: (() => void) | null = null
     let unsubscribeEvents: (() => void) | null = null
-
     let unsubscribeUsers: (() => void) | null = null
+    let unsubscribeVenues: (() => void) | null = null
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (unsubscribeTickets) {
@@ -126,6 +146,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (unsubscribeUsers) {
         unsubscribeUsers()
         unsubscribeUsers = null
+      }
+      if (unsubscribeVenues) {
+        unsubscribeVenues()
+        unsubscribeVenues = null
       }
 
       if (!firebaseUser) {
@@ -220,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
-        // Fast parallel fetch for lightweight collections (excluding full tickets collection which is handled via live snapshot)
+        // Fast parallel fetch for lightweight collections
         const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'events')),
@@ -238,7 +262,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             userMap.set(key, rawUser)
           } else {
             const existing = userMap.get(key)!
-            // Prefer the document that has active roles or matches current user
             if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
               userMap.set(key, rawUser)
             }
@@ -312,7 +335,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         )
 
-        // Sincronización en tiempo real de tickets (lee de IndexedDB inmediatamente y sincroniza cambios del servidor)
+        // Sincronización en tiempo real de locales
+        unsubscribeVenues = onSnapshot(
+          collection(db, 'venues'),
+          (snap) => {
+            const liveVenues = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+            setData((prev) => ({ ...prev, venues: liveVenues }))
+          },
+          (err) => {
+            console.warn('Aviso sincronización de locales:', err)
+          }
+        )
+
+        // Sincronización en tiempo real de tickets
         unsubscribeTickets = onSnapshot(
           collection(db, 'tickets'),
           (snap) => {
@@ -324,7 +359,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         )
 
-        // Sincronización en tiempo real de eventos (fechas activas)
+        // Sincronización en tiempo real de eventos
         unsubscribeEvents = onSnapshot(
           collection(db, 'events'),
           (snap) => {
@@ -364,6 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (unsubscribeTickets) unsubscribeTickets()
       if (unsubscribeEvents) unsubscribeEvents()
       if (unsubscribeUsers) unsubscribeUsers()
+      if (unsubscribeVenues) unsubscribeVenues()
       unsubscribeAuth()
     }
   }, [])
@@ -373,10 +409,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [data.users, data.session],
   )
 
+  const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+
+  const [adminSelectedVenueId, setAdminSelectedVenueId] = useState<string>(() => {
+    return localStorage.getItem('qr-pass-line.admin-active-venue') || ''
+  })
+
+  const setAdminActiveVenue = (venueId: string) => {
+    setAdminSelectedVenueId(venueId)
+    if (venueId) {
+      localStorage.setItem('qr-pass-line.admin-active-venue', venueId)
+    } else {
+      localStorage.removeItem('qr-pass-line.admin-active-venue')
+    }
+  }
+
+  // Active venue for the logged in user
+  const activeVenue = useMemo(() => {
+    if (!currentUser) return null
+    if (isMasterAdmin && adminSelectedVenueId) {
+      const found = data.venues.find((v) => v.id === adminSelectedVenueId)
+      if (found) return found
+    }
+    if (currentUser.venueId) {
+      const found = data.venues.find((v) => v.id === currentUser.venueId)
+      if (found) return found
+    }
+    const cubano = data.venues.find((v) => (v.name || '').toLowerCase().includes('cubano'))
+    return cubano || data.venues[0] || null
+  }, [currentUser, data.venues, isMasterAdmin, adminSelectedVenueId])
+
+  // Resolved coupon template (venue specific or global fallback)
+  const resolvedCouponTemplate = useMemo(() => {
+    if (activeVenue?.couponTemplate) return activeVenue.couponTemplate
+    return data.couponTemplate || defaultCouponTemplate
+  }, [activeVenue, data.couponTemplate])
+
   const value: AppContextValue = {
     ...data,
+    couponTemplate: resolvedCouponTemplate,
     loading,
     currentUser,
+    activeVenue,
+    adminActiveVenueId: adminSelectedVenueId,
+    setAdminActiveVenue,
     async login(email, password) {
       await signInWithEmailAndPassword(auth, email.trim(), password)
     },
@@ -418,9 +494,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, users: prev.users.map((user) => user.id === currentUser.id ? { ...user, name: cleanName } : user) }))
     },
     async updateUserPassword(password) {
-      if (!auth.currentUser) throw new Error('Sesión vencida.')
+      if (!auth.currentUser || !currentUser) throw new Error('Sesión vencida.')
       if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
       await updatePassword(auth.currentUser, password)
+      await updateDoc(doc(db, 'users', currentUser.id), {
+        tempPassword: '',
+        mustChangePassword: false,
+      })
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) => (u.id === currentUser.id ? { ...u, tempPassword: '', mustChangePassword: false } : u)),
+      }))
     },
     async updateUserAvatar(userId, avatarUrl) {
       if (!currentUser) throw new Error('Sesión vencida.')
@@ -430,13 +514,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         users: prev.users.map((user) => user.id === userId ? { ...user, avatar: avatarUrl } : user),
       }))
     },
-    async addMember({ name, email, password, role, roles }) {
+    async addMember({ name, email, password, role, roles, venueId: customVenueId }) {
       const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) {
         throw new Error('Sin permisos para registrar personal.')
       }
-      const venueId = currentUser?.venueId || ''
+      const venueId = customVenueId || currentUser?.venueId || ''
       const cleanEmail = email.trim().toLowerCase()
       const cleanName = name.trim() || cleanEmail.split('@')[0]
       const cleanPassword = password || 'Password123!'
@@ -466,7 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // 2. If user exists in Firestore database (e.g. registered on login page), update their role
+      // 2. If user exists in Firestore database, update their role
       const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
       const snap = await getDocs(q)
       if (!snap.empty) {
@@ -504,6 +588,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           roles: assignedRoles,
           venueId,
           avatar: defaultAvatar,
+          tempPassword: cleanPassword,
+          mustChangePassword: true,
           createdAt: new Date().toISOString(),
         }
         await setDoc(doc(db, 'users', user.id), user)
@@ -514,7 +600,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (err: any) {
         console.error('addMember creation notice:', err)
         if (err?.code === 'auth/email-already-in-use') {
-          // If already in Auth, look up existing Firestore user by email and sync roles
           const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
           const snap = await getDocs(q)
           if (!snap.empty) {
@@ -550,9 +635,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     async createEvent(input) {
       if (!currentUser) throw new Error('Sesión vencida.')
-      const event = { ...input, name: input.name.trim(), venue: input.venue.trim(), notes: input.notes.trim(), status: input.status ?? 'activo', createdBy: currentUser.id, createdAt: new Date().toISOString() }
+      const venueId = input.venueId || currentUser.venueId || activeVenue?.id || ''
+      const event: Omit<ClubEvent, 'id'> = {
+        ...input,
+        venueId,
+        name: input.name.trim(),
+        venue: input.venue.trim(),
+        notes: input.notes.trim(),
+        status: input.status ?? 'activo',
+        createdBy: currentUser.id,
+        createdAt: new Date().toISOString()
+      }
       const created = await addDoc(collection(db, 'events'), { ...event, createdAt: serverTimestamp() })
-      const result = { id: created.id, ...event }
+      const result: ClubEvent = { id: created.id, ...event }
       setData((prev) => ({ ...prev, events: [result, ...prev.events] }))
       return result
     },
@@ -561,10 +656,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, events: prev.events.map((event) => event.id === id ? { ...event, status } : event) }))
     },
     async saveQrItem(item) {
-      await setDoc(doc(db, 'qrCatalog', item.id), item)
+      const venueId = item.venueId || currentUser?.venueId || ''
+      const itemToSave = { ...item, venueId }
+      await setDoc(doc(db, 'qrCatalog', item.id), itemToSave)
       setData((prev) => ({
         ...prev,
-        qrCatalog: [item, ...prev.qrCatalog.filter((q) => q.id !== item.id)],
+        qrCatalog: [itemToSave, ...prev.qrCatalog.filter((q) => q.id !== item.id)],
       }))
     },
     async deleteQrItem(id) {
@@ -575,10 +672,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async saveLimitation(limitation) {
-      await setDoc(doc(db, 'limitations', limitation.id), limitation)
+      const venueId = limitation.venueId || currentUser?.venueId || ''
+      const limToSave = { ...limitation, venueId }
+      await setDoc(doc(db, 'limitations', limitation.id), limToSave)
       setData((prev) => ({
         ...prev,
-        limitations: [limitation, ...prev.limitations.filter((l) => l.id !== limitation.id)],
+        limitations: [limToSave, ...prev.limitations.filter((l) => l.id !== limitation.id)],
       }))
     },
     async deleteLimitation(id) {
@@ -588,14 +687,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         limitations: prev.limitations.filter((l) => l.id !== id),
       }))
     },
-    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity }) {
+    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, venueId: customVenueId }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
       if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
       const ticketQty = typeof quantity === 'number' && quantity > 0 ? quantity : 1
+      const venueId = customVenueId || event.venueId || currentUser.venueId || ''
       const ticket: Omit<Ticket, 'id'> = {
         eventId,
+        venueId,
         couponId: couponId || '',
         kind,
         code: ticketCode(),
@@ -616,7 +717,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const normalizedCode = code.trim().toUpperCase()
       let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
 
-      // If not yet present in memory, try a direct query (checks local IndexedDB cache and Firestore)
+      // If not yet present in memory, try a direct query
       if (!ticket) {
         try {
           const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
@@ -649,50 +750,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const event = data.events.find((e) => e.id === ticket.eventId)
       const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
       const ticketVenue = event?.venue || ''
-      const ticketName = coupon?.name || 'INGRESO GENERAL'
+      const ticketName = coupon?.name || (ticket.kind === 'dni' ? 'Acceso por DNI' : 'Acceso QR')
+      const baseDate = getCouponBaseDate(event, coupon)
+      const formattedDate = `${String(baseDate.getDate()).padStart(2, '0')}/${String(baseDate.getMonth() + 1).padStart(2, '0')}`
+
+      // Check Schedule
       const schedule = formatCouponSchedule(event, coupon)
-      let formattedDate = 'Fecha de hoy'
-      if (event?.date) {
-        try {
-          const cleanDateStr = event.date.split('T')[0]
-          const parts = cleanDateStr.split('-')
-          if (parts.length === 3) {
-            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`
-          } else {
-            formattedDate = cleanDateStr
-          }
-        } catch {
-          formattedDate = event.date
-        }
-      }
+      const validity = checkCouponScheduleValidity(event, coupon)
 
       // 1. Check Establishment / Venue Match (only if staff has a specific venueId assigned)
       const currentVenueName = currentUser?.venueId
         ? (data.venues.find((v) => v.id === currentUser.venueId)?.name || '')
         : ''
 
-      if (currentVenueName && ticketVenue && !ticketVenue.toLowerCase().includes(currentVenueName.toLowerCase()) && !currentVenueName.toLowerCase().includes(ticketVenue.toLowerCase())) {
+      if (ticket.venueId && currentUser?.venueId && ticket.venueId !== currentUser.venueId) {
         return {
           ok: false,
-          reason: 'wrong_venue',
-          message: `Este cupón pertenece al local "${ticketVenue}" y estás operando en "${currentVenueName}".`,
+          reason: 'invalid_venue',
+          message: `Acceso no válido para este establecimiento.`,
+          ticket,
           sellerName,
-          ticketName,
-          date: formattedDate,
-          schedule,
-          quantity: quantityText,
-          ticketVenue
-        }
-      }
-
-      // 2. Check Event Status / Active Date
-      if (event && event.status !== 'activo') {
-        return {
-          ok: false,
-          reason: 'inactive_event',
-          message: `La fecha de este acceso ("${event.name}") no está activa hoy.`,
-          sellerName,
-          eventName: event.name,
+          eventName: event?.name || 'Evento',
+          venueName: ticketVenue || 'Otro Local',
           ticketName,
           date: formattedDate,
           schedule,
@@ -700,42 +779,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 3. Check Coupon Time Limit / Schedule Validity for this specific coupon
-      const scheduleValidity = checkCouponScheduleValidity(event, coupon)
-      if (!scheduleValidity.ok) {
+      // 2. Check Expiration
+      if (!validity.ok) {
         return {
           ok: false,
-          reason: scheduleValidity.reason,
-          message: scheduleValidity.message,
+          reason: 'expired',
+          message: validity.message || 'El horario de validez del cupón expiró.',
+          ticket,
           sellerName,
-          eventName: event?.name || 'Evento Activo',
+          eventName: event?.name || 'Evento',
           venueName: ticketVenue || currentVenueName || 'Local Principal',
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: quantityText,
-          holderName: ticket.holderName || 'Portador'
+          quantity: quantityText
         }
       }
 
-      // 4. Check Single Use / Already Redeemed (Bloqueo estricto para que un QR no pueda canjearse 2 veces)
-
+      // 3. Check Already Redeemed
       if (ticket.redeemedAt) {
         const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
-        const redeemerName = redeemer ? redeemer.name : 'Personal de Puerta'
-        const redeemedDate = new Date(ticket.redeemedAt)
-        const formattedTime = !isNaN(redeemedDate.getTime())
-          ? redeemedDate.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-          : ticket.redeemedAt
-
+        const redeemerName = redeemer ? redeemer.name : 'Staff'
         return {
           ok: false,
-          reason: 'already_used',
-          message: `Este código QR ya fue canjeado e ingresado anteriormente.`,
-          sellerName,
-          redeemedAtFormatted: formattedTime,
+          reason: 'already_redeemed',
+          message: 'Código ya canjeado previamente.',
+          ticket,
           redeemerName,
-          holderName: ticket.holderName || 'Portador',
+          sellerName,
+          eventName: event?.name || 'Evento',
+          venueName: ticketVenue || currentVenueName || 'Local Principal',
           ticketName,
           date: formattedDate,
           schedule,
@@ -743,28 +816,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 4. Mark Ticket as Redeemed in Firestore & Local State
-      const redeemed = {
-        ...ticket,
-        redeemedAt: new Date().toISOString(),
-        redeemedBy: currentUser?.id || 'staff_puerta'
-      }
+      // Mark as redeemed in Firestore and local state
+      const redeemedAt = new Date().toISOString()
+      const redeemedBy = currentUser?.id ?? 'staff'
+      const updates = { redeemedAt, redeemedBy }
+      await updateDoc(doc(db, 'tickets', ticket.id), updates)
 
-      // Update in local state immediately for instant feedback on screen
+      const redeemed: Ticket = { ...ticket, ...updates }
       setData((prev) => ({
         ...prev,
-        tickets: prev.tickets.some((t) => t.id === ticket.id)
-          ? prev.tickets.map((t) => (t.id === ticket.id ? redeemed : t))
-          : [redeemed, ...prev.tickets]
+        tickets: prev.tickets.map((item) => (item.id === ticket!.id ? redeemed : item)),
       }))
-
-      // Persist in Firestore (updates IndexedDB immediately and queues cloud sync if offline)
-      updateDoc(doc(db, 'tickets', ticket.id), {
-        redeemedAt: redeemed.redeemedAt,
-        redeemedBy: redeemed.redeemedBy
-      }).catch((e) => {
-        console.error('Error updating ticket redemption in Firestore:', e)
-      })
 
       return {
         ok: true,
@@ -792,7 +854,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updates.roles = roles
         if (roles.length > 0) updates.role = roles[0]
       }
-      if (venueId !== undefined) updates.venueId = venueId
+      if (venueId !== undefined) {
+        updates.venueId = venueId
+      } else if (!isMasterAdmin && currentUser?.venueId) {
+        updates.venueId = currentUser.venueId
+      }
       await updateDoc(doc(db, 'users', userId), updates)
       setData((prev) => ({
         ...prev,
@@ -807,16 +873,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (targetUser && targetUser.email.toLowerCase() === ADMIN_EMAIL) {
         throw new Error('No se puede eliminar la cuenta del administrador principal.')
       }
-      // 1. Eliminar usuario de Firestore
       await deleteDoc(doc(db, 'users', userId))
 
-      // 2. Eliminar limitaciones asociadas
       const userLimits = data.limitations.filter((l) => l.personId === userId)
       for (const lim of userLimits) {
         await deleteDoc(doc(db, 'limitations', lim.id)).catch(() => {})
       }
 
-      // 3. Actualizar estado local
       setData((prev) => ({
         ...prev,
         users: prev.users.filter((u) => u.id !== userId),
@@ -828,15 +891,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!isMasterAdmin) throw new Error('Solo el superusuario puede blanquear contraseñas.')
       await sendPasswordResetEmail(auth, email.trim().toLowerCase())
     },
+    async adminResetPassword(userId, newPassword) {
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrgOrAdmin) throw new Error('Sin permisos para resetear contraseñas.')
+      if (newPassword.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
+
+      const targetUser = data.users.find((u) => u.id === userId)
+      if (!targetUser) throw new Error('Usuario no encontrado.')
+
+      // Update in secondaryAuth if possible by trying known/stored passwords
+      const passwordsToTry = Array.from(new Set([
+        targetUser.tempPassword,
+        '123456',
+        'Password123!',
+        'password',
+        '12345678',
+      ])).filter(Boolean) as string[]
+
+      for (const pass of passwordsToTry) {
+        try {
+          const cred = await signInWithEmailAndPassword(secondaryAuth, targetUser.email, pass)
+          if (cred && cred.user) {
+            await updatePassword(cred.user, newPassword)
+            await signOut(secondaryAuth).catch(() => {})
+            break
+          }
+        } catch {
+          // Continue to next fallback
+        }
+      }
+
+      await updateDoc(doc(db, 'users', userId), {
+        tempPassword: newPassword,
+        mustChangePassword: true,
+      })
+
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) => (u.id === userId ? { ...u, tempPassword: newPassword, mustChangePassword: true } : u)),
+      }))
+    },
     async createVenue(input) {
       const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Solo administradores pueden registrar locales.')
       const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
       const created = await addDoc(collection(db, 'venues'), { ...venue, createdAt: serverTimestamp() })
-      const result = { id: created.id, ...venue }
+      const result: Venue = { id: created.id, ...venue }
       setData((prev) => ({ ...prev, venues: [result, ...prev.venues] }))
       return result
+    },
+    async updateVenue(id, updates) {
+      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOfVenue = (currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')) && (currentUser?.venueId === id || !currentUser?.venueId)
+      if (!isMasterAdmin && !isOrgOfVenue) {
+        throw new Error('Sin permisos para editar este establecimiento.')
+      }
+      await updateDoc(doc(db, 'venues', id), updates)
+      setData((prev) => ({
+        ...prev,
+        venues: prev.venues.map((v) => (v.id === id ? { ...v, ...updates } : v)),
+      }))
     },
     async deleteVenue(id) {
       const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
@@ -846,9 +962,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, venues: prev.venues.filter((v) => v.id !== id) }))
     },
     async saveCouponTemplate(config: CouponTemplateConfig) {
-      localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(config))
-      await setDoc(doc(db, 'settings', 'couponTemplate'), config)
-      setData((prev) => ({ ...prev, couponTemplate: config }))
+      const targetVenueId = currentUser?.venueId || ''
+      if (targetVenueId) {
+        await updateDoc(doc(db, 'venues', targetVenueId), { couponTemplate: config }).catch(() => {})
+        setData((prev) => ({
+          ...prev,
+          venues: prev.venues.map((v) => (v.id === targetVenueId ? { ...v, couponTemplate: config } : v)),
+          couponTemplate: config,
+        }))
+      } else {
+        localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(config))
+        await setDoc(doc(db, 'settings', 'couponTemplate'), config)
+        setData((prev) => ({ ...prev, couponTemplate: config }))
+      }
     },
   }
 

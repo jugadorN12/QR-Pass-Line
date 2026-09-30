@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import type { Role } from '../types'
 
 const AVAILABLE_ROLES: { key: Role; label: string }[] = [
@@ -11,7 +11,7 @@ const AVAILABLE_ROLES: { key: Role; label: string }[] = [
 ]
 
 export function TeamPage() {
-  const { currentUser, users, addMember, updateUserRole } = useApp()
+  const { currentUser, users, addMember, updateUserRole, activeVenue, venues } = useApp()
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -19,7 +19,9 @@ export function TeamPage() {
 
   const isManager = currentUser?.role === 'organizador' || currentUser?.role === 'admin' || currentUser?.roles?.includes('organizador') || currentUser?.roles?.includes('admin') || currentUser?.email?.toLowerCase() === 'simplemente_anibal@hotmail.com'
 
-  const pendingUsers = users.filter(u => u.role === 'pendiente')
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueUsers = users.filter(u => isEntityForVenue(u.venueId, targetVenueId, venues))
+  const pendingUsers = venueUsers.filter(u => u.role === 'pendiente')
 
 
   function toggleSelectedRole(r: Role) {

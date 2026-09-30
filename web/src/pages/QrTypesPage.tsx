@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import type { QrCatalogItem } from '../types'
 
 import { StaffHeader } from '../components/StaffHeader'
 
 export function QrTypesPage() {
-  const { qrCatalog, deleteQrItem } = useApp()
+  const { qrCatalog, deleteQrItem, currentUser, activeVenue, venues } = useApp()
   const [preview, setPreview] = useState<QrCatalogItem | null>(null)
   const navigate = useNavigate()
+
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueQrCatalog = qrCatalog.filter((q) => isEntityForVenue(q.venueId, targetVenueId, venues))
 
   function removeQr(item: QrCatalogItem) {
     if (!window.confirm(`¿Eliminar ${item.name}?`)) return
@@ -41,7 +44,7 @@ export function QrTypesPage() {
           <section className="sellers-panel qr-panel">
             <div className="sellers-panel-heading"><strong>Cupones sin grupo</strong><span>⌃</span></div>
             <div className="qr-grid">
-              {qrCatalog.map((qr) => (
+              {venueQrCatalog.map((qr) => (
                 <article className="qr-type-card" key={qr.id}>
                   <div className="qr-type-heading"><span className="qr-ticket-icon">▱</span><div><small>CONSUMIBLE_QR</small><strong>{qr.name}</strong></div></div>
                   <div className="seller-actions">

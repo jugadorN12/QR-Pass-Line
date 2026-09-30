@@ -1,14 +1,59 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import type { Role } from '../types'
+import type { Role, User } from '../types'
 import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 import { UserAvatar } from '../components/UserAvatar'
+import './AdminDashboard.css'
+
+const AVAILABLE_ROLES: { key: Role; label: string; icon: string }[] = [
+  { key: 'vendedor', label: 'Vendedor', icon: '🏷️' },
+  { key: 'canjeador', label: 'Canjeador', icon: '🎟️' },
+  { key: 'supervisor', label: 'Supervisor', icon: '👁️' },
+  { key: 'organizador', label: 'Encargado', icon: '📋' },
+  { key: 'admin', label: 'Admin', icon: '👑' },
+]
 
 export function AdminDashboardPage() {
-  const { users, venues, updateUserRole, deleteUser, resetUserPasswordByEmail, createVenue, deleteVenue, addMember, logout } = useApp()
+  const { users, venues, updateUserRole, deleteUser, adminResetPassword, createVenue, deleteVenue, addMember, logout, activeVenue, setAdminActiveVenue } = useApp()
   const [tab, setTab] = useState<'users' | 'venues' | 'settings' | 'template'>('users')
   const [globalLogo, setGlobalLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
+
+  // Password reset modal state
+  const [resetModalUser, setResetModalUser] = useState<User | null>(null)
+  const [resetModalPass, setResetModalPass] = useState('123456')
+  const [isResettingPass, setIsResettingPass] = useState(false)
+
+  // UI State for toggling create panels
+  const [showUserForm, setShowUserForm] = useState(false)
+  const [showVenueForm, setShowVenueForm] = useState(false)
+
+  // Filters & Search
+  const [searchUser, setSearchUser] = useState('')
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [venueFilter, setVenueFilter] = useState<string>('all')
+
+  // State for user creation
+  const [newUserName, setNewUserName] = useState('')
+  const [newUserEmail, setNewUserEmail] = useState('')
+  const [newUserPass, setNewUserPass] = useState('')
+  const [newUserRole, setNewUserRole] = useState<Role>('pendiente')
+  const [newUserVenue, setNewUserVenue] = useState('')
+
+  // State for venue creation
+  const [venueName, setVenueName] = useState('')
+  const [venueAddress, setVenueAddress] = useState('')
+  const [lat, setLat] = useState('')
+  const [lng, setLng] = useState('')
+  const [radius, setRadius] = useState('50')
+  const [venueManagerName, setVenueManagerName] = useState('')
+  const [venueManagerEmail, setVenueManagerEmail] = useState('')
+  const [venueManagerPassword, setVenueManagerPassword] = useState('')
+
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false)
+  const [message, setMessage] = useState('')
+  const [isGeocoding, setIsGeocoding] = useState(false)
+  const navigate = useNavigate()
 
   function handleLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -24,25 +69,6 @@ export function AdminDashboardPage() {
     reader.readAsDataURL(file)
   }
 
-  // State for user creation
-  const [newUserName, setNewUserName] = useState('')
-  const [newUserEmail, setNewUserEmail] = useState('')
-  const [newUserPass, setNewUserPass] = useState('')
-  const [newUserRole, setNewUserRole] = useState<Role>('pendiente')
-  const [newUserVenue, setNewUserVenue] = useState('')
-
-  // State for venue creation
-  const [venueName, setVenueName] = useState('')
-  const [venueAddress, setVenueAddress] = useState('')
-  const [lat, setLat] = useState('')
-  const [lng, setLng] = useState('')
-  const [radius, setRadius] = useState('50')
-
-  const [isSubmittingUser, setIsSubmittingUser] = useState(false)
-  const [message, setMessage] = useState('')
-  const [isGeocoding, setIsGeocoding] = useState(false)
-  const navigate = useNavigate()
-
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     if (isSubmittingUser) return
@@ -51,7 +77,7 @@ export function AdminDashboardPage() {
 
     const existing = users.find((u) => u.email.toLowerCase() === cleanMail)
     if (existing) {
-      setMessage(`El usuario "${cleanMail}" ya está registrado en el sistema. Puedes modificar sus roles directamente en la tabla inferior.`)
+      setMessage(`El usuario "${cleanMail}" ya está registrado. Modificalo en la lista.`)
       return
     }
 
@@ -74,6 +100,7 @@ export function AdminDashboardPage() {
       setNewUserPass('')
       setNewUserRole('pendiente')
       setNewUserVenue('')
+      setShowUserForm(false)
       setMessage('Usuario registrado con éxito.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al crear usuario.')
@@ -92,11 +119,11 @@ export function AdminDashboardPage() {
       if (data && data.length > 0) {
         setLat(data[0].lat)
         setLng(data[0].lon)
-        setMessage('Dirección encontrada.')
+        setMessage('📍 Dirección localizada con éxito en el mapa.')
       } else {
-        setMessage('No se encontró la dirección. Verificá y probá de nuevo.')
+        setMessage('No se encontró la dirección. Verificá la escritura.')
       }
-    } catch (err) {
+    } catch {
       setMessage('Error al conectar con el servicio de mapas.')
     } finally {
       setIsGeocoding(false)
@@ -105,32 +132,68 @@ export function AdminDashboardPage() {
 
   async function handleCreateVenue(e: React.FormEvent) {
     e.preventDefault()
+    if (!venueName.trim()) return
     try {
-      await createVenue({
-        name: venueName,
-        address: venueAddress,
-        latitude: Number(lat),
-        longitude: Number(lng),
+      const createdVenue = await createVenue({
+        name: venueName.trim(),
+        address: venueAddress.trim(),
+        latitude: Number(lat) || 0,
+        longitude: Number(lng) || 0,
         radius: Number(radius) || 50
       })
+
+      let managerMsg = ''
+      if (venueManagerEmail.trim()) {
+        const cleanMgrEmail = venueManagerEmail.trim().toLowerCase()
+        const cleanMgrName = venueManagerName.trim() || 'Encargado'
+        const cleanMgrPass = venueManagerPassword.trim() || '123456'
+        await addMember({
+          name: cleanMgrName,
+          email: cleanMgrEmail,
+          password: cleanMgrPass,
+          role: 'organizador',
+          roles: ['organizador'],
+          venueId: createdVenue.id
+        })
+        managerMsg = ` y Encargado "${cleanMgrEmail}" creado con éxito.`
+      }
+
       setVenueName('')
       setVenueAddress('')
       setLat('')
       setLng('')
       setRadius('50')
-      setMessage('Establecimiento creado con éxito.')
-    } catch (err) {
-      setMessage('Error al crear establecimiento.')
+      setVenueManagerName('')
+      setVenueManagerEmail('')
+      setVenueManagerPassword('')
+      setShowVenueForm(false)
+      setMessage(`✓ Establecimiento "${venueName}" registrado${managerMsg}`)
+    } catch (err: any) {
+      setMessage(`Error al crear establecimiento: ${err?.message || 'Error desconocido'}`)
     }
   }
 
-  async function handleResetPassword(email: string) {
-    if (!window.confirm(`¿Enviar email de reseteo a ${email}?`)) return
+  function handleOpenResetModal(user: User) {
+    setResetModalUser(user)
+    setResetModalPass('123456')
+  }
+
+  async function handleConfirmResetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!resetModalUser || isResettingPass) return
+    if (resetModalPass.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+    setIsResettingPass(true)
     try {
-      await resetUserPasswordByEmail(email)
-      alert('Email enviado correctamente.')
-    } catch (err) {
-      alert('Error al enviar el email.')
+      await adminResetPassword(resetModalUser.id, resetModalPass)
+      setMessage(`✓ Contraseña provisoria para "${resetModalUser.email}" actualizada a: ${resetModalPass}`)
+      setResetModalUser(null)
+    } catch (err: any) {
+      alert(err instanceof Error ? err.message : 'Error al actualizar contraseña.')
+    } finally {
+      setIsResettingPass(false)
     }
   }
 
@@ -139,7 +202,7 @@ export function AdminDashboardPage() {
       alert('No es posible eliminar al Administrador Principal.')
       return
     }
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a "${user.name}" (${user.email})?\n\nEsta acción borrará su cuenta del sistema y todas sus limitaciones asignadas.`)) {
+    if (!window.confirm(`¿Eliminar permanentemente a "${user.name}" (${user.email})?\n\nEsta acción borrará su cuenta y limitaciones.`)) {
       return
     }
     try {
@@ -150,243 +213,695 @@ export function AdminDashboardPage() {
     }
   }
 
+  // Filter users based on search and selected role / venue
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const q = searchUser.trim().toLowerCase()
+      const matchesSearch = !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q)
+      
+      const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
+      const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as Role)
+      
+      const matchesVenue = venueFilter === 'all' || (venueFilter === 'none' ? !user.venueId : user.venueId === venueFilter)
+
+      return matchesSearch && matchesRole && matchesVenue
+    })
+  }, [users, searchUser, roleFilter, venueFilter])
+
   return (
-    <div className="org-screen">
-      <header className="org-header">
-        <div className="org-brand">
-          <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
-          <strong>Panel Administrador General</strong>
-        </div>
-        <button className="btn btn-ghost" type="button" onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}>Salir</button>
-      </header>
-
-      <main className="org-main" style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px' }}>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, flexWrap: 'wrap' }}>
-          <button className={`btn ${tab === 'users' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('users')}>Usuarios ({users.length})</button>
-          <button className={`btn ${tab === 'venues' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('venues')}>Locales ({venues.length})</button>
-          <button className={`btn ${tab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('settings')}>Configuración Global</button>
-          <button className={`btn ${tab === 'template' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('template')}>⚙️ Configurar Cupón</button>
-        </div>
-
-        {message && <div className="flash flash-ok" style={{ marginBottom: 20, borderRadius: 10, padding: 12 }}>{message}</div>}
-
-        {tab === 'users' && (
-          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
-            <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
-              <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Registrar nuevo usuario</h2>
-              <form onSubmit={handleCreateUser} className="stack" style={{ gap: 12 }}>
-                <label className="field"><span>Nombre y Apellido</span><input value={newUserName} onChange={e => setNewUserName(e.target.value)} required placeholder="Ej: Juan Pérez" /></label>
-                <label className="field"><span>Correo electrónico</span><input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required placeholder="correo@ejemplo.com" /></label>
-                <label className="field"><span>Contraseñas (mín. 6 caracteres)</span><input type="password" value={newUserPass} onChange={e => setNewUserPass(e.target.value)} required minLength={6} placeholder="••••••" /></label>
-                <label className="field">
-                  <span>Local / Establecimiento asignado</span>
-                  <select value={newUserVenue} onChange={e => setNewUserVenue(e.target.value)}>
-                    <option value="">Sin local (Global)</option>
-                    {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Rol inicial</span>
-                  <select value={newUserRole} onChange={e => setNewUserRole(e.target.value as Role)}>
-                    <option value="pendiente">Pendiente</option>
-                    <option value="vendedor">Vendedor</option>
-                    <option value="canjeador">Canjeador</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="organizador">Encargado (Organizador)</option>
-                    <option value="admin">Superusuario (Admin)</option>
-                  </select>
-                </label>
-                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }} disabled={isSubmittingUser}>
-                  {isSubmittingUser ? 'CREANDO USUARIO...' : 'CREAR USUARIO'}
-                </button>
-              </form>
-            </section>
-
-            <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
-              <div className="sellers-panel-heading" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: 12, marginBottom: 12 }}>
-                <strong style={{ fontSize: 15, color: '#0b192c' }}>Usuarios registrados ({users.length})</strong>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f1', color: '#64748b', fontSize: 12 }}>
-                      <th style={{ padding: '10px 12px' }}>Nombre / Email</th>
-                      <th style={{ padding: '10px 12px' }}>Local</th>
-                      <th style={{ padding: '10px 12px' }}>Roles Asignados</th>
-                      <th style={{ padding: '10px 12px' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(user => {
-                      const isMainAdmin = user.email.toLowerCase() === 'simplemente_anibal@hotmail.com'
-                      const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
-                      return (
-                        <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <UserAvatar
-                                userId={user.id}
-                                name={user.name}
-                                email={user.email}
-                                avatar={user.avatar}
-                                size={36}
-                              />
-                              <div>
-                                <strong style={{ color: '#0b192c' }}>{user.name}</strong><br/>
-                                <small className="muted" style={{ fontSize: 11 }}>{user.email}</small>
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{ padding: '12px' }}>
-                            <select
-                               value={user.venueId || ''}
-                               onChange={(e) => void updateUserRole(user.id, user.role, e.target.value, userRoles)}
-                               style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', color: '#152238' }}
-                            >
-                               <option value="">Sin local</option>
-                               {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                              {(['vendedor', 'canjeador', 'supervisor', 'organizador', 'admin'] as Role[]).map(r => {
-                                const isActive = userRoles.includes(r)
-                                return (
-                                  <button
-                                    key={r}
-                                    type="button"
-                                    onClick={() => {
-                                      let newRoles: Role[]
-                                      if (isActive) {
-                                        newRoles = userRoles.filter(x => x !== r)
-                                      } else {
-                                        newRoles = [...userRoles.filter(x => x !== 'pendiente'), r]
-                                      }
-                                      if (newRoles.length === 0) newRoles = ['pendiente']
-                                      void updateUserRole(user.id, newRoles[0], user.venueId, newRoles)
-                                    }}
-                                    style={{
-                                      padding: '3px 8px',
-                                      borderRadius: 12,
-                                      border: isActive ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                                      background: isActive ? '#dbeafe' : '#f8fafc',
-                                      color: isActive ? '#1e40af' : '#94a3b8',
-                                      fontSize: 11,
-                                      fontWeight: isActive ? 700 : 400,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {isActive ? '✓ ' : '+ '}{r.charAt(0).toUpperCase() + r.slice(1)}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </td>
-
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                              <button
-                                className="btn btn-secondary"
-                                style={{ padding: '6px 10px', fontSize: 11 }}
-                                onClick={() => void handleResetPassword(user.email)}
-                                title="Enviar email de reseteo de contraseña"
-                              >
-                                Reset
-                              </button>
-                              {!isMainAdmin && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    padding: '6px 10px',
-                                    fontSize: 11,
-                                    background: '#fee2e2',
-                                    color: '#dc2626',
-                                    border: '1px solid #fca5a5',
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  onClick={() => void handleDeleteUser(user)}
-                                  title="Eliminar usuario permanentemente"
-                                >
-                                  🗑️ Eliminar
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {tab === 'venues' && (
-          <div className="org-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
-            <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
-              <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Registrar nuevo local</h2>
-              <form onSubmit={handleCreateVenue} className="stack" style={{ gap: 14 }}>
-                <label className="field"><span>Nombre del Boliche/Local</span><input value={venueName} onChange={e => setVenueName(e.target.value)} required placeholder="Ej: Cubano" /></label>
-                <div className="field">
-                  <span>Dirección</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input value={venueAddress} onChange={e => setVenueAddress(e.target.value)} required placeholder="Ej: Av. Corrientes 1234, CABA" style={{ flex: 1 }} />
-                    <button className="btn btn-secondary" type="button" disabled={isGeocoding} onClick={() => void validateAddress()}>Validar GPS</button>
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <label className="field"><span>Latitud</span><input value={lat} onChange={e => setLat(e.target.value)} required placeholder="-34.6037" /></label>
-                  <label className="field"><span>Longitud</span><input value={lng} onChange={e => setLng(e.target.value)} required placeholder="-58.3816" /></label>
-                </div>
-                <label className="field"><span>Radio permitido de canje (metros)</span><input type="number" value={radius} onChange={e => setRadius(e.target.value)} required min={10} max={1000} /></label>
-                <button className="btn btn-primary btn-block" style={{ marginTop: 8 }}>CREAR LOCAL</button>
-              </form>
-            </section>
-
-            <section className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)' }}>
-              <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Locales habilitados ({venues.length})</h2>
-              <div className="stack" style={{ gap: 12 }}>
-                {venues.map(v => (
-                  <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                    <div>
-                      <strong style={{ color: '#0b192c', display: 'block' }}>{v.name}</strong>
-                      <small className="muted">{v.address} (Radio: {v.radius}m)</small>
-                    </div>
-                    <button className="btn btn-secondary" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => void deleteVenue(v.id)}>Eliminar</button>
-                  </div>
-                ))}
-                {!venues.length && <p className="muted">No hay locales registrados.</p>}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {tab === 'settings' && (
-          <div className="role-card" style={{ padding: 24, background: '#fff', borderRadius: 14, border: '1px solid #dce4ed', boxShadow: '0 4px 16px rgba(15,23,52,.04)', maxWidth: 500 }}>
-            <h2 style={{ fontSize: 17, color: '#0b192c', fontWeight: 800, marginBottom: 16 }}>Logo Global de la Plataforma (Nexo Software)</h2>
-            <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>Este logo se mostrará en la esquina superior izquierda de todas las pantallas administrativas.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-              <div style={{ width: 80, height: 80, borderRadius: 16, border: '2px dashed #cbd5e1', display: 'grid', placeItems: 'center', background: '#f8fafc', overflow: 'hidden' }}>
-                {globalLogo ? <img src={globalLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 24 }}>🖼️</span>}
-              </div>
-              <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
-                <span>Subir Logo Global</span>
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} style={{ display: 'none' }} />
-              </label>
+    <div className="admin-page-container">
+      {/* Header */}
+      <header className="admin-header">
+        <div className="admin-header-inner">
+          <div className="admin-brand">
+            <img
+              src={globalLogo || '/app-icon.png'}
+              alt="Logo"
+              className="admin-brand-logo"
+            />
+            <div className="admin-brand-info">
+              <strong className="admin-brand-title">Panel General</strong>
+              <span className="admin-brand-subtitle">Administración de Plataforma</span>
             </div>
           </div>
+          <div className="admin-header-actions">
+            <button
+              className="admin-exit-btn"
+              type="button"
+              onClick={async () => {
+                await logout()
+                navigate('/ingresar', { replace: true })
+              }}
+            >
+              <span>Salir</span> ✕
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="admin-main">
+        {/* Navigation Tabs (Mobile Pill Bar) */}
+        <nav className="admin-tabs-nav" aria-label="Navegación del Administrador">
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'users' ? 'active' : ''}`}
+            onClick={() => setTab('users')}
+          >
+            <span>👥 Usuarios</span>
+            <span className="admin-tab-badge">{users.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'venues' ? 'active' : ''}`}
+            onClick={() => setTab('venues')}
+          >
+            <span>🏢 Locales</span>
+            <span className="admin-tab-badge">{venues.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'settings' ? 'active' : ''}`}
+            onClick={() => setTab('settings')}
+          >
+            <span>⚙️ Logo / Ajustes</span>
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'template' ? 'active' : ''}`}
+            onClick={() => setTab('template')}
+          >
+            <span>🎟️ Cupón</span>
+          </button>
+        </nav>
+
+        {/* Global Alert Notification */}
+        {message && (
+          <div className="admin-toast admin-toast-ok">
+            <span>{message}</span>
+            <button
+              type="button"
+              onClick={() => setMessage('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: 'inherit' }}
+            >
+              ✕
+            </button>
+          </div>
         )}
 
+        {/* =========================================================
+            TAB 1: USUARIOS
+           ========================================================= */}
+        {tab === 'users' && (
+          <div>
+            {/* Top Action & Search Bar */}
+            <div className="admin-section-header">
+              <button
+                type="button"
+                className="admin-btn-action-primary"
+                onClick={() => setShowUserForm(!showUserForm)}
+              >
+                {showUserForm ? '✕ Cancelar Registro' : '＋ Registrar Nuevo Usuario'}
+              </button>
+            </div>
+
+            {/* Collapsible User Creation Form */}
+            {showUserForm && (
+              <section className="admin-form-card">
+                <div className="admin-form-header">
+                  <span className="admin-form-title">👤 Nuevo Usuario</span>
+                  <button
+                    type="button"
+                    className="admin-form-close"
+                    onClick={() => setShowUserForm(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <form onSubmit={handleCreateUser}>
+                  <div className="admin-form-grid">
+                    <div className="admin-input-group">
+                      <label>Nombre y Apellido</label>
+                      <input
+                        className="admin-input"
+                        value={newUserName}
+                        onChange={e => setNewUserName(e.target.value)}
+                        required
+                        placeholder="Ej: Juan Pérez"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Correo Electrónico</label>
+                      <input
+                        className="admin-input"
+                        type="email"
+                        value={newUserEmail}
+                        onChange={e => setNewUserEmail(e.target.value)}
+                        required
+                        placeholder="correo@ejemplo.com"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Contraseña inicial (mín. 6 caracteres)</label>
+                      <input
+                        className="admin-input"
+                        type="password"
+                        value={newUserPass}
+                        onChange={e => setNewUserPass(e.target.value)}
+                        required
+                        minLength={6}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Establecimiento Asignado</label>
+                      <select
+                        className="admin-select"
+                        value={newUserVenue}
+                        onChange={e => setNewUserVenue(e.target.value)}
+                      >
+                        <option value="">Sin local (Acceso Global)</option>
+                        {venues.map(v => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Rol Inicial</label>
+                      <select
+                        className="admin-select"
+                        value={newUserRole}
+                        onChange={e => setNewUserRole(e.target.value as Role)}
+                      >
+                        <option value="pendiente">⏳ Pendiente</option>
+                        <option value="vendedor">🏷️ Vendedor</option>
+                        <option value="canjeador">🎟️ Canjeador</option>
+                        <option value="supervisor">👁️ Supervisor</option>
+                        <option value="organizador">📋 Encargado (Organizador)</option>
+                        <option value="admin">👑 Administrador</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    className="admin-btn-action-primary"
+                    style={{ marginTop: 16, width: '100%' }}
+                    disabled={isSubmittingUser}
+                  >
+                    {isSubmittingUser ? 'CREANDO USUARIO...' : 'GUARDAR Y REGISTRAR USUARIO'}
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {/* Search & Filters */}
+            <div className="admin-filters-bar">
+              <div className="admin-search-wrapper">
+                <span className="admin-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  placeholder="Buscar por nombre o email..."
+                  value={searchUser}
+                  onChange={e => setSearchUser(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  className="admin-filter-select"
+                  value={roleFilter}
+                  onChange={e => setRoleFilter(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="all">Todos los Roles</option>
+                  <option value="vendedor">Vendedores</option>
+                  <option value="canjeador">Canjeadores</option>
+                  <option value="supervisor">Supervisores</option>
+                  <option value="organizador">Encargados</option>
+                  <option value="admin">Admins</option>
+                  <option value="pendiente">Pendientes</option>
+                </select>
+                <select
+                  className="admin-filter-select"
+                  value={venueFilter}
+                  onChange={e => setVenueFilter(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="all">Todos los Locales</option>
+                  <option value="none">Sin local</option>
+                  {venues.map(v => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Users List (Mobile First Cards) */}
+            {filteredUsers.length === 0 ? (
+              <div className="admin-empty-state">
+                <p>No se encontraron usuarios con los filtros aplicados.</p>
+              </div>
+            ) : (
+              <div className="admin-users-list">
+                {filteredUsers.map(user => {
+                  const isMainAdmin = user.email.toLowerCase() === 'simplemente_anibal@hotmail.com'
+                  const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
+                  
+                  return (
+                    <div key={user.id} className="admin-user-card">
+                      {/* Card Header: Avatar, Name, Email */}
+                      <div className="admin-user-card-header">
+                        <div className="admin-user-info-row">
+                          <UserAvatar
+                            userId={user.id}
+                            name={user.name}
+                            email={user.email}
+                            avatar={user.avatar}
+                            size={44}
+                          />
+                          <div className="admin-user-names">
+                            <span className="admin-user-name" title={user.name}>{user.name}</span>
+                            <span className="admin-user-email" title={user.email}>{user.email}</span>
+                          </div>
+                        </div>
+                        {isMainAdmin && (
+                          <span className="admin-user-badge-main">SUPERADMIN</span>
+                        )}
+                      </div>
+
+                      {/* Venue selector */}
+                      <div className="admin-user-field">
+                        <label className="admin-user-field-label">📍 Establecimiento</label>
+                        <select
+                          className="admin-user-venue-select"
+                          value={user.venueId || ''}
+                          onChange={(e) => void updateUserRole(user.id, user.role, e.target.value, userRoles)}
+                        >
+                          <option value="">Sin local (Global)</option>
+                          {venues.map(v => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Role Chips */}
+                      <div className="admin-user-field">
+                        <label className="admin-user-field-label">🏷️ Roles Asignados ({userRoles.length})</label>
+                        <div className="admin-roles-chips">
+                          {AVAILABLE_ROLES.map(({ key, label, icon }) => {
+                            const isActive = userRoles.includes(key)
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`admin-role-chip ${isActive ? (key === 'admin' ? 'active-admin' : 'active') : ''}`}
+                                onClick={() => {
+                                  let newRoles: Role[]
+                                  if (isActive) {
+                                    newRoles = userRoles.filter(x => x !== key)
+                                  } else {
+                                    newRoles = [...userRoles.filter(x => x !== 'pendiente'), key]
+                                  }
+                                  if (newRoles.length === 0) newRoles = ['pendiente']
+                                  void updateUserRole(user.id, newRoles[0], user.venueId, newRoles)
+                                }}
+                              >
+                                <span>{isActive ? '✓' : '+'}</span>
+                                <span>{icon} {label}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Card Actions Footer */}
+                      <div className="admin-user-card-actions">
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          onClick={() => handleOpenResetModal(user)}
+                          title="Asignar contraseña provisoria directa sin correos"
+                        >
+                          🔑 Resetear Clave
+                        </button>
+                        {!isMainAdmin && (
+                          <button
+                            type="button"
+                            className="admin-btn-delete"
+                            onClick={() => void handleDeleteUser(user)}
+                            title="Eliminar este usuario definitivamente"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 2: LOCALES / ESTABLECIMIENTOS
+           ========================================================= */}
+        {tab === 'venues' && (
+          <div>
+            <div className="admin-section-header">
+              <button
+                type="button"
+                className="admin-btn-action-primary"
+                onClick={() => setShowVenueForm(!showVenueForm)}
+              >
+                {showVenueForm ? '✕ Cancelar' : '＋ Registrar Nuevo Local'}
+              </button>
+            </div>
+
+            {/* Collapsible Venue Form */}
+            {showVenueForm && (
+              <section className="admin-form-card">
+                <div className="admin-form-header">
+                  <span className="admin-form-title">🏢 Nuevo Local / Establecimiento</span>
+                  <button
+                    type="button"
+                    className="admin-form-close"
+                    onClick={() => setShowVenueForm(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <form onSubmit={handleCreateVenue}>
+                  <div className="admin-form-grid">
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Nombre del Establecimiento / Boliche</label>
+                      <input
+                        className="admin-input"
+                        value={venueName}
+                        onChange={e => setVenueName(e.target.value)}
+                        required
+                        placeholder="Ej: Club Nocturno Oasis"
+                      />
+                    </div>
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Dirección física</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          className="admin-input"
+                          value={venueAddress}
+                          onChange={e => setVenueAddress(e.target.value)}
+                          required
+                          placeholder="Ej: Av. Corrientes 1234, CABA"
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ whiteSpace: 'nowrap', padding: '0 16px', background: '#e2e8f0' }}
+                          disabled={isGeocoding}
+                          onClick={() => void validateAddress()}
+                        >
+                          {isGeocoding ? 'Buscando...' : '📍 Validar GPS'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Latitud GPS</label>
+                      <input
+                        className="admin-input"
+                        value={lat}
+                        onChange={e => setLat(e.target.value)}
+                        required
+                        placeholder="-34.6037"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Longitud GPS</label>
+                      <input
+                        className="admin-input"
+                        value={lng}
+                        onChange={e => setLng(e.target.value)}
+                        required
+                        placeholder="-58.3816"
+                      />
+                    </div>
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Radio permitido para canjes (en metros)</label>
+                      <input
+                        className="admin-input"
+                        type="number"
+                        value={radius}
+                        onChange={e => setRadius(e.target.value)}
+                        required
+                        min={10}
+                        max={2000}
+                        placeholder="50"
+                      />
+                    </div>
+
+                    {/* Optional Manager Account Creation */}
+                    <div style={{ gridColumn: '1 / -1', marginTop: 12, padding: 14, background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+                      <strong style={{ fontSize: 13, color: '#1e3a8a', display: 'block', marginBottom: 8 }}>
+                        👤 Asignar Encargado Inicial del Local (Opcional)
+                      </strong>
+                      <div className="admin-form-grid" style={{ gap: 10 }}>
+                        <div className="admin-input-group">
+                          <label>Nombre del Encargado</label>
+                          <input
+                            className="admin-input"
+                            value={venueManagerName}
+                            onChange={e => setVenueManagerName(e.target.value)}
+                            placeholder="Ej: Juan Pérez"
+                          />
+                        </div>
+                        <div className="admin-input-group">
+                          <label>Email de Acceso</label>
+                          <input
+                            className="admin-input"
+                            type="email"
+                            value={venueManagerEmail}
+                            onChange={e => setVenueManagerEmail(e.target.value)}
+                            placeholder="encargado@boliche.com"
+                          />
+                        </div>
+                        <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>Contraseña Inicial</label>
+                          <input
+                            className="admin-input"
+                            type="password"
+                            value={venueManagerPassword}
+                            onChange={e => setVenueManagerPassword(e.target.value)}
+                            placeholder="Mínimo 6 caracteres (ej: 123456)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className="admin-btn-action-primary"
+                    style={{ marginTop: 16, width: '100%' }}
+                  >
+                    GUARDAR LOCAL Y CREAR ENCARGADO
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {/* Venues List */}
+            {venues.length === 0 ? (
+              <div className="admin-empty-state">
+                <p>No hay locales registrados aún.</p>
+              </div>
+            ) : (
+              <div className="admin-venues-list">
+                {venues.map(v => (
+                  <div key={v.id} className="admin-venue-card">
+                    <div className="admin-venue-header">
+                      <div className="admin-venue-icon">🏢</div>
+                      <div className="admin-venue-details">
+                        <div className="admin-venue-name">{v.name}</div>
+                        <div className="admin-venue-address">📍 {v.address}</div>
+                        <div className="admin-venue-meta">
+                          <span className="admin-venue-tag">🎯 Radio: {v.radius || 50}m</span>
+                          {v.latitude && v.longitude && (
+                            <span className="admin-venue-tag">🌐 GPS Configurado</span>
+                          )}
+                          {activeVenue?.id === v.id && (
+                            <span className="admin-venue-tag" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>✓ ACTIVO AHORA</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="admin-user-card-actions">
+                      <button
+                        type="button"
+                        className="admin-btn-reset"
+                        style={{ background: '#1e3a8a', color: '#fff', fontWeight: 700 }}
+                        onClick={() => {
+                          setAdminActiveVenue(v.id)
+                          navigate('/encargado')
+                        }}
+                      >
+                        👁️ Ver Panel de este Local
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-btn-delete"
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar local "${v.name}"?`)) {
+                            void deleteVenue(v.id)
+                          }
+                        }}
+                      >
+                        🗑️ Eliminar Local
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            TAB 3: CONFIGURACIÓN GLOBAL / LOGO
+           ========================================================= */}
+        {tab === 'settings' && (
+          <section className="admin-settings-card">
+            <h2 style={{ fontSize: 17, color: '#0f172a', fontWeight: 800, margin: '0 0 8px' }}>
+              🖼️ Logo Global de la Plataforma
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px', lineHeight: 1.4 }}>
+              Este logo se mostrará en el encabezado de todas las pantallas de administración y control.
+            </p>
+            <div className="admin-logo-upload-box">
+              <img
+                src={globalLogo || '/app-icon.png'}
+                alt="Logo Actual"
+                className="admin-logo-preview"
+              />
+              <label
+                className="admin-btn-action-primary"
+                style={{ cursor: 'pointer', textAlign: 'center' }}
+              >
+                <span>📁 Cambiar Logo</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleLogoChange}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+          </section>
+        )}
+
+        {/* =========================================================
+            TAB 4: CONFIGURAR PLANTILLA DE CUPÓN
+           ========================================================= */}
         {tab === 'template' && (
-          <CouponTemplateEditor />
+          <div style={{ maxWidth: 900, margin: '0 auto' }}>
+            <CouponTemplateEditor />
+          </div>
         )}
       </main>
+
+      {/* =========================================================
+          MODAL: RESETEAR CONTRASEÑA DIRECTA (OPCIÓN A)
+         ========================================================= */}
+      {resetModalUser && (
+        <div className="admin-modal-backdrop" onClick={() => setResetModalUser(null)}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>🔑</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, color: '#0f172a', fontWeight: 800 }}>
+                    Asignar Clave Provisoria
+                  </h3>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>
+                    Cambio directo sin depender de emails
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setResetModalUser(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px' }}>
+                <div style={{ fontSize: 13, color: '#475569', fontWeight: 700 }}>{resetModalUser.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>{resetModalUser.email}</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  Nueva Contraseña Provisoria:
+                </label>
+                <input
+                  type="text"
+                  value={resetModalPass}
+                  onChange={(e) => setResetModalPass(e.target.value)}
+                  placeholder="Ej: 123456"
+                  required
+                  minLength={6}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    letterSpacing: '0.05em',
+                  }}
+                  autoFocus
+                />
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  El usuario ingresará con esta clave y se le solicitará definir su propia contraseña al entrar.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setResetModalUser(null)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    color: '#475569',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPass}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isResettingPass ? 'Guardando...' : '✓ Guardar Clave'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

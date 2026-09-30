@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import {
   getTodayDateString,
@@ -9,7 +9,7 @@ import {
 } from '../lib/dateUtils'
 
 export function InformeCanjeoPage() {
-  const { tickets, users, qrCatalog } = useApp()
+  const { tickets, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
 
@@ -38,10 +38,17 @@ export function InformeCanjeoPage() {
     setSearchParams({ dia: today })
   }
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
+  const venueTickets = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
+    return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
+  }, [tickets, currentUser, targetVenueId, venues])
+
   // Summary for selectedDate (daily or weekly if Saturday)
   const summary = useMemo(() => {
-    return getTicketActivitySummary(tickets, selectedDate)
-  }, [tickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate)
+  }, [venueTickets, selectedDate])
 
   const dateLabel = formatDateLabel(selectedDate)
 

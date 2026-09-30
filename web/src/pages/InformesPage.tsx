@@ -1,21 +1,33 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 
 type ReportType = 'LEC' | 'CANJEO' | 'CANJEABLES' | 'ESCANEO' | 'AFORO' | null
 
 export function InformesPage() {
-  const { tickets, users, qrCatalog, limitations, events, venues } = useApp()
+  const { tickets, users, qrCatalog, limitations, events, venues, currentUser, activeVenue } = useApp()
   const [selectedReport, setSelectedReport] = useState<ReportType>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState<string>('')
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
+  const venueTickets = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
+    return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
+  }, [tickets, currentUser, targetVenueId, venues])
+
+  const venueQrCatalog = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return qrCatalog
+    return qrCatalog.filter(q => isEntityForVenue(q.venueId, targetVenueId, venues))
+  }, [qrCatalog, currentUser, targetVenueId, venues])
+
   // Datos para LEC (Listado de Emisión de Cupones)
   const issuedTickets = useMemo(() => {
-    return tickets.map((t) => {
+    return venueTickets.map((t) => {
       const seller = users.find((u) => u.id === t.issuedBy)
-      const coupon = qrCatalog.find((q) => q.id === t.couponId)
+      const coupon = venueQrCatalog.find((q) => q.id === t.couponId)
       const event = events.find((e) => e.id === t.eventId)
       return {
         ...t,
@@ -25,7 +37,7 @@ export function InformesPage() {
         eventName: event?.name || 'Evento Activo',
       }
     }).sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime())
-  }, [tickets, users, qrCatalog, events])
+  }, [venueTickets, users, venueQrCatalog, events])
 
   // Datos para CANJEO (Canjeados / Puerta)
   const redeemedTickets = useMemo(() => {
@@ -40,9 +52,9 @@ export function InformesPage() {
 
   // Datos para CANJEABLES (Resumen de cupos y emisión por tipo de QR)
   const couponStats = useMemo(() => {
-    return qrCatalog.map((coupon) => {
-      const totalIssued = tickets.filter((t) => t.couponId === coupon.id).length
-      const totalRedeemed = tickets.filter((t) => t.couponId === coupon.id && t.redeemedAt).length
+    return venueQrCatalog.map((coupon) => {
+      const totalIssued = venueTickets.filter((t) => t.couponId === coupon.id).length
+      const totalRedeemed = venueTickets.filter((t) => t.couponId === coupon.id && t.redeemedAt).length
       const availableToRedeem = totalIssued - totalRedeemed
       const totalAssignedLimit = limitations
         .filter((l) => l.couponId === coupon.id)
@@ -58,11 +70,11 @@ export function InformesPage() {
         availableToRedeem,
       }
     })
-  }, [qrCatalog, tickets, limitations])
+  }, [venueQrCatalog, venueTickets, limitations])
 
   // Datos para AFORO
-  const activeVenue = venues[0]
-  const maxCapacity = activeVenue?.radius ? activeVenue.radius * 20 : 1200 // Capacidad estimada
+  const capacityVenue = activeVenue || venues[0]
+  const maxCapacity = capacityVenue?.radius ? capacityVenue.radius * 20 : 1200 // Capacidad estimada
   const currentOccupancy = redeemedTickets.length
   const occupancyPercent = Math.min(100, Math.round((currentOccupancy / maxCapacity) * 100))
 

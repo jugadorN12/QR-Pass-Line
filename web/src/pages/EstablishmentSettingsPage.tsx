@@ -1,24 +1,47 @@
-import { useState, type ChangeEvent } from 'react'
+import { useState, useEffect, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 
 type SectionProps = { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }
 
 export function EstablishmentSettingsPage() {
-  const { users } = useApp()
+  const { users, activeVenue, venues, updateVenue } = useApp()
   const [activeTab, setActiveTab] = useState<'general' | 'template'>('general')
   const [open, setOpen] = useState('establishment')
-  const [name, setName] = useState(localStorage.getItem('qr-pass-line.business-name') ?? 'Cubano')
+
+  const [name, setName] = useState('')
   const [visibleDays, setVisibleDays] = useState('7')
   const [minAgeMen, setMinAgeMen] = useState('18')
   const [minAgeWomen, setMinAgeWomen] = useState('18')
-  const [logo, setLogo] = useState(() => localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
-  const [qrBackground, setQrBackground] = useState(() => localStorage.getItem('qr-pass-line.qr-background') ?? '')
+  const [logo, setLogo] = useState('')
+  const [qrBackground, setQrBackground] = useState('')
   const [saved, setSaved] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const organizers = users.filter((u) => u.role === 'organizador' || u.role === 'admin')
+  // Sync state when active venue loads
+  useEffect(() => {
+    if (activeVenue) {
+      setName(activeVenue.name || '')
+      setVisibleDays(activeVenue.visibleDays || '7')
+      setMinAgeMen(activeVenue.minAgeMen || '18')
+      setMinAgeWomen(activeVenue.minAgeWomen || '18')
+      setLogo(activeVenue.logo || '')
+      setQrBackground(activeVenue.qrBackground || '')
+    } else {
+      setName(localStorage.getItem('qr-pass-line.business-name') ?? 'Cubano')
+      setLogo(localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
+      setQrBackground(localStorage.getItem('qr-pass-line.qr-background') ?? '')
+    }
+  }, [activeVenue])
+
+  const targetVenueId = activeVenue?.id
+
+  const organizers = users.filter((u) =>
+    (u.role === 'organizador' || u.role === 'admin' || (u.roles && (u.roles.includes('organizador') || u.roles.includes('admin')))) &&
+    isEntityForVenue(u.venueId, targetVenueId, venues)
+  )
 
   function loadImage(event: ChangeEvent<HTMLInputElement>, setter: (value: string) => void) {
     const file = event.target.files?.[0]
@@ -28,14 +51,35 @@ export function EstablishmentSettingsPage() {
     reader.readAsDataURL(file)
   }
 
-  function save() {
-    localStorage.setItem('qr-pass-line.business-name', name.trim() || 'Cubano')
+  async function save() {
+    setIsSaving(true)
+    const cleanName = name.trim() || activeVenue?.name || 'Mi Establecimiento'
+    
+    // Save to local storage for quick cache fallback
+    localStorage.setItem('qr-pass-line.business-name', cleanName)
     if (logo) localStorage.setItem('qr-pass-line.establishment-logo', logo)
     else localStorage.removeItem('qr-pass-line.establishment-logo')
     if (qrBackground) localStorage.setItem('qr-pass-line.qr-background', qrBackground)
     else localStorage.removeItem('qr-pass-line.qr-background')
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2400)
+
+    try {
+      if (targetVenueId) {
+        await updateVenue(targetVenueId, {
+          name: cleanName,
+          visibleDays,
+          minAgeMen,
+          minAgeWomen,
+          logo,
+          qrBackground,
+        })
+      }
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2800)
+    } catch (err) {
+      alert('Error al guardar configuración: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -84,7 +128,7 @@ export function EstablishmentSettingsPage() {
           <div className="sellers-titlebar" style={{ marginBottom: 16 }}>
             <Link to="/encargado" className="back-link">‹</Link>
             <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, fontWeight: 800, color: '#0860bd' }}>
-              <span>{name || 'Cubano'}</span>
+              <span>{name || activeVenue?.name || 'Mi Establecimiento'}</span>
               <button className="doors-info-btn" type="button" aria-label="Información" style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>i</button>
             </h1>
           </div>
@@ -107,7 +151,7 @@ export function EstablishmentSettingsPage() {
                 transition: 'all 0.15s ease-in-out'
               }}
             >
-              🏢 Editar Establecimiento
+              🏢 Configuración del Local
             </button>
 
             <button
@@ -140,23 +184,25 @@ export function EstablishmentSettingsPage() {
             <>
               <SettingsSection title="Editar establecimiento" open={open === 'establishment'} onToggle={() => setOpen(open === 'establishment' ? '' : 'establishment')}>
                 <div className="settings-fields">
-                  <label className="settings-field"><span>Nombre</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
+                  <label className="settings-field"><span>Nombre del Local</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
                   <label className="settings-field"><span>Días visibles para vendedores</span><input value={visibleDays} onChange={(event) => setVisibleDays(event.target.value)} inputMode="numeric" /></label>
-                  <ImageSetting title="Logo actual" value={logo} onChange={(event) => loadImage(event, setLogo)} preview={logo || '/favicon.svg'} />
-                  <ImageSetting title="Fondo QR actual" value={qrBackground} onChange={(event) => loadImage(event, setQrBackground)} preview={qrBackground || '/favicon.svg'} />
+                  <ImageSetting title="Logo del local (exclusivo de este establecimiento)" value={logo} onChange={(event) => loadImage(event, setLogo)} preview={logo || '/favicon.svg'} />
+                  <ImageSetting title="Fondo de cupón / afiche QR" value={qrBackground} onChange={(event) => loadImage(event, setQrBackground)} preview={qrBackground || '/favicon.svg'} />
                   <div className="settings-age-grid">
                     <label className="settings-field"><span>Edad mínima H</span><input value={minAgeMen} onChange={(event) => setMinAgeMen(event.target.value)} /></label>
                     <label className="settings-field"><span>Edad mínima M</span><input value={minAgeWomen} onChange={(event) => setMinAgeWomen(event.target.value)} /></label>
                   </div>
-                  <button className="btn btn-primary settings-save" type="button" onClick={save}>GUARDAR ESTABLECIMIENTO</button>
-                  {saved ? <p className="flash flash-ok">Establecimiento guardado.</p> : null}
+                  <button className="btn btn-primary settings-save" type="button" onClick={save} disabled={isSaving}>
+                    {isSaving ? 'GUARDANDO...' : 'GUARDAR ESTABLECIMIENTO'}
+                  </button>
+                  {saved ? <p className="flash flash-ok">Establecimiento guardado exitosamente.</p> : null}
                 </div>
               </SettingsSection>
 
               <SettingsSection title="Configuración de Cupón / Afiche QR" open={open === 'template-accordion'} onToggle={() => setOpen(open === 'template-accordion' ? '' : 'template-accordion')}>
                 <div style={{ padding: '8px 0' }}>
                   <p style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
-                    Podés calibrar el zoom del afiche, moverlo con los cursores direccionales, ajustar el tamaño del código QR y su brillo para todos los vendedores.
+                    Podés calibrar el zoom del afiche, moverlo con los cursores direccionales, ajustar el tamaño del código QR y su brillo exclusivamente para este establecimiento.
                   </p>
                   <button
                     type="button"
@@ -164,16 +210,17 @@ export function EstablishmentSettingsPage() {
                     onClick={() => setActiveTab('template')}
                     style={{ background: '#0860bd', fontWeight: 800, padding: '10px 20px', borderRadius: 10 }}
                   >
-                    ⚙️ Abrir Editor de Cupón Completo
+                    ⚙️ Abrir Editor de Cupón de este Local
                   </button>
                 </div>
               </SettingsSection>
 
-              <SettingsSection title="Encargados" open={open === 'managers'} onToggle={() => setOpen(open === 'managers' ? '' : 'managers')}>
+              <SettingsSection title="Encargados de este Local" open={open === 'managers'} onToggle={() => setOpen(open === 'managers' ? '' : 'managers')}>
                 <div className="manager-list">
                   {organizers.map(org => <Manager key={org.id} name={org.name} email={org.email} />)}
+                  {!organizers.length && <p className="muted" style={{ padding: 12 }}>No hay otros encargados asignados a este local.</p>}
                 </div>
-                <p className="settings-note">Para agregar un nuevo encargado, pedile que se registre y asignale el rol desde el panel de Administración General.</p>
+                <p className="settings-note">Para agregar un nuevo encargado para este local, pedile que se registre y asignale el rol y este local desde el panel de Administración General.</p>
               </SettingsSection>
 
               <SettingsSection title="Parámetros de establecimiento" open={open === 'parameters'} onToggle={() => setOpen(open === 'parameters' ? '' : 'parameters')}>

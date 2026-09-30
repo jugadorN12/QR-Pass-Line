@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { DoorsDateRangePicker } from '../components/DoorsDateRangePicker'
 
@@ -176,9 +176,11 @@ export function NewSellerLimitationPage() {
   const sellerId = params.sellerId ?? params.redeemerId ?? ''
   const isRedeemer = Boolean(params.redeemerId)
   const navigate = useNavigate()
-  const { qrCatalog, saveLimitation } = useApp()
+  const { qrCatalog, saveLimitation, users, activeVenue, currentUser, venues } = useApp()
 
-  const coupons = qrCatalog.filter((c) => c.active !== false)
+  const personUser = users.find((u) => u.id === sellerId)
+  const targetVenueId = personUser?.venueId || activeVenue?.id || currentUser?.venueId
+  const coupons = qrCatalog.filter((c) => c.active !== false && isEntityForVenue(c.venueId, targetVenueId, venues))
   const [selectedCouponId, setSelectedCouponId] = useState(coupons[0]?.id || '')
   const [isUnlimited, setIsUnlimited] = useState(false)
   const [period, setPeriod] = useState(getDefaultWeekPeriod)
@@ -363,10 +365,12 @@ export function EditSellerLimitationPage() {
   const isRedeemer = Boolean(params.redeemerId)
   const limitationId = params.limitId ?? ''
   const navigate = useNavigate()
-  const { qrCatalog, limitations, saveLimitation, deleteLimitation } = useApp()
+  const { qrCatalog, limitations, saveLimitation, deleteLimitation, users, activeVenue, currentUser, venues } = useApp()
 
   const limitation = limitations.find((item) => item.id === limitationId)
-  const coupons = qrCatalog.filter((c) => c.active !== false)
+  const personUser = users.find((u) => u.id === sellerId)
+  const targetVenueId = personUser?.venueId || activeVenue?.id || currentUser?.venueId
+  const coupons = qrCatalog.filter((c) => c.active !== false && isEntityForVenue(c.venueId, targetVenueId, venues))
 
   const [selectedCouponId, setSelectedCouponId] = useState(limitation?.couponId ?? coupons[0]?.id ?? '')
   const [isUnlimited, setIsUnlimited] = useState(limitation?.period === 'Ilimitado')

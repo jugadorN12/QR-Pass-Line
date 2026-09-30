@@ -88,14 +88,87 @@ export function getWeeklyDateRange(dateStr: string): { startStr: string; endStr:
   return { startStr, endStr, label }
 }
 
-export function getTargetDateFromPeriod(period?: string, daysOrDate?: string[] | string): Date {
-  if (typeof daysOrDate === 'string' && daysOrDate) {
-    return parseDate(daysOrDate)
+export const DAY_CODE_TO_INDEX: Record<string, number> = {
+  D: 0,
+  DOM: 0,
+  DOMINGO: 0,
+  L: 1,
+  LUN: 1,
+  LUNES: 1,
+  M: 2,
+  MAR: 2,
+  MARTES: 2,
+  X: 3,
+  MIE: 3,
+  MIERCOLES: 3,
+  MIÉRCOLES: 3,
+  J: 4,
+  JUE: 4,
+  JUEVES: 4,
+  V: 5,
+  VIE: 5,
+  VIERNES: 5,
+  S: 6,
+  SAB: 6,
+  SABADO: 6,
+  SÁBADO: 6,
+}
+
+export function getCouponBaseDate(event?: ClubEvent, coupon?: any, referenceDate: Date = new Date()): Date {
+  // 1. Si el evento tiene una fecha definida y válida
+  if (event?.date) {
+    const parsed = parseDate(event.date)
+    if (!isNaN(parsed.getTime())) {
+      const rawDays: string[] = Array.isArray(coupon?.days) ? coupon.days : []
+      if (rawDays.length === 0 || rawDays.length === 7) {
+        return parsed
+      }
+      const eventDayIndex = parsed.getDay()
+      const matchesEventDay = rawDays.some(
+        (d) => DAY_CODE_TO_INDEX[String(d).trim().toUpperCase()] === eventDayIndex
+      )
+      if (matchesEventDay) {
+        return parsed
+      }
+    }
   }
-  if (!period || period.toLowerCase() === 'hoy' || period.toLowerCase() === 'ilimitado') {
-    return new Date()
+
+  // 2. Si el cupón especifica días de vigencia propios (ej: ['S'] para Sábado, ['V'] para Viernes)
+  const days: string[] = Array.isArray(coupon?.days) ? coupon.days : []
+  const cleanDays = days
+    .map((d) => DAY_CODE_TO_INDEX[String(d).trim().toUpperCase()])
+    .filter((d): d is number => typeof d === 'number' && !isNaN(d))
+
+  if (cleanDays.length > 0 && cleanDays.length < 7) {
+    const currentDay = referenceDate.getDay() // 0 = Sun, 6 = Sat
+
+    // Si hoy coincide exactamente con el día de validez del cupón
+    if (cleanDays.includes(currentDay)) {
+      return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate())
+    }
+
+    // Buscar el próximo día objetivo dentro de la semana
+    let minDiff = 7
+    for (const targetDay of cleanDays) {
+      let diff = (targetDay - currentDay + 7) % 7
+      if (diff === 0) diff = 7
+      if (diff < minDiff) {
+        minDiff = diff
+      }
+    }
+
+    const target = new Date(referenceDate)
+    target.setDate(referenceDate.getDate() + minDiff)
+    return new Date(target.getFullYear(), target.getMonth(), target.getDate())
   }
-  return new Date()
+
+  // 3. Si hay fecha de evento general
+  if (event?.date) {
+    const parsed = parseDate(event.date)
+    if (!isNaN(parsed.getTime())) return parsed
+  }
+
+  return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate())
 }
 
 export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
@@ -106,8 +179,8 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
     return 'Sin restricción horaria'
   }
 
-  // 1. Obtener fecha base del evento (o fecha actual)
-  const baseDate = event?.date ? parseDate(event.date) : new Date()
+  // 1. Obtener fecha base del cupón/evento (según sus días configurados)
+  const baseDate = getCouponBaseDate(event, coupon)
 
   // 2. Extraer y limpiar horario de inicio ("from")
   const rawFrom = String(coupon.from || event?.doorsOpen || '23:59').trim()
@@ -125,6 +198,10 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   const durMatch = rawDuration.match(/(\d{1,2}:\d{2})/)
   const cleanDuration = durMatch ? durMatch[1] : '02:00'
 
+  if (mode === 'end') {
+    return `Válido hasta las ${cleanDuration} hs`
+  }
+
   // 4. Calcular si el horario de fin pasa al día siguiente
   const [fromH, fromM] = cleanFrom.split(':').map(Number)
   const [durH, durM] = cleanDuration.split(':').map(Number)
@@ -140,10 +217,8 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
   const endDateStr = `${endDay}/${endMonth}`
 
-  const fromDaySuffix = isFromNextDay ? 'del día siguiente' : 'del día corriente'
-
-  // Formato requerido: "Del 26/09 23:59 del día corriente al 27/09 02:00"
-  return `Del ${startDateStr} ${cleanFrom} ${fromDaySuffix} al ${endDateStr} ${cleanDuration}`
+  // Formato requerido: "Del 03/10 23:59 al 04/10 02:00"
+  return `Del ${startDateStr} ${cleanFrom} al ${endDateStr} ${cleanDuration}`
 }
 
 export function checkCouponScheduleValidity(
@@ -158,8 +233,8 @@ export function checkCouponScheduleValidity(
     return { ok: true }
   }
 
-  // 1. Obtener fecha base del evento (o fecha actual si no hay fecha definida)
-  const baseDate = event?.date ? parseDate(event.date) : new Date()
+  // 1. Obtener fecha base del cupón/evento
+  const baseDate = getCouponBaseDate(event, coupon, now)
 
   // 2. Extraer y limpiar horario límite tope ("duration")
   const rawDuration = String(coupon.duration || '02:00').trim()

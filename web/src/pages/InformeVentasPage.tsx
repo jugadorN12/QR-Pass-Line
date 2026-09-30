@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import {
   getTodayDateString,
@@ -10,7 +10,7 @@ import {
 } from '../lib/dateUtils'
 
 export function InformeVentasPage() {
-  const { tickets, users, qrCatalog } = useApp()
+  const { tickets, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
   const [searchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
 
@@ -20,10 +20,17 @@ export function InformeVentasPage() {
   const [selectedSeller, setSelectedSeller] = useState<string>('all')
   const [selectedCoupon, setSelectedCoupon] = useState<string>('all')
 
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+
+  const venueTickets = useMemo(() => {
+    if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
+    return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
+  }, [tickets, currentUser, targetVenueId, venues])
+
   // Calculate activity for selectedDate (daily or weekly if Saturday)
   const summary = useMemo(() => {
-    return getTicketActivitySummary(tickets, selectedDate)
-  }, [tickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate)
+  }, [venueTickets, selectedDate])
 
   const dateRangeLabel = useMemo(() => {
     if (summary.isWeeklySummary) {
