@@ -55,6 +55,8 @@ type AppContextValue = AppData & {
   issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; venueId?: string }) => Promise<Ticket>
 
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
+  redeemTicketWithException: (code: string, customQuantity?: number) => Promise<{ ok: boolean; ticket?: Ticket; message?: string; [key: string]: any }>
+  updateTicketQuantity: (ticketId: string, newQuantity: number) => Promise<{ ok: boolean; ticket?: Ticket; error?: string }>
 
   saveQrItem: (item: QrCatalogItem) => Promise<void>
   deleteQrItem: (id: string) => Promise<void>
@@ -839,6 +841,137 @@ export function AppProvider({ children }: { children: ReactNode }) {
         schedule,
         quantity: quantityText
       }
+    },
+
+    async redeemTicketWithException(code: string, customQuantity?: number) {
+      const normalizedCode = code.trim().toUpperCase()
+      let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
+
+      if (!ticket) {
+        try {
+          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            const d = snap.docs[0]
+            ticket = { id: d.id, ...(d.data() as any) } as Ticket
+          }
+        } catch (e) {
+          console.error('Error in live ticket lookup for exception:', e)
+        }
+      }
+
+      if (!ticket) {
+        return {
+          ok: false,
+          reason: 'not_found',
+          message: 'El código QR no existe o no se encuentra registrado en el sistema.'
+        }
+      }
+
+      // Check Already Redeemed - Strictly cannot redeem if already used
+      if (ticket.redeemedAt) {
+        const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
+        const redeemerName = redeemer ? redeemer.name : 'Staff'
+        return {
+          ok: false,
+          reason: 'already_redeemed',
+          message: 'Código ya canjeado previamente. No se permite duplicar el ingreso.',
+          ticket,
+          redeemerName
+        }
+      }
+
+      const finalQuantity = typeof customQuantity === 'number' && customQuantity > 0
+        ? Math.floor(customQuantity)
+        : (typeof ticket.quantity === 'number' && ticket.quantity > 0 ? ticket.quantity : 1)
+      const quantityText = finalQuantity === 1 ? '1 persona beneficiada' : `${finalQuantity} personas beneficiadas`
+
+      const seller = data.users.find((u) => u.id === ticket.issuedBy)
+      const sellerName = seller ? seller.name : 'Vendedor General'
+      const event = data.events.find((e) => e.id === ticket.eventId)
+      const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
+      const ticketVenue = event?.venue || ''
+      const currentVenueName = currentUser?.venueId
+        ? (data.venues.find((v) => v.id === currentUser.venueId)?.name || '')
+        : ''
+      const ticketName = coupon?.name || (ticket.kind === 'dni' ? 'Acceso por DNI' : 'Acceso QR')
+      const baseDate = getCouponBaseDate(event, coupon)
+      const formattedDate = `${String(baseDate.getDate()).padStart(2, '0')}/${String(baseDate.getMonth() + 1).padStart(2, '0')}`
+      const schedule = formatCouponSchedule(event, coupon)
+
+      const redeemedAt = new Date().toISOString()
+      const redeemedBy = currentUser?.id ?? 'staff'
+      const updates: Partial<Ticket> = {
+        redeemedAt,
+        redeemedBy,
+        isException: true,
+        exceptionBy: redeemedBy,
+        exceptionAt: redeemedAt,
+        quantity: finalQuantity,
+        ...(ticket.quantity !== finalQuantity ? {
+          originalQuantity: ticket.quantity || 1,
+          adjustedBy: redeemedBy,
+          adjustedAt: redeemedAt
+        } : {})
+      }
+
+      await updateDoc(doc(db, 'tickets', ticket.id), updates)
+      const redeemed: Ticket = { ...ticket, ...updates }
+      setData((prev) => ({
+        ...prev,
+        tickets: prev.tickets.map((item) => (item.id === ticket!.id ? redeemed : item)),
+      }))
+
+      return {
+        ok: true,
+        isException: true,
+        ticket: redeemed,
+        sellerName,
+        eventName: event?.name || 'Evento Activo',
+        venueName: ticketVenue || currentVenueName || 'Local Principal',
+        ticketName,
+        date: formattedDate,
+        schedule,
+        quantity: quantityText
+      }
+    },
+
+    async updateTicketQuantity(ticketId: string, newQuantity: number) {
+      if (!ticketId || newQuantity < 1) {
+        return { ok: false, error: 'Cantidad inválida (mínimo 1 persona).' }
+      }
+      let ticket = data.tickets.find((t) => t.id === ticketId)
+      if (!ticket) {
+        try {
+          const snap = await getDoc(doc(db, 'tickets', ticketId))
+          if (snap.exists()) {
+            ticket = { id: snap.id, ...(snap.data() as any) } as Ticket
+          }
+        } catch (e) {
+          console.error('Error fetching ticket for quantity update:', e)
+        }
+      }
+      if (!ticket) {
+        return { ok: false, error: 'Ticket no encontrado.' }
+      }
+
+      const cleanQty = Math.max(1, Math.floor(newQuantity))
+      const updates: Partial<Ticket> = {
+        quantity: cleanQty,
+        originalQuantity: ticket.originalQuantity ?? ticket.quantity ?? 1,
+        adjustedBy: currentUser?.id ?? 'staff',
+        adjustedAt: new Date().toISOString()
+      }
+
+      await updateDoc(doc(db, 'tickets', ticketId), updates)
+      const updated: Ticket = { ...ticket, ...updates }
+
+      setData((prev) => ({
+        ...prev,
+        tickets: prev.tickets.map((item) => (item.id === ticketId ? updated : item)),
+      }))
+
+      return { ok: true, ticket: updated }
     },
 
     async updateUserRole(userId, role, venueId, roles) {

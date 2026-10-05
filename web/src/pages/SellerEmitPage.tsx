@@ -38,9 +38,9 @@ export function SellerEmitPage() {
     if (isManagerOrAdmin) {
       if (venueQrCatalog.length > 0) {
         return venueQrCatalog.map((item) => {
-          const issuedCount = tickets.filter(
-            (t) => t.issuedBy === currentUser?.id && t.couponId === item.id
-          ).length
+          const issuedCount = tickets
+            .filter((t) => t.issuedBy === currentUser?.id && t.couponId === item.id)
+            .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
           return {
             id: item.id,
             limitationId: 'unlimited-' + item.id,
@@ -85,9 +85,9 @@ export function SellerEmitPage() {
     if (userLimitations.length > 0) {
       return userLimitations.map((lim) => {
         const catalogItem = qrCatalog.find((q) => q.id === lim.couponId)
-        const issuedCount = tickets.filter(
-          (t) => t.issuedBy === currentUser?.id && (t.couponId === lim.couponId || (!t.couponId && qrCatalog.length === 1))
-        ).length
+        const issuedCount = tickets
+          .filter((t) => t.issuedBy === currentUser?.id && (t.couponId === lim.couponId || (!t.couponId && qrCatalog.length === 1)))
+          .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
         const totalQuota = Number(lim.quantity) || 0
         const available = Math.max(0, totalQuota - issuedCount)
         const couponDays = (catalogItem?.days && catalogItem.days.length > 0) ? catalogItem.days : lim.days

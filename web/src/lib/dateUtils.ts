@@ -306,8 +306,8 @@ export function getTicketActivitySummary(tickets: Ticket[], selectedDate: string
     })
 
     const sales = weekIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
-    const issuedCount = weekIssued.length
-    const redeemedCount = weekRedeemed.length
+    const issuedCount = weekIssued.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+    const redeemedCount = weekRedeemed.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
     const pendingCount = Math.max(0, issuedCount - redeemedCount)
 
     return {
@@ -325,8 +325,8 @@ export function getTicketActivitySummary(tickets: Ticket[], selectedDate: string
     const dayRedeemed = tickets.filter((t) => t.redeemedAt?.startsWith(selectedDate))
 
     const sales = dayIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
-    const issuedCount = dayIssued.length
-    const redeemedCount = dayRedeemed.length
+    const issuedCount = dayIssued.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+    const redeemedCount = dayRedeemed.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
     const pendingCount = Math.max(0, issuedCount - redeemedCount)
 
     return {

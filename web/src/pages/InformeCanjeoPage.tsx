@@ -99,7 +99,8 @@ export function InformeCanjeoPage() {
         count: 0,
       }
 
-      current.count += 1
+      const attendees = typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1
+      current.count += attendees
       map.set(key, current)
     }
 

@@ -53,8 +53,12 @@ export function InformesPage() {
   // Datos para CANJEABLES (Resumen de cupos y emisión por tipo de QR)
   const couponStats = useMemo(() => {
     return venueQrCatalog.map((coupon) => {
-      const totalIssued = venueTickets.filter((t) => t.couponId === coupon.id).length
-      const totalRedeemed = venueTickets.filter((t) => t.couponId === coupon.id && t.redeemedAt).length
+      const totalIssued = venueTickets
+        .filter((t) => t.couponId === coupon.id)
+        .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+      const totalRedeemed = venueTickets
+        .filter((t) => t.couponId === coupon.id && t.redeemedAt)
+        .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
       const availableToRedeem = totalIssued - totalRedeemed
       const totalAssignedLimit = limitations
         .filter((l) => l.couponId === coupon.id)
@@ -75,7 +79,7 @@ export function InformesPage() {
   // Datos para AFORO
   const capacityVenue = activeVenue || venues[0]
   const maxCapacity = capacityVenue?.radius ? capacityVenue.radius * 20 : 1200 // Capacidad estimada
-  const currentOccupancy = redeemedTickets.length
+  const currentOccupancy = redeemedTickets.reduce((acc, t) => acc + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
   const occupancyPercent = Math.min(100, Math.round((currentOccupancy / maxCapacity) * 100))
 
   // Filtros de búsqueda en LEC

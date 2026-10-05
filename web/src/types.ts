@@ -60,6 +60,12 @@ export type Ticket = {
   issuedAt: string
   redeemedAt: string | null
   redeemedBy: string | null
+  isException?: boolean
+  exceptionBy?: string | null
+  exceptionAt?: string | null
+  originalQuantity?: number
+  adjustedBy?: string | null
+  adjustedAt?: string | null
 }
 
 export type Session = {

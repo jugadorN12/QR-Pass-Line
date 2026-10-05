@@ -94,10 +94,10 @@ export function InformeLecPage() {
         const emittedTickets = summary.issuedTickets.filter(
           (t) => t.issuedBy === seller.id && t.couponId === coupon.id
         )
-        const emitted = emittedTickets.length
+        const emitted = emittedTickets.reduce((acc, t) => acc + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
 
         // Redeemed tickets
-        const redeemed = emittedTickets.filter((t) => t.redeemedAt).length
+        const redeemed = emittedTickets.filter((t) => t.redeemedAt).reduce((acc, t) => acc + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
         const notLoaded = Math.max(0, limit - emitted)
 
         // Filter based on "Ver emitidos: SI / No"
