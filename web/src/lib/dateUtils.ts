@@ -20,24 +20,34 @@ export function getTodayDateString(): string {
 
 export function parseDate(dateStr: string): Date {
   if (!dateStr) return new Date()
-  const parts = dateStr.split('-').map(Number)
-  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
-    return new Date()
+  const clean = String(dateStr).trim().split(/[T\s]/)[0]
+  const parts = clean.split(/[-/]/).map(Number)
+  if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    // Si viene como YYYY-MM-DD o YYYY/MM/DD
+    if (parts[0] > 1000) {
+      return new Date(parts[0], parts[1] - 1, parts[2])
+    }
+    // Si viene como DD-MM-YYYY o DD/MM/YYYY
+    return new Date(parts[2], parts[1] - 1, parts[0])
   }
-  return new Date(parts[0], parts[1] - 1, parts[2])
+  const fallback = new Date(dateStr)
+  return isNaN(fallback.getTime()) ? new Date() : fallback
 }
 
 export function parseDMY(dmyStr: string): Date {
   if (!dmyStr) return new Date()
-  const parts = dmyStr.split(/[\/-]/).map(Number)
+  const clean = String(dmyStr).trim().split(/[T\s]/)[0]
+  const parts = clean.split(/[-/]/).map(Number)
   if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-    // If format is DD/MM/YYYY or YYYY-MM-DD
+    // If format is YYYY-MM-DD
     if (parts[0] > 1000) {
       return new Date(parts[0], parts[1] - 1, parts[2])
     }
+    // Format is DD-MM-YYYY or DD/MM/YYYY
     return new Date(parts[2], parts[1] - 1, parts[0])
   }
-  return new Date()
+  const fallback = new Date(dmyStr)
+  return isNaN(fallback.getTime()) ? new Date() : fallback
 }
 
 export function formatDateLabel(dateStr: string): string {
@@ -141,6 +151,19 @@ export function getCouponBaseDate(event?: ClubEvent, coupon?: any, referenceDate
 
   if (cleanDays.length > 0 && cleanDays.length < 7) {
     const currentDay = referenceDate.getDay() // 0 = Sun, 6 = Sat
+    const currentHour = referenceDate.getHours()
+
+    // Manejo de madrugada en eventos nocturnos (00:00 a 06:00 hs):
+    // La jornada operativa comenzó la noche anterior.
+    // Ej: Domingo a las 03:00 hs corresponde a la noche de Sábado.
+    if (currentHour < 6) {
+      const prevDay = (currentDay - 1 + 7) % 7
+      if (cleanDays.includes(prevDay)) {
+        const prevTarget = new Date(referenceDate)
+        prevTarget.setDate(referenceDate.getDate() - 1)
+        return new Date(prevTarget.getFullYear(), prevTarget.getMonth(), prevTarget.getDate())
+      }
+    }
 
     // Si hoy coincide exactamente con el día de validez del cupón
     if (cleanDays.includes(currentDay)) {
