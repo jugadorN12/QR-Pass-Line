@@ -78,6 +78,23 @@ const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], 
 
 const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
 
+function removeUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefined) as unknown as T
+  }
+  if (typeof obj === 'object' && !(obj instanceof Date)) {
+    const cleaned: Record<string, any> = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = removeUndefined(value)
+      }
+    }
+    return cleaned as T
+  }
+  return obj
+}
+
 function asUser(id: string, value: Record<string, unknown>): User {
   let role = (value.role as Role) ?? 'pendiente'
   if (role === ('validador' as any)) {
@@ -723,7 +740,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         redeemedAt: null,
         redeemedBy: null
       }
-      const created = await addDoc(collection(db, 'tickets'), ticket)
+      const created = await addDoc(collection(db, 'tickets'), removeUndefined(ticket))
       const result = { id: created.id, ...ticket }
       setData((prev) => ({ ...prev, tickets: [result, ...prev.tickets] }))
       return result

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
+import type { TicketItem } from '../types'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
 import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES, isLimitationExpired, isTicketForLimitation } from '../lib/dateUtils'
 
@@ -17,13 +18,7 @@ export function SellerEmitPage() {
     quantity: number
     bgImage: string
     sellerName: string
-    items?: {
-      couponId: string
-      couponName: string
-      quantity: number
-      schedule: string
-      limitTime?: string
-    }[]
+    items?: TicketItem[]
     menQuantity?: number
     womenQuantity?: number
     isMixed?: boolean
@@ -246,18 +241,21 @@ export function SellerEmitPage() {
 
     setIssuing(true)
     try {
-      const items = selectedItems.map((c) => ({
-        couponId: c.id,
-        couponName: c.name,
-        quantity: counts[c.id] || 1,
-        schedule: c.schedule,
-        from: c.from,
-        duration: c.duration,
-        scheduleMode: c.scheduleMode,
-        hasGenderSchedules: c.hasGenderSchedules,
-        menDuration: c.menDuration,
-        womenDuration: c.womenDuration
-      }))
+      const items: TicketItem[] = selectedItems.map((c) => {
+        const item: TicketItem = {
+          couponId: c.id,
+          couponName: c.name || 'Cupón',
+          quantity: counts[c.id] || 1
+        }
+        if (c.schedule) item.schedule = c.schedule
+        if (c.from) item.from = c.from
+        if (c.duration) item.duration = c.duration
+        if (c.scheduleMode) item.scheduleMode = c.scheduleMode
+        if (typeof c.hasGenderSchedules === 'boolean') item.hasGenderSchedules = c.hasGenderSchedules
+        if (c.menDuration) item.menDuration = c.menDuration
+        if (c.womenDuration) item.womenDuration = c.womenDuration
+        return item
+      })
 
       const totalQuantity = items.reduce((sum, it) => sum + it.quantity, 0)
 
