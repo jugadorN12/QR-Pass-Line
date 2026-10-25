@@ -26,7 +26,7 @@ const tiles: ManagerTile[] = [
 ]
 
 export function ManagerPage() {
-  const { tickets, currentUser, logout, updateName, updateUserPassword, activeVenue, venues } = useApp()
+  const { tickets, events, qrCatalog, currentUser, logout, updateName, updateUserPassword, activeVenue, venues } = useApp()
   const [staffOpen, setStaffOpen] = useState(false)
   const [accessOpen, setAccessOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -52,7 +52,7 @@ export function ManagerPage() {
     setSelectedDate(getTodayDateString())
   }
 
-  // Actividad diaria o resumen semanal filtrado por el establecimiento activo
+  // Actividad diaria por fecha de evento filtrada por el establecimiento activo
   const targetVenueId = activeVenue?.id || currentUser?.venueId
   const venueTickets = useMemo(() => {
     if (currentUser?.role === 'admin' && !currentUser.venueId && !targetVenueId) return tickets
@@ -60,8 +60,8 @@ export function ManagerPage() {
   }, [tickets, currentUser, targetVenueId, venues])
 
   const summary = useMemo(() => {
-    return getTicketActivitySummary(venueTickets, selectedDate)
-  }, [venueTickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate, events, qrCatalog)
+  }, [venueTickets, selectedDate, events, qrCatalog])
 
   const dateLabel = formatDateLabel(selectedDate)
 

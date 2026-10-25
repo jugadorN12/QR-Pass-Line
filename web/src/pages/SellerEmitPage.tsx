@@ -10,7 +10,18 @@ export function SellerEmitPage() {
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [previewTicket, setPreviewTicket] = useState<{ code: string; couponName: string; schedule: string; quantity: number; bgImage: string; sellerName: string } | null>(null)
+  const [genderCounts, setGenderCounts] = useState<Record<string, { men: number; women: number }>>({})
+  const [previewTicket, setPreviewTicket] = useState<{
+    code: string
+    couponName: string
+    schedule: string
+    quantity: number
+    bgImage: string
+    sellerName: string
+    menQuantity?: number
+    womenQuantity?: number
+    isMixed?: boolean
+  } | null>(null)
   const [issuing, setIssuing] = useState(false)
 
   const sellerDisplayName = currentUser?.name || 'JOSE'
@@ -53,6 +64,9 @@ export function SellerEmitPage() {
             days: item.days,
             from: item.from || '23:59',
             duration: item.duration || '02:00',
+            hasGenderSchedules: Boolean(item.hasGenderSchedules),
+            menDuration: item.menDuration,
+            womenDuration: item.womenDuration,
             scheduleMode: item.scheduleMode,
             schedule: formatCouponSchedule(activeEvent, item),
             available: 9999,
@@ -72,6 +86,9 @@ export function SellerEmitPage() {
           days: undefined,
           from: activeEvent?.doorsOpen || '23:59',
           duration: '02:00',
+          hasGenderSchedules: false,
+          menDuration: undefined,
+          womenDuration: undefined,
           scheduleMode: 'end' as const,
           schedule: `Válido hasta las ${activeEvent?.doorsOpen || '23:59'} hs`,
           available: 9999,
@@ -113,6 +130,9 @@ export function SellerEmitPage() {
           days: couponDays,
           from: catalogItem?.from || '23:59',
           duration: catalogItem?.duration || '02:00',
+          hasGenderSchedules: Boolean(catalogItem?.hasGenderSchedules),
+          menDuration: catalogItem?.menDuration,
+          womenDuration: catalogItem?.womenDuration,
           scheduleMode: catalogItem?.scheduleMode,
           schedule: couponSchedule,
           available,
@@ -173,9 +193,47 @@ export function SellerEmitPage() {
     })
   }
 
+  function updateGenderCount(couponId: string, gender: 'men' | 'women', delta: number) {
+    const coupon = couponsToDisplay.find((c) => c.id === couponId)
+    const maxAvailable = isMasterAdminOnly ? 999 : (coupon?.available ?? 200)
+    setGenderCounts((prev) => {
+      const cur = prev[couponId] || { men: 1, women: 1 }
+      const currentVal = gender === 'men' ? cur.men : cur.women
+      const otherVal = gender === 'men' ? cur.women : cur.men
+      const nextVal = Math.max(0, currentVal + delta)
+      if (nextVal + otherVal > maxAvailable) {
+        return prev
+      }
+      return {
+        ...prev,
+        [couponId]: {
+          ...cur,
+          [gender]: nextVal
+        }
+      }
+    })
+  }
+
   async function handleDirectEmit() {
     if (!activeEvent || issuing || !selectedCoupon) return
-    const count = counts[selectedCoupon.id] || 1
+
+    let count = 1
+    let menQty: number | undefined = undefined
+    let womenQty: number | undefined = undefined
+
+    if (selectedCoupon.hasGenderSchedules) {
+      const gCount = genderCounts[selectedCoupon.id] || { men: 1, women: 1 }
+      menQty = gCount.men
+      womenQty = gCount.women
+      count = menQty + womenQty
+      if (count <= 0) {
+        alert('Debes seleccionar al menos 1 persona (caballero o dama).')
+        return
+      }
+    } else {
+      count = counts[selectedCoupon.id] || 1
+    }
+
     if (selectedCoupon.available <= 0) {
       alert(`Has alcanzado el límite disponible (${selectedCoupon.totalQuota || 0}) para este cupón.`)
       return
@@ -207,7 +265,9 @@ export function SellerEmitPage() {
         holderName: `Cliente ${currentUser?.name || 'Vendedor'}`,
         dni: '',
         quantity: quantityToIssue,
-        eventDate: targetDateIso
+        eventDate: targetDateIso,
+        menQuantity: menQty,
+        womenQuantity: womenQty
       })
 
       const couponBg = (selectedCoupon as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || ''
@@ -218,16 +278,26 @@ export function SellerEmitPage() {
         code: ticket.code,
         couponName: selectedCoupon.name,
         schedule: computedSchedule,
-        quantity: count > 0 ? count : 1,
+        quantity: quantityToIssue,
         bgImage: couponBg,
-        sellerName: sellerDisplayName.toUpperCase()
+        sellerName: sellerDisplayName.toUpperCase(),
+        menQuantity: menQty,
+        womenQuantity: womenQty,
+        isMixed: selectedCoupon.hasGenderSchedules
       })
 
-      // Restablecer el contador a 0 automáticamente tras emitir
-      setCounts((prev) => ({
-        ...prev,
-        [selectedCoupon.id]: 0
-      }))
+      // Restablecer contadores automáticamente tras emitir
+      if (selectedCoupon.hasGenderSchedules) {
+        setGenderCounts((prev) => ({
+          ...prev,
+          [selectedCoupon.id]: { men: 1, women: 1 }
+        }))
+      } else {
+        setCounts((prev) => ({
+          ...prev,
+          [selectedCoupon.id]: 0
+        }))
+      }
     } catch (err: any) {
       alert(err?.message || 'Error al emitir cupón.')
     } finally {
@@ -333,7 +403,13 @@ export function SellerEmitPage() {
 
     ctx.fillStyle = '#ff4d4d'
     ctx.textAlign = 'right'
-    ctx.fillText(String(previewTicket.quantity), 620, tableY + 62)
+    if (previewTicket.isMixed && (previewTicket.menQuantity !== undefined || previewTicket.womenQuantity !== undefined)) {
+      const h = previewTicket.menQuantity ?? 0
+      const m = previewTicket.womenQuantity ?? 0
+      ctx.fillText(`${previewTicket.quantity} (${h}H · ${m}M)`, 620, tableY + 62)
+    } else {
+      ctx.fillText(String(previewTicket.quantity), 620, tableY + 62)
+    }
 
     // 5. Draw Valid Schedule & Seller Name
     ctx.textAlign = 'center'
@@ -452,36 +528,124 @@ export function SellerEmitPage() {
                     </div>
 
                     {/* Stepper (+ / -) Box */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: isExhausted ? '#94a3b8' : '#1e3a8a',
-                        color: '#fff',
-                        padding: '4px 8px',
-                        borderRadius: 10
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        disabled={isExhausted}
-                        onClick={() => updateCount(coupon.id, -1)}
-                        style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                    {coupon.hasGenderSchedules ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          alignItems: 'flex-end'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        -
-                      </button>
-                      <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
-                      <button
-                        type="button"
-                        disabled={isExhausted}
-                        onClick={() => updateCount(coupon.id, 1)}
-                        style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                        {/* Fila Caballeros */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>🚹 Cab:</span>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              background: isExhausted ? '#94a3b8' : '#1e3a8a',
+                              color: '#fff',
+                              padding: '2px 6px',
+                              borderRadius: 8,
+                              gap: 4
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={isExhausted}
+                              onClick={() => updateGenderCount(coupon.id, 'men', -1)}
+                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
+                            >
+                              -
+                            </button>
+                            <strong style={{ fontSize: 13, minWidth: 14, textAlign: 'center' }}>
+                              {(genderCounts[coupon.id]?.men ?? 1)}
+                            </strong>
+                            <button
+                              type="button"
+                              disabled={isExhausted}
+                              onClick={() => updateGenderCount(coupon.id, 'men', 1)}
+                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Fila Damas */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#db2777' }}>🚺 Dam:</span>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              background: isExhausted ? '#94a3b8' : '#db2777',
+                              color: '#fff',
+                              padding: '2px 6px',
+                              borderRadius: 8,
+                              gap: 4
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={isExhausted}
+                              onClick={() => updateGenderCount(coupon.id, 'women', -1)}
+                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
+                            >
+                              -
+                            </button>
+                            <strong style={{ fontSize: 13, minWidth: 14, textAlign: 'center' }}>
+                              {(genderCounts[coupon.id]?.women ?? 1)}
+                            </strong>
+                            <button
+                              type="button"
+                              disabled={isExhausted}
+                              onClick={() => updateGenderCount(coupon.id, 'women', 1)}
+                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b' }}>
+                          Total: {((genderCounts[coupon.id]?.men ?? 1) + (genderCounts[coupon.id]?.women ?? 1))} pers.
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: isExhausted ? '#94a3b8' : '#1e3a8a',
+                          color: '#fff',
+                          padding: '4px 8px',
+                          borderRadius: 10
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        +
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          disabled={isExhausted}
+                          onClick={() => updateCount(coupon.id, -1)}
+                          style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                        >
+                          -
+                        </button>
+                        <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
+                        <button
+                          type="button"
+                          disabled={isExhausted}
+                          onClick={() => updateCount(coupon.id, 1)}
+                          style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -509,7 +673,13 @@ export function SellerEmitPage() {
                 boxShadow: (!selectedCoupon || selectedCoupon.available <= 0) ? 'none' : '0 4px 12px rgba(30,58,138,0.2)'
               }}
             >
-              {issuing ? 'GENERANDO CUPÓN...' : selectedCoupon && selectedCoupon.available <= 0 ? 'LÍMITE ALCANZADO' : 'EMITIR CUPÓN'}
+              {issuing
+                ? 'GENERANDO CUPÓN...'
+                : selectedCoupon && selectedCoupon.available <= 0
+                ? 'LÍMITE ALCANZADO'
+                : selectedCoupon?.hasGenderSchedules
+                ? `EMITIR CUPÓN (${(genderCounts[selectedCoupon.id]?.men ?? 1) + (genderCounts[selectedCoupon.id]?.women ?? 1)} PERS: ${genderCounts[selectedCoupon.id]?.men ?? 1}H · ${genderCounts[selectedCoupon.id]?.women ?? 1}M)`
+                : 'EMITIR CUPÓN'}
             </button>
           )}
         </div>
@@ -591,7 +761,11 @@ export function SellerEmitPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
                     <span>{previewTicket.couponName}</span>
-                    <span style={{ color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                    <span style={{ color: '#ff4d4d' }}>
+                      {previewTicket.isMixed && (previewTicket.menQuantity !== undefined || previewTicket.womenQuantity !== undefined)
+                        ? `${previewTicket.quantity} (${previewTicket.menQuantity ?? 0}H · ${previewTicket.womenQuantity ?? 0}M)`
+                        : previewTicket.quantity}
+                    </span>
                   </div>
                 </div>
 

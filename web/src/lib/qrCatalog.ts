@@ -11,6 +11,9 @@ export type QrCatalogItem = {
   days?: string[]
   scheduleMode?: 'full' | 'end' | 'hidden'
   backgroundImage?: string
+  hasGenderSchedules?: boolean
+  menDuration?: string
+  womenDuration?: string
 }
 
 const KEY = 'qr-pass-line.qr-catalog.v1'

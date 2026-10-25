@@ -51,6 +51,13 @@ type ScanResult =
       schedule: string
       date: string
       isException?: boolean
+      isMixed?: boolean
+      menLimitTime?: string
+      womenLimitTime?: string
+      menExpired?: boolean
+      womenExpired?: boolean
+      menQuantity?: number
+      womenQuantity?: number
     }
   | {
       ok: false
@@ -69,11 +76,28 @@ type ScanResult =
       date?: string
       quantity?: string
       numericQuantity?: number
+      isMixed?: boolean
+      menExpired?: boolean
+      womenExpired?: boolean
+      menLimitTime?: string
+      womenLimitTime?: string
+      menQuantity?: number
+      womenQuantity?: number
     }
 
 function GatePageContent() {
   const { currentUser, events, redeemTicket, redeemTicketWithException, updateTicketQuantity } = useApp()
   const scannerRef = useRef<QrScannerRef | null>(null)
+  const isCanjeador = currentUser?.role === 'canjeador' || Boolean(currentUser?.roles?.includes('canjeador'))
+  const isProcessingRef = useRef(false)
+
+  function handleDismissScanResult() {
+    setScanResult(null)
+    if (isCanjeador) {
+      isProcessingRef.current = false
+      scannerRef.current?.resume()
+    }
+  }
 
   const [manualCode, setManualCode] = useState('')
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
@@ -105,10 +129,22 @@ function GatePageContent() {
     const trimmed = rawValue.trim()
     if (!trimmed) return
 
+    if (isCanjeador) {
+      if (isProcessingRef.current) return
+      isProcessingRef.current = true
+      scannerRef.current?.pause()
+    }
+
     try {
       const code = parseQrPayload(trimmed) || trimmed.toUpperCase()
 
-      const result: any = await redeemTicket(code)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout_connection')), 4000)
+      )
+
+      const result: any = isCanjeador
+        ? await Promise.race([redeemTicket(code), timeoutPromise])
+        : await redeemTicket(code)
 
       if (result.ok) {
         const numBenefited = typeof result.ticket?.quantity === 'number' && result.ticket.quantity > 0
@@ -128,7 +164,12 @@ function GatePageContent() {
           numericQuantity: numBenefited,
           schedule: result.schedule || 'Hasta las 02:00 hs',
           date: result.date || 'Fecha de hoy',
-          isException: Boolean(result.isException || result.ticket?.isException)
+          isException: Boolean(result.isException || result.ticket?.isException),
+          isMixed: result.isMixed,
+          menLimitTime: result.menLimitTime,
+          womenLimitTime: result.womenLimitTime,
+          menQuantity: (result as any).menQuantity,
+          womenQuantity: (result as any).womenQuantity,
         })
 
         setScanHistory((prev) => [
@@ -148,7 +189,11 @@ function GatePageContent() {
         setScanResult({
           ok: false,
           title:
-            result.reason === 'expired_schedule' || result.reason === 'expired'
+            result.reason === 'partial_schedule_expired'
+              ? (result.menExpired && !result.womenExpired
+                  ? '⚠️ VENCIDO PARA CABALLEROS'
+                  : '⚠️ VENCIDO PARA DAMAS')
+              : result.reason === 'expired_schedule' || result.reason === 'expired'
               ? '✕ QR FUERA DE HORARIO'
               : result.reason === 'early_schedule'
               ? '✕ ACCESO AÚN NO INICIADO'
@@ -168,7 +213,14 @@ function GatePageContent() {
           schedule: result.schedule,
           date: result.date,
           quantity: result.quantity,
-          numericQuantity: numBenefited
+          numericQuantity: numBenefited,
+          isMixed: result.isMixed,
+          menExpired: result.menExpired,
+          womenExpired: result.womenExpired,
+          menLimitTime: result.menLimitTime,
+          womenLimitTime: result.womenLimitTime,
+          menQuantity: (result as any).menQuantity,
+          womenQuantity: (result as any).womenQuantity,
         })
 
         setScanHistory((prev) => [
@@ -183,10 +235,13 @@ function GatePageContent() {
       }
     } catch (err: any) {
       console.error('Error in redeemValue:', err)
+      const isTimeout = err?.message === 'timeout_connection'
       setScanResult({
         ok: false,
-        title: '✕ QR NO VÁLIDO',
-        message: err?.message || 'Error al procesar la validación del código.'
+        title: isTimeout ? '✕ DEMORA DE CONEXIÓN' : '✕ QR NO VÁLIDO',
+        message: isTimeout
+          ? 'El servidor tardó en responder. Verificá la señal de internet y volvé a intentar.'
+          : (err?.message || 'Error al procesar la validación del código.')
       })
     }
   }
@@ -265,6 +320,61 @@ function GatePageContent() {
     }
   }
 
+  async function handleConfirmPartialEntry() {
+    if (!scanResult?.ticketCode) return
+    setActionLoading(true)
+    try {
+      const isWomenOnly = Boolean(scanResult.menExpired && !scanResult.womenExpired)
+      const targetQty = isWomenOnly
+        ? (scanResult.womenQuantity ?? 1)
+        : (scanResult.menQuantity ?? 1)
+      const cleanQty = Math.max(1, Math.floor(targetQty))
+      // Canje regular para quien esté en horario (asException: false)
+      const res = await redeemTicketWithException(scanResult.ticketCode, cleanQty, false)
+      if (res.ok) {
+        const qText = cleanQty === 1 ? '1 persona beneficiada' : `${cleanQty} personas beneficiadas`
+        setScanResult({
+          ok: true,
+          title: isWomenOnly ? '✓ INGRESO VÁLIDO (DAMAS)' : '✓ INGRESO VÁLIDO (CABALLEROS)',
+          ticketId: res.ticket?.id,
+          ticketCode: scanResult.ticketCode,
+          holderName: res.ticket?.holderName || scanResult.holderName || 'Cliente General',
+          ticketName: res.ticketName || scanResult.ticketName || 'INGRESO GENERAL',
+          sellerName: res.sellerName || scanResult.sellerName || 'Vendedor General',
+          venueName: res.venueName || scanResult.venueName || 'Local Principal',
+          quantity: qText,
+          numericQuantity: cleanQty,
+          schedule: res.schedule || scanResult.schedule || 'Ingreso en Horario',
+          date: res.date || scanResult.date || 'Fecha de hoy',
+          isException: false,
+          isMixed: true,
+          menLimitTime: scanResult.menLimitTime,
+          womenLimitTime: scanResult.womenLimitTime,
+          menQuantity: scanResult.menQuantity,
+          womenQuantity: scanResult.womenQuantity,
+        })
+
+        setScanHistory((prev) => [
+          {
+            code: scanResult.ticketCode!,
+            name: `${res.ticket?.holderName || 'Cliente'} (${isWomenOnly ? 'Damas' : 'Caballeros'} en horario: ${cleanQty}p)`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            ok: true
+          },
+          ...prev
+        ])
+
+        showToast(`✓ Ingreso en horario validado para ${cleanQty} ${cleanQty === 1 ? 'persona' : 'personas'}`)
+      } else {
+        alert(res.message || 'No se pudo validar el ingreso.')
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al validar ingreso.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   return (
     <div className="role-screen" style={{ minHeight: '100dvh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
       <StaffHeader />
@@ -282,7 +392,7 @@ function GatePageContent() {
         <section className="card stack" style={{ padding: 12, borderRadius: 24, position: 'relative', overflow: 'visible', background: '#fff' }}>
           {/* Scanner Component with Continuous Live Camera */}
           <div style={{ position: 'relative', width: '100%' }}>
-            <QrScanner ref={scannerRef} onScan={(rawValue) => void redeemValue(rawValue)} />
+            <QrScanner ref={scannerRef} pauseOnScan={isCanjeador} onScan={(rawValue) => void redeemValue(rawValue)} />
 
             {/* Floating Action Button / Menu Trigger (Imagen 2 & 3) */}
             <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 50, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: 12 }}>
@@ -778,7 +888,20 @@ function GatePageContent() {
                   <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, fontWeight: 700, display: 'block' }}>
                     ⏰ LÍMITE DE HORA
                   </span>
-                  <strong style={{ fontSize: 16, fontWeight: 800 }}>{scanResult.schedule}</strong>
+                  {scanResult.isMixed && scanResult.menLimitTime && scanResult.womenLimitTime ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800 }}>
+                        <span>🚹 Caballeros:</span>
+                        <span style={{ color: '#86efac' }}>Hasta las {scanResult.menLimitTime} hs (Vigente)</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800 }}>
+                        <span>🚺 Damas:</span>
+                        <span style={{ color: '#86efac' }}>Hasta las {scanResult.womenLimitTime} hs (Vigente)</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <strong style={{ fontSize: 16, fontWeight: 800 }}>{scanResult.schedule}</strong>
+                  )}
                 </div>
 
                 <div style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 10 }}>
@@ -822,7 +945,104 @@ function GatePageContent() {
                   </p>
                 </div>
 
-                {/* Exception Action Button: Available ONLY when expired schedule */}
+                {/* Mixed Schedule Comparative Status Box */}
+                {scanResult.isMixed && (
+                  <div
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      borderRadius: 16,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.85 }}>
+                      ESTADO POR GÉNERO
+                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, fontWeight: 800 }}>
+                      <span>🚹 Caballeros (Límite {scanResult.menLimitTime} hs):</span>
+                      <span style={{ color: scanResult.menExpired ? '#fca5a5' : '#86efac', fontWeight: 900 }}>
+                        {scanResult.menExpired ? '✕ VENCIDO' : '✓ EN HORARIO'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, fontWeight: 800 }}>
+                      <span>🚺 Damas (Límite {scanResult.womenLimitTime} hs):</span>
+                      <span style={{ color: scanResult.womenExpired ? '#fca5a5' : '#86efac', fontWeight: 900 }}>
+                        {scanResult.womenExpired ? '✕ VENCIDO' : '✓ EN HORARIO'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* If partial schedule expired (e.g. Men expired, Women valid) */}
+                {scanResult.reason === 'partial_schedule_expired' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {!scanResult.womenExpired && (
+                      <button
+                        type="button"
+                        onClick={() => void handleConfirmPartialEntry()}
+                        disabled={actionLoading}
+                        style={{
+                          width: '100%',
+                          padding: '14px 16px',
+                          borderRadius: 16,
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: '2px solid #ffffff',
+                          fontWeight: 900,
+                          fontSize: 15,
+                          letterSpacing: '0.02em',
+                          cursor: actionLoading ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 6px 20px rgba(22, 163, 74, 0.5)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8
+                        }}
+                      >
+                        <span style={{ fontSize: 18 }}>✓</span>
+                        <span>
+                          {actionLoading
+                            ? 'VALIDANDO...'
+                            : `INGRESAR SOLO DAMAS (${scanResult.womenQuantity ?? 1} ${(scanResult.womenQuantity ?? 1) === 1 ? 'PERS.' : 'PERS.'})`}
+                        </span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPeopleCountToSet(scanResult.numericQuantity || 1)
+                        setIsExceptionModalOpen(true)
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        borderRadius: 16,
+                        background: '#f59e0b',
+                        color: '#000000',
+                        border: '2px solid #ffffff',
+                        fontWeight: 900,
+                        fontSize: 15,
+                        letterSpacing: '0.02em',
+                        cursor: 'pointer',
+                        boxShadow: '0 6px 20px rgba(245, 158, 11, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        transition: 'transform 0.1s ease'
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>⚠️</span>
+                      <span>AUTORIZAR INGRESO POR EXCEPCIÓN</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Exception Action Button: Available when totally expired schedule */}
                 {(scanResult.reason === 'expired' || scanResult.reason === 'expired_schedule') && (
                   <button
                     type="button"
@@ -1019,7 +1239,7 @@ function GatePageContent() {
             {/* Prominent Action Button: CONTINUAR ESCANEANDO */}
             <button
               type="button"
-              onClick={() => setScanResult(null)}
+              onClick={handleDismissScanResult}
               style={{
                 height: 54,
                 borderRadius: 16,

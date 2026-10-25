@@ -56,8 +56,11 @@ export type Ticket = {
   holderName: string
   dni: string
   quantity?: number
+  menQuantity?: number
+  womenQuantity?: number
   issuedBy: string
   issuedAt: string
+  eventDate?: string
   redeemedAt: string | null
   redeemedBy: string | null
   isException?: boolean
@@ -86,6 +89,9 @@ export type QrCatalogItem = {
   days?: string[]
   scheduleMode?: 'full' | 'end' | 'hidden'
   backgroundImage?: string
+  hasGenderSchedules?: boolean
+  menDuration?: string
+  womenDuration?: string
 }
 
 export type Limitation = {

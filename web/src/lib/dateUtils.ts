@@ -215,12 +215,54 @@ export function getCouponBaseDate(event?: ClubEvent, coupon?: any, referenceDate
   return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate())
 }
 
+export function getCouponEndDate(baseDate: Date, durationStr: string, fromStr: string): Date {
+  const rawDuration = String(durationStr || '02:00').trim()
+  const durMatch = rawDuration.match(/(\d{1,2}):(\d{2})/)
+  const durH = durMatch ? Number(durMatch[1]) : 2
+  const durM = durMatch ? Number(durMatch[2]) : 0
+
+  const rawFrom = String(fromStr || '23:59').trim()
+  const fromMatch = rawFrom.match(/(\d{1,2}):(\d{2})/)
+  const fromH = fromMatch ? Number(fromMatch[1]) : 23
+  const fromM = fromMatch ? Number(fromMatch[2]) : 59
+
+  const isDurationNextDay =
+    rawDuration.toLowerCase().includes('siguiente') ||
+    durH < fromH ||
+    (durH === fromH && durM < fromM) ||
+    (fromH >= 18 && durH <= 14) ||
+    (durH <= 12)
+
+  return new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate() + (isDurationNextDay ? 1 : 0),
+    durH,
+    durM,
+    59,
+    999
+  )
+}
+
 export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   if (!coupon) return 'Válido para el evento'
   
   const mode = coupon.scheduleMode || 'full'
   if (mode === 'hidden') {
     return 'Sin restricción horaria'
+  }
+
+  // Si tiene horarios diferenciados por género (Doble Horario: Caballeros y Damas)
+  if (coupon.hasGenderSchedules) {
+    const rawMen = String(coupon.menDuration || '01:30').trim()
+    const menMatch = rawMen.match(/(\d{1,2}:\d{2})/)
+    const cleanMen = menMatch ? menMatch[1] : '01:30'
+
+    const rawWomen = String(coupon.womenDuration || '02:00').trim()
+    const womenMatch = rawWomen.match(/(\d{1,2}:\d{2})/)
+    const cleanWomen = womenMatch ? womenMatch[1] : '02:00'
+
+    return `Caballeros hasta ${cleanMen} hs · Damas hasta ${cleanWomen} hs`
   }
 
   // 1. Obtener fecha base del cupón/evento (según sus días configurados)
@@ -265,11 +307,30 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   return `Del ${startDateStr} ${cleanFrom} al ${endDateStr} ${cleanDuration}`
 }
 
+export type ScheduleValidityResult =
+  | {
+      ok: true
+      isMixed?: boolean
+      menLimitTime?: string
+      womenLimitTime?: string
+    }
+  | {
+      ok: false
+      reason: 'expired_schedule' | 'partial_schedule_expired'
+      message: string
+      limitTime: string
+      isMixed?: boolean
+      menExpired?: boolean
+      womenExpired?: boolean
+      menLimitTime?: string
+      womenLimitTime?: string
+    }
+
 export function checkCouponScheduleValidity(
   event?: ClubEvent,
   coupon?: any,
   now: Date = new Date()
-): { ok: true } | { ok: false; reason: 'expired_schedule'; message: string; limitTime: string } {
+): ScheduleValidityResult {
   if (!coupon) return { ok: true }
 
   const mode = coupon.scheduleMode || 'full'
@@ -277,42 +338,92 @@ export function checkCouponScheduleValidity(
     return { ok: true }
   }
 
-  // 1. Obtener fecha base del cupón/evento
   const baseDate = getCouponBaseDate(event, coupon, now)
+  const fromStr = String(coupon.from || event?.doorsOpen || '23:59')
+  const scannedTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-  // 2. Extraer y limpiar horario límite tope ("duration")
+  // Caso: Cupón Mixto con doble horario (Caballeros y Damas)
+  if (coupon.hasGenderSchedules) {
+    const rawMen = String(coupon.menDuration || '01:30').trim()
+    const menMatch = rawMen.match(/(\d{1,2}):(\d{2})/)
+    const menH = menMatch ? Number(menMatch[1]) : 1
+    const menM = menMatch ? Number(menMatch[2]) : 30
+    const menLimitTime = `${String(menH).padStart(2, '0')}:${String(menM).padStart(2, '0')}`
+
+    const rawWomen = String(coupon.womenDuration || '02:00').trim()
+    const womenMatch = rawWomen.match(/(\d{1,2}):(\d{2})/)
+    const womenH = womenMatch ? Number(womenMatch[1]) : 2
+    const womenM = womenMatch ? Number(womenMatch[2]) : 0
+    const womenLimitTime = `${String(womenH).padStart(2, '0')}:${String(womenM).padStart(2, '0')}`
+
+    const endMenDate = getCouponEndDate(baseDate, rawMen, fromStr)
+    const endWomenDate = getCouponEndDate(baseDate, rawWomen, fromStr)
+
+    const menExpired = now.getTime() > endMenDate.getTime()
+    const womenExpired = now.getTime() > endWomenDate.getTime()
+
+    // 1. Ambos vencidos
+    if (menExpired && womenExpired) {
+      return {
+        ok: false,
+        reason: 'expired_schedule',
+        message: `Los horarios para este cupón vencieron (Caballeros ${menLimitTime} hs y Damas ${womenLimitTime} hs).`,
+        limitTime: `${menLimitTime} / ${womenLimitTime}`,
+        isMixed: true,
+        menExpired: true,
+        womenExpired: true,
+        menLimitTime,
+        womenLimitTime,
+      }
+    }
+
+    // 2. Venció Caballeros pero Damas sigue vigente
+    if (menExpired && !womenExpired) {
+      return {
+        ok: false,
+        reason: 'partial_schedule_expired',
+        message: `Horario de Caballeros VENCIDO a las ${menLimitTime} hs. Horario de Damas VIGENTE hasta las ${womenLimitTime} hs (escaneado a las ${scannedTimeStr} hs).`,
+        limitTime: `${menLimitTime} / ${womenLimitTime}`,
+        isMixed: true,
+        menExpired: true,
+        womenExpired: false,
+        menLimitTime,
+        womenLimitTime,
+      }
+    }
+
+    // 3. Venció Damas pero Caballeros sigue vigente
+    if (!menExpired && womenExpired) {
+      return {
+        ok: false,
+        reason: 'partial_schedule_expired',
+        message: `Horario de Damas VENCIDO a las ${womenLimitTime} hs. Horario de Caballeros VIGENTE hasta las ${menLimitTime} hs (escaneado a las ${scannedTimeStr} hs).`,
+        limitTime: `${menLimitTime} / ${womenLimitTime}`,
+        isMixed: true,
+        menExpired: false,
+        womenExpired: true,
+        menLimitTime,
+        womenLimitTime,
+      }
+    }
+
+    // 4. Ambos vigentes
+    return {
+      ok: true,
+      isMixed: true,
+      menLimitTime,
+      womenLimitTime,
+    }
+  }
+
+  // Caso normal (horario único general)
+  const endDate = getCouponEndDate(baseDate, coupon.duration || '02:00', fromStr)
   const rawDuration = String(coupon.duration || '02:00').trim()
   const durMatch = rawDuration.match(/(\d{1,2}):(\d{2})/)
   const durH = durMatch ? Number(durMatch[1]) : 2
   const durM = durMatch ? Number(durMatch[2]) : 0
-
-  // 3. Extraer horario de inicio referencial para evaluar si el tope cruza medianoche
-  const rawFrom = String(coupon.from || event?.doorsOpen || '23:59').trim()
-  const fromMatch = rawFrom.match(/(\d{1,2}):(\d{2})/)
-  const fromH = fromMatch ? Number(fromMatch[1]) : 23
-  const fromM = fromMatch ? Number(fromMatch[2]) : 59
-
-  const isDurationNextDay =
-    rawDuration.toLowerCase().includes('siguiente') ||
-    durH < fromH ||
-    (durH === fromH && durM < fromM) ||
-    (fromH >= 18 && durH <= 14) ||
-    (durH <= 12)
-
-  const endDate = new Date(
-    baseDate.getFullYear(),
-    baseDate.getMonth(),
-    baseDate.getDate() + (isDurationNextDay ? 1 : 0),
-    durH,
-    durM,
-    59, // permitimos hasta el último segundo del minuto límite (ej: 02:00:59)
-    999
-  )
-
   const limitTimeStr = `${String(durH).padStart(2, '0')}:${String(durM).padStart(2, '0')}`
-  const scannedTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-  // Si se escanea después del horario límite de corte
   if (now.getTime() > endDate.getTime()) {
     return {
       ok: false,
@@ -322,7 +433,6 @@ export function checkCouponScheduleValidity(
     }
   }
 
-  // Solo es limitante el horario tope; el horario inicial NO restringe el ingreso
   return { ok: true }
 }
 

@@ -3,16 +3,20 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 type QrScannerProps = {
   onScan: (value: string) => void
+  pauseOnScan?: boolean
 }
 
 export type QrScannerRef = {
   flipCamera: () => Promise<void>
   restartCamera: () => Promise<void>
+  pause: () => void
+  resume: () => void
 }
 
-export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, ref) => {
+export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan, pauseOnScan }, ref) => {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isStartingRef = useRef(false)
+  const isPausedRef = useRef(false)
   const lastScannedTimeRef = useRef<number>(0)
   const lastScannedCodeRef = useRef<string>('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -31,6 +35,28 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
     async restartCamera() {
       await stop()
       await start(facingMode)
+    },
+    pause() {
+      isPausedRef.current = true
+      try {
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.pause()
+        }
+      } catch (err) {
+        console.warn('Notice pausing camera:', err)
+      }
+    },
+    resume() {
+      isPausedRef.current = false
+      lastScannedCodeRef.current = ''
+      lastScannedTimeRef.current = 0
+      try {
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.resume()
+        }
+      } catch (err) {
+        console.warn('Notice resuming camera:', err)
+      }
     },
   }))
 
@@ -75,6 +101,7 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
   async function start(mode: 'environment' | 'user' = facingMode) {
     if (isStartingRef.current) return
     isStartingRef.current = true
+    isPausedRef.current = false
     setError('')
 
     const qrElement = document.getElementById('qr-reader')
@@ -129,6 +156,8 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
         },
         (decodedText) => {
           if (!decodedText) return
+          if (isPausedRef.current) return
+
           const now = Date.now()
           const isSameCode = decodedText === lastScannedCodeRef.current
 
@@ -139,6 +168,15 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
           }
           if (!isSameCode && now - lastScannedTimeRef.current < 350) {
             return
+          }
+
+          if (pauseOnScan) {
+            isPausedRef.current = true
+            try {
+              if (scannerRef.current?.isScanning) {
+                scannerRef.current.pause()
+              }
+            } catch {}
           }
 
           lastScannedTimeRef.current = now
@@ -197,6 +235,7 @@ export const QrScanner = forwardRef<QrScannerRef, QrScannerProps>(({ onScan }, r
       console.error(e)
     } finally {
       scannerRef.current = null
+      isPausedRef.current = false
       setActive(false)
     }
   }

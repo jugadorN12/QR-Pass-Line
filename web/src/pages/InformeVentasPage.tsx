@@ -5,12 +5,11 @@ import { StaffHeader } from '../components/StaffHeader'
 import {
   getTodayDateString,
   formatDateDmy,
-  getWeeklyDateRange,
   getTicketActivitySummary,
 } from '../lib/dateUtils'
 
 export function InformeVentasPage() {
-  const { tickets, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
+  const { tickets, events, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
   const [searchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
 
@@ -27,18 +26,15 @@ export function InformeVentasPage() {
     return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
   }, [tickets, currentUser, targetVenueId, venues])
 
-  // Calculate activity for selectedDate (daily or weekly if Saturday)
+  // Calculate activity for selectedDate
   const summary = useMemo(() => {
-    return getTicketActivitySummary(venueTickets, selectedDate)
-  }, [venueTickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate, events, qrCatalog)
+  }, [venueTickets, selectedDate, events, qrCatalog])
 
   const dateRangeLabel = useMemo(() => {
-    if (summary.isWeeklySummary) {
-      return getWeeklyDateRange(selectedDate).label
-    }
     const dmy = formatDateDmy(selectedDate)
     return `${dmy} - ${dmy}`
-  }, [selectedDate, summary.isWeeklySummary])
+  }, [selectedDate])
 
   // Group tickets by Seller and Coupon
   const salesData = useMemo(() => {

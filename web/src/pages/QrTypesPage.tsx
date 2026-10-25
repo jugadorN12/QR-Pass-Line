@@ -46,7 +46,7 @@ export function QrTypesPage() {
             <div className="qr-grid">
               {venueQrCatalog.map((qr) => (
                 <article className="qr-type-card" key={qr.id}>
-                  <div className="qr-type-heading"><span className="qr-ticket-icon">▱</span><div><small>CONSUMIBLE_QR</small><strong>{qr.name}</strong></div></div>
+                  <div className="qr-type-heading"><span className="qr-ticket-icon">▱</span><div><small>{qr.hasGenderSchedules ? 'MIXTO · 2 HORARIOS' : `CONSUMIBLE_${(qr.kind || 'qr').toUpperCase()}`}</small><strong>{qr.name}</strong></div></div>
                   <div className="seller-actions">
                     <button type="button" aria-label={`Editar ${qr.name}`} onClick={() => navigate(`/qr/nuevo?id=${qr.id}`)}>✎</button>
                     <button type="button" aria-label={`Ver ${qr.name}`} onClick={() => setPreview(qr)}>👁</button>

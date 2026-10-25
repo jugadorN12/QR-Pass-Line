@@ -52,10 +52,10 @@ type AppContextValue = AppData & {
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus; venueId?: string }) => Promise<ClubEvent>
 
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; venueId?: string }) => Promise<Ticket>
+  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string }) => Promise<Ticket>
 
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
-  redeemTicketWithException: (code: string, customQuantity?: number) => Promise<{ ok: boolean; ticket?: Ticket; message?: string; [key: string]: any }>
+  redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string; [key: string]: any }>
   updateTicketQuantity: (ticketId: string, newQuantity: number) => Promise<{ ok: boolean; ticket?: Ticket; error?: string }>
 
   saveQrItem: (item: QrCatalogItem) => Promise<void>
@@ -247,13 +247,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
         // Fast parallel fetch for lightweight collections
-        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
+        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot, ticketsSnapshot] = await Promise.all([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'events')),
           getDocs(collection(db, 'qrCatalog')),
           getDocs(collection(db, 'limitations')),
           getDocs(collection(db, 'venues')),
           getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
+          getDocs(collection(db, 'tickets')).catch(() => null),
         ])
 
         // Deduplicate users list by email so UI never shows duplicate rows
@@ -297,10 +298,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
 
+        const initialTickets = ticketsSnapshot ? ticketsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket)) : []
+
         setData((prev) => ({
           ...prev,
           users: allUsers,
           events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
+          tickets: initialTickets,
           qrCatalog,
           limitations,
           venues,
@@ -689,13 +693,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         limitations: prev.limitations.filter((l) => l.id !== id),
       }))
     },
-    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, venueId: customVenueId }) {
+    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, menQuantity, womenQuantity, venueId: customVenueId, eventDate }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
       if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
       const ticketQty = typeof quantity === 'number' && quantity > 0 ? quantity : 1
       const venueId = customVenueId || event.venueId || currentUser.venueId || ''
+      const computedEventDate = eventDate || (event?.date ? event.date.split('T')[0] : undefined)
       const ticket: Omit<Ticket, 'id'> = {
         eventId,
         venueId,
@@ -705,8 +710,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         holderName: holderName.trim(),
         dni: (dni ?? '').replace(/\D/g, ''),
         quantity: ticketQty,
+        ...(typeof menQuantity === 'number' ? { menQuantity } : {}),
+        ...(typeof womenQuantity === 'number' ? { womenQuantity } : {}),
         issuedBy: currentUser.id,
         issuedAt: new Date().toISOString(),
+        ...(computedEventDate ? { eventDate: computedEventDate } : {}),
         redeemedAt: null,
         redeemedBy: null
       }
@@ -742,7 +750,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const numBenefited = typeof ticket.quantity === 'number' && ticket.quantity > 0 ? ticket.quantity : 1
-      const quantityText = numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`
+      const hasGenderCounts = typeof ticket.menQuantity === 'number' || typeof ticket.womenQuantity === 'number'
+      const genderDetail = hasGenderCounts
+        ? ` (${ticket.menQuantity ?? 0} ${ticket.menQuantity === 1 ? 'Caballero' : 'Caballeros'} · ${ticket.womenQuantity ?? 0} ${ticket.womenQuantity === 1 ? 'Dama' : 'Damas'})`
+        : ''
+      const quantityText = (numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`) + genderDetail
 
       // Lookup Seller / RRPP Name
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
@@ -785,7 +797,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!validity.ok) {
         return {
           ok: false,
-          reason: 'expired',
+          reason: validity.reason || 'expired',
           message: validity.message || 'El horario de validez del cupón expiró.',
           ticket,
           sellerName,
@@ -794,7 +806,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: quantityText
+          quantity: quantityText,
+          isMixed: validity.isMixed,
+          menExpired: validity.menExpired,
+          womenExpired: validity.womenExpired,
+          menLimitTime: validity.menLimitTime,
+          womenLimitTime: validity.womenLimitTime,
+          menQuantity: ticket.menQuantity,
+          womenQuantity: ticket.womenQuantity,
         }
       }
 
@@ -814,7 +833,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ticketName,
           date: formattedDate,
           schedule,
-          quantity: quantityText
+          quantity: quantityText,
+          isMixed: validity.isMixed,
+          menLimitTime: validity.menLimitTime,
+          womenLimitTime: validity.womenLimitTime,
+          menQuantity: ticket.menQuantity,
+          womenQuantity: ticket.womenQuantity,
         }
       }
 
@@ -825,10 +849,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updateDoc(doc(db, 'tickets', ticket.id), updates)
 
       const redeemed: Ticket = { ...ticket, ...updates }
-      setData((prev) => ({
-        ...prev,
-        tickets: prev.tickets.map((item) => (item.id === ticket!.id ? redeemed : item)),
-      }))
+      setData((prev) => {
+        const index = prev.tickets.findIndex((item) => item.id === ticket!.id || (item.code && item.code.trim().toUpperCase() === normalizedCode))
+        const nextTickets = index >= 0
+          ? prev.tickets.map((item, idx) => (idx === index ? redeemed : item))
+          : [redeemed, ...prev.tickets]
+        return {
+          ...prev,
+          tickets: nextTickets,
+        }
+      })
 
       return {
         ok: true,
@@ -839,11 +869,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ticketName,
         date: formattedDate,
         schedule,
-        quantity: quantityText
+        quantity: quantityText,
+        isMixed: validity.isMixed,
+        menLimitTime: validity.menLimitTime,
+        womenLimitTime: validity.womenLimitTime,
+        menQuantity: ticket.menQuantity,
+        womenQuantity: ticket.womenQuantity,
       }
     },
 
-    async redeemTicketWithException(code: string, customQuantity?: number) {
+    async redeemTicketWithException(code: string, customQuantity?: number, asException: boolean = true) {
       const normalizedCode = code.trim().toUpperCase()
       let ticket = data.tickets.find((t) => (t.code || '').trim().toUpperCase() === normalizedCode)
 
@@ -904,9 +939,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const updates: Partial<Ticket> = {
         redeemedAt,
         redeemedBy,
-        isException: true,
-        exceptionBy: redeemedBy,
-        exceptionAt: redeemedAt,
+        ...(asException ? {
+          isException: true,
+          exceptionBy: redeemedBy,
+          exceptionAt: redeemedAt,
+        } : {}),
         quantity: finalQuantity,
         ...(ticket.quantity !== finalQuantity ? {
           originalQuantity: ticket.quantity || 1,
@@ -924,7 +961,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       return {
         ok: true,
-        isException: true,
+        isException: asException,
         ticket: redeemed,
         sellerName,
         eventName: event?.name || 'Evento Activo',

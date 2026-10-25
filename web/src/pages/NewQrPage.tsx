@@ -23,13 +23,16 @@ export function NewQrPage() {
   const [openSection, setOpenSection] = useState<'validity' | 'visual' | 'rules' | null>('validity')
   const [scheduleMode, setScheduleMode] = useState<'full' | 'end' | 'hidden'>(existingQr?.scheduleMode ?? 'full')
   const [days, setDays] = useState<string[]>(existingQr?.days ?? ['L', 'M', 'X', 'J', 'V', 'S', 'D'])
-  const [picker, setPicker] = useState<'from' | 'duration' | null>(null)
+  const [picker, setPicker] = useState<'from' | 'duration' | 'menDuration' | 'womenDuration' | null>(null)
   const [pickerHour, setPickerHour] = useState('08')
   const [pickerMinute, setPickerMinute] = useState('00')
   const [dayMode, setDayMode] = useState<'current' | 'next'>('current')
   const cleanExistingDuration = existingQr?.duration ? (existingQr.duration.match(/\d{1,2}:\d{2}/)?.[0] || '02:00') : '02:00'
   const [fromLabel, setFromLabel] = useState(existingQr?.from ?? '23:59 del día corriente')
   const [durationLabel, setDurationLabel] = useState(cleanExistingDuration)
+  const [hasGenderSchedules, setHasGenderSchedules] = useState(existingQr?.hasGenderSchedules ?? false)
+  const [menDurationLabel, setMenDurationLabel] = useState(existingQr?.menDuration || '01:30')
+  const [womenDurationLabel, setWomenDurationLabel] = useState(existingQr?.womenDuration || '02:00')
 
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
@@ -46,6 +49,9 @@ export function NewQrPage() {
       setFromLabel(existingQr.from ?? '23:59 del día corriente')
       const cleanDur = existingQr.duration ? (existingQr.duration.match(/\d{1,2}:\d{2}/)?.[0] || '02:00') : '02:00'
       setDurationLabel(cleanDur)
+      setHasGenderSchedules(existingQr.hasGenderSchedules ?? false)
+      setMenDurationLabel(existingQr.menDuration || '01:30')
+      setWomenDurationLabel(existingQr.womenDuration || '02:00')
     }
   }, [existingQr])
 
@@ -91,7 +97,7 @@ export function NewQrPage() {
     reader.readAsDataURL(file)
   }
 
-  function openPicker(type: 'from' | 'duration') {
+  function openPicker(type: 'from' | 'duration' | 'menDuration' | 'womenDuration') {
     setPicker(type)
     if (type === 'from') {
       const match = fromLabel.match(/(\d{1,2}):(\d{2})/)
@@ -103,6 +109,14 @@ export function NewQrPage() {
         setPickerMinute('59')
       }
       setDayMode(fromLabel.toLowerCase().includes('siguiente') ? 'next' : 'current')
+    } else if (type === 'menDuration') {
+      const match = menDurationLabel.match(/(\d{1,2}):(\d{2})/)
+      setPickerHour(match ? match[1].padStart(2, '0') : '01')
+      setPickerMinute(match ? match[2].padStart(2, '0') : '30')
+    } else if (type === 'womenDuration') {
+      const match = womenDurationLabel.match(/(\d{1,2}):(\d{2})/)
+      setPickerHour(match ? match[1].padStart(2, '0') : '02')
+      setPickerMinute(match ? match[2].padStart(2, '0') : '00')
     } else {
       const match = durationLabel.match(/(\d{1,2}):(\d{2})/)
       if (match) {
@@ -120,6 +134,10 @@ export function NewQrPage() {
       setFromLabel(`${pickerHour}:${pickerMinute} del día ${dayMode === 'current' ? 'corriente' : 'siguiente'}`)
     } else if (picker === 'duration') {
       setDurationLabel(`${pickerHour}:${pickerMinute}`)
+    } else if (picker === 'menDuration') {
+      setMenDurationLabel(`${pickerHour}:${pickerMinute}`)
+    } else if (picker === 'womenDuration') {
+      setWomenDurationLabel(`${pickerHour}:${pickerMinute}`)
     }
     setPicker(null)
   }
@@ -141,6 +159,9 @@ export function NewQrPage() {
         kind,
         from: fromLabel,
         duration: durationLabel,
+        hasGenderSchedules,
+        menDuration: menDurationLabel,
+        womenDuration: womenDurationLabel,
         icon,
         publicAccess,
         active,
@@ -181,7 +202,39 @@ export function NewQrPage() {
 
             <Collapsible title="Vigencia" open={openSection === 'validity'} onClick={() => setOpenSection(openSection === 'validity' ? null : 'validity')}>
               <button className="new-qr-select new-qr-select-button" type="button" onClick={() => openPicker('from')}><small>Desde</small><span>◷ {fromLabel}</span><b>⌄</b></button>
-              <button className="new-qr-select new-qr-select-button" type="button" onClick={() => openPicker('duration')}><small>Duración</small><span>◷ {durationLabel}</span><b>⌄</b></button>
+              
+              <div style={{ margin: '10px 0', background: '#f8fafc', padding: '12px 14px', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>Doble horario (Mixto: Damas / Caballeros)</strong>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Límites de horario diferentes para hombres y mujeres</span>
+                  </div>
+                  <div className="mini-toggle" style={{ margin: 0 }}>
+                    <button type="button" className={hasGenderSchedules ? 'selected' : ''} onClick={() => setHasGenderSchedules(true)}>Sí</button>
+                    <button type="button" className={!hasGenderSchedules ? 'selected' : ''} onClick={() => setHasGenderSchedules(false)}>No</button>
+                  </div>
+                </div>
+
+                {hasGenderSchedules ? (
+                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button className="new-qr-select new-qr-select-button" type="button" onClick={() => openPicker('menDuration')}>
+                      <small>🚹 Límite Caballeros</small>
+                      <span>◷ {menDurationLabel} hs</span>
+                      <b>⌄</b>
+                    </button>
+                    <button className="new-qr-select new-qr-select-button" type="button" onClick={() => openPicker('womenDuration')}>
+                      <small>🚺 Límite Damas</small>
+                      <span>◷ {womenDurationLabel} hs</span>
+                      <b>⌄</b>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {!hasGenderSchedules && (
+                <button className="new-qr-select new-qr-select-button" type="button" onClick={() => openPicker('duration')}><small>Duración general</small><span>◷ {durationLabel}</span><b>⌄</b></button>
+              )}
+
               <div className="new-qr-label">Mostrar horario</div><div className="schedule-toggle"><button type="button" className={scheduleMode === 'full' ? 'selected' : ''} onClick={() => setScheduleMode('full')}>Completo</button><button type="button" className={scheduleMode === 'end' ? 'selected' : ''} onClick={() => setScheduleMode('end')}>Ocultar fin</button><button type="button" className={scheduleMode === 'hidden' ? 'selected' : ''} onClick={() => setScheduleMode('hidden')}>Ocultar todo</button></div>
               <div className="new-qr-label">Días predeterminados</div><div className="days-row">{['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => <button className={days.includes(day) ? 'selected' : ''} type="button" key={day} onClick={() => toggleDay(day)}>{day}</button>)}</div>
             </Collapsible>
@@ -322,7 +375,7 @@ export function NewQrPage() {
           </form>
         </main>
       </div>
-      {picker ? <div className="time-picker-backdrop" role="dialog" aria-modal="true" aria-label="Seleccionar horario"><button className="time-picker-dismiss" type="button" aria-label="Cerrar selector" onClick={() => setPicker(null)} /><section className="time-picker-sheet"><div className="sheet-handle" /><div className="time-picker-title"><span>{picker === 'from' ? 'Desde las' : 'Duración'}</span><strong>{pickerHour}:{pickerMinute}</strong>{picker === 'from' ? <div className="day-choice"><button className={dayMode === 'current' ? 'selected' : ''} type="button" onClick={() => setDayMode('current')}>Corriente</button><button className={dayMode === 'next' ? 'selected' : ''} type="button" onClick={() => setDayMode('next')}>Siguiente</button></div> : null}</div><div className="wheel-picker"><div className="wheel-column">{hours.map((hour) => <button className={hour === pickerHour ? 'active' : ''} type="button" key={hour} onClick={() => setPickerHour(hour)}>{hour}</button>)}</div><span>:</span><div className="wheel-column">{minutes.map((minute) => <button className={minute === pickerMinute ? 'active' : ''} type="button" key={minute} onClick={() => setPickerMinute(minute)}>{minute}</button>)}</div></div><button className="btn btn-primary time-picker-confirm" type="button" onClick={confirmPicker}>Confirmar horario</button></section></div> : null}
+      {picker ? <div className="time-picker-backdrop" role="dialog" aria-modal="true" aria-label="Seleccionar horario"><button className="time-picker-dismiss" type="button" aria-label="Cerrar selector" onClick={() => setPicker(null)} /><section className="time-picker-sheet"><div className="sheet-handle" /><div className="time-picker-title"><span>{picker === 'from' ? 'Desde las' : picker === 'menDuration' ? 'Límite Caballeros' : picker === 'womenDuration' ? 'Límite Damas' : 'Duración'}</span><strong>{pickerHour}:{pickerMinute}</strong>{picker === 'from' ? <div className="day-choice"><button className={dayMode === 'current' ? 'selected' : ''} type="button" onClick={() => setDayMode('current')}>Corriente</button><button className={dayMode === 'next' ? 'selected' : ''} type="button" onClick={() => setDayMode('next')}>Siguiente</button></div> : null}</div><div className="wheel-picker"><div className="wheel-column">{hours.map((hour) => <button className={hour === pickerHour ? 'active' : ''} type="button" key={hour} onClick={() => setPickerHour(hour)}>{hour}</button>)}</div><span>:</span><div className="wheel-column">{minutes.map((minute) => <button className={minute === pickerMinute ? 'active' : ''} type="button" key={minute} onClick={() => setPickerMinute(minute)}>{minute}</button>)}</div></div><button className="btn btn-primary time-picker-confirm" type="button" onClick={confirmPicker}>Confirmar horario</button></section></div> : null}
     </div>
   )
 }

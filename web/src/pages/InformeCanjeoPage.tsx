@@ -9,7 +9,7 @@ import {
 } from '../lib/dateUtils'
 
 export function InformeCanjeoPage() {
-  const { tickets, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
+  const { tickets, events, users, qrCatalog, currentUser, activeVenue, venues } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
 
@@ -45,10 +45,10 @@ export function InformeCanjeoPage() {
     return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
   }, [tickets, currentUser, targetVenueId, venues])
 
-  // Summary for selectedDate (daily or weekly if Saturday)
+  // Summary for selectedDate
   const summary = useMemo(() => {
-    return getTicketActivitySummary(venueTickets, selectedDate)
-  }, [venueTickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate, events, qrCatalog)
+  }, [venueTickets, selectedDate, events, qrCatalog])
 
   const dateLabel = formatDateLabel(selectedDate)
 
