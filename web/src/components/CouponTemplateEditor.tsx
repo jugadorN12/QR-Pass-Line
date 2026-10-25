@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import type { CouponTemplateConfig } from '../types'
 import { DottedQrImage } from './DottedQrImage'
-import { formatCouponSchedule } from '../lib/dateUtils'
 
 export function CouponTemplateEditor() {
   const { couponTemplate, saveCouponTemplate, qrCatalog, events, activeVenue } = useApp()
@@ -391,10 +390,6 @@ export function CouponTemplateEditor() {
                 <span style={{ color: '#ff4d4d' }}>1</span>
               </div>
             </div>
-
-            <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateConfig.shadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-              {formatCouponSchedule(activeEvent, sampleCoupon)}
-            </p>
 
             <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
               RR.PP: JOSE

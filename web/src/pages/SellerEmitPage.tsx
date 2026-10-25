@@ -435,20 +435,9 @@ export function SellerEmitPage() {
     ctx.lineTo(640, tableBottomY + 6)
     ctx.stroke()
 
-    // 5. Draw Valid Schedule & Seller Name
+    // 5. Draw Seller Name
     ctx.textAlign = 'center'
     ctx.fillStyle = '#ffffff'
-    ctx.font = '20px sans-serif'
-    if (itemsToDraw.length > 1) {
-      itemsToDraw.forEach((it, idx) => {
-        if (idx < 2) {
-          ctx.fillText(`${it.couponName}: ${it.schedule || ''}`, width / 2, tableBottomY + 36 + (idx * 24))
-        }
-      })
-    } else {
-      ctx.fillText(previewTicket.schedule, width / 2, tableBottomY + 38)
-    }
-
     ctx.font = '900 30px sans-serif'
     ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 970)
 
@@ -767,17 +756,6 @@ export function SellerEmitPage() {
                   )}
                 </div>
 
-                {previewTicket.items && previewTicket.items.length > 1 ? (
-                  previewTicket.items.map((it, idx) => (
-                    <p key={idx} style={{ fontSize: 11, margin: '0 0 2px', color: 'rgba(255,255,255,0.9)', textShadow: templateShadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                      {it.couponName}: {it.schedule}
-                    </p>
-                  ))
-                ) : (
-                  <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateShadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                    {previewTicket.schedule}
-                  </p>
-                )}
 
                 <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
                   RR.PP: {previewTicket.sellerName || 'JOSE'}
