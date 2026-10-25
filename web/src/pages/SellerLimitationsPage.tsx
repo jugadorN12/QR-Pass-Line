@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { DoorsDateRangePicker } from '../components/DoorsDateRangePicker'
+import { isLimitationExpired } from '../lib/dateUtils'
 
 export function SellerLimitationsPage() {
   const params = useParams()
@@ -113,6 +114,15 @@ export function SellerLimitationsPage() {
                         <span className="doors-period-text">
                           {coupon?.from && coupon?.duration ? `${coupon.from} | de ${coupon.duration}` : (row.period || '01/02/2000 - 31/01/2051')}
                         </span>
+                        {isLimitationExpired(row) ? (
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: '#f1f5f9', color: '#94a3b8', fontWeight: 600 }}>
+                            Finalizado (06:00 hs)
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: '#ecfdf5', color: '#059669', fontWeight: 600 }}>
+                            Activo
+                          </span>
+                        )}
                       </div>
                     </div>
 

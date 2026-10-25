@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
-import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES } from '../lib/dateUtils'
+import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES, isLimitationExpired, isTicketForLimitation } from '../lib/dateUtils'
 
 export function SellerEmitPage() {
   const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate, activeVenue, venues } = useApp()
@@ -23,19 +23,21 @@ export function SellerEmitPage() {
   const businessName = activeVenue?.name || localStorage.getItem('qr-pass-line.business-name') || 'Mi Establecimiento'
   const logo = activeVenue?.logo || localStorage.getItem('qr-pass-line.establishment-logo') || '/app-icon.png'
 
-  // Determinar si es encargado / admin / organizador con acceso total
-  const isManagerOrAdmin =
-    currentUser?.role === 'admin' ||
-    currentUser?.role === 'organizador' ||
-    Boolean(currentUser?.roles?.includes('admin')) ||
-    Boolean(currentUser?.roles?.includes('organizador'))
-
-  // Filtrar estrictamente por las limitaciones asignadas a este vendedor (para vendedores regulares)
+  // Filtrar estrictamente por las limitaciones asignadas a este usuario (sea vendedor o encargado)
   const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
 
+  // Solo el superadmin general (admin) sin limitaciones específicas mantiene acceso global
+  // El encargado (organizador) y los vendedores normales se rigen estrictamente por sus cupones y cupos asignados
+  const isMasterAdminOnly =
+    (currentUser?.role === 'admin' || Boolean(currentUser?.roles?.includes('admin'))) &&
+    userLimitations.length === 0
+
+  // Filtrar solo las limitaciones activas para este evento (que no hayan pasado las 06:00 AM del día siguiente al evento)
+  const activeUserLimitations = userLimitations.filter((lim) => !isLimitationExpired(lim))
+
   const couponsToDisplay = useMemo(() => {
-    // Si es admin u organizador (Encargado), tiene acceso TOTAL e ILIMITADO a todos los cupones creados de su local
-    if (isManagerOrAdmin) {
+    // Si es superadmin sin limitaciones específicas, acceso global para pruebas
+    if (isMasterAdminOnly) {
       if (venueQrCatalog.length > 0) {
         return venueQrCatalog.map((item) => {
           const issuedCount = tickets
@@ -60,7 +62,6 @@ export function SellerEmitPage() {
           }
         })
       } else {
-        // En caso de que aún no hayan agregado ítems al catálogo, proveer ingreso general por defecto
         return [{
           id: 'default-coupon',
           limitationId: 'unlimited-default',
@@ -81,13 +82,19 @@ export function SellerEmitPage() {
       }
     }
 
-    // Para vendedor normal, filtrar por las limitaciones asignadas
-    if (userLimitations.length > 0) {
-      return userLimitations.map((lim) => {
+    // Para vendedor normal y encargado: solo cupones y cantidades asignadas que sigan activos
+    if (activeUserLimitations.length > 0) {
+      return activeUserLimitations.map((lim) => {
         const catalogItem = qrCatalog.find((q) => q.id === lim.couponId)
+        // Solo contabilizar los tickets emitidos correspondientes a esta fecha/evento de la limitación
         const issuedCount = tickets
-          .filter((t) => t.issuedBy === currentUser?.id && (t.couponId === lim.couponId || (!t.couponId && qrCatalog.length === 1)))
+          .filter((t) => {
+            if (t.issuedBy !== currentUser?.id) return false
+            if (t.couponId !== lim.couponId && !(qrCatalog.length === 1 && !t.couponId)) return false
+            return isTicketForLimitation(t, lim, events, qrCatalog)
+          })
           .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+
         const totalQuota = Number(lim.quantity) || 0
         const available = Math.max(0, totalQuota - issuedCount)
         const couponDays = (catalogItem?.days && catalogItem.days.length > 0) ? catalogItem.days : lim.days
@@ -116,9 +123,9 @@ export function SellerEmitPage() {
       })
     }
 
-    // Vendedor normal sin limitaciones asignadas
+    // Sin limitaciones activas asignadas para esta fecha (arranca la semana en limpio en 0)
     return []
-  }, [isManagerOrAdmin, userLimitations, qrCatalog, tickets, currentUser, activeEvent])
+  }, [isMasterAdminOnly, activeUserLimitations, qrCatalog, tickets, currentUser, activeEvent, events, venueQrCatalog])
 
   const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || ''
   const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
@@ -158,7 +165,7 @@ export function SellerEmitPage() {
 
   function updateCount(couponId: string, delta: number) {
     const coupon = couponsToDisplay.find((c) => c.id === couponId)
-    const maxAvailable = isManagerOrAdmin ? 999 : (coupon?.available ?? 200)
+    const maxAvailable = isMasterAdminOnly ? 999 : (coupon?.available ?? 200)
     setCounts((prev) => {
       const current = prev[couponId] ?? 0
       const next = Math.min(maxAvailable, Math.max(0, current + delta))
@@ -180,20 +187,32 @@ export function SellerEmitPage() {
     setIssuing(true)
     try {
       const quantityToIssue = count > 0 ? count : 1
+
+      // Buscar si existe un evento activo cuya fecha coincida con el día del cupón (ej: Domingo)
+      let targetEvent = activeEvent
+      const targetBaseDate = getCouponBaseDate(undefined, selectedCoupon)
+      const targetDateIso = `${targetBaseDate.getFullYear()}-${String(targetBaseDate.getMonth() + 1).padStart(2, '0')}-${String(targetBaseDate.getDate()).padStart(2, '0')}`
+
+      const matchingEvent = venueEvents.find(
+        (e) => e.status === 'activo' && e.date && e.date.startsWith(targetDateIso)
+      )
+      if (matchingEvent) {
+        targetEvent = matchingEvent
+      }
+
       const ticket = await issueTicket({
-        eventId: activeEvent.id,
+        eventId: targetEvent?.id || activeEvent.id,
         couponId: selectedCoupon.id,
         kind: 'qr',
         holderName: `Cliente ${currentUser?.name || 'Vendedor'}`,
         dni: '',
-        quantity: quantityToIssue
+        quantity: quantityToIssue,
+        eventDate: targetDateIso
       })
 
+      const couponBg = (selectedCoupon as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || ''
 
-
-      const couponBg = (selectedCoupon as any)?.backgroundImage || (activeEvent as any)?.backgroundImage || (activeEvent as any)?.imageUrl || ''
-
-      const computedSchedule = formatCouponSchedule(activeEvent, selectedCoupon)
+      const computedSchedule = formatCouponSchedule(targetEvent, selectedCoupon)
 
       setPreviewTicket({
         code: ticket.code,
@@ -427,7 +446,7 @@ export function SellerEmitPage() {
                         <small style={{ color: '#64748b', fontSize: 10, display: 'block' }}>{formattedSchedule}</small>
                         <strong style={{ fontSize: 14, color: '#0f172a', display: 'block', margin: '2px 0' }}>{coupon.name}</strong>
                         <small style={{ color: isExhausted ? '#ef4444' : '#64748b', fontSize: 11, display: 'block', fontWeight: 600 }}>
-                          {isExhausted ? 'Agotado (0 disp.)' : isManagerOrAdmin ? 'Ilimitado (Encargado)' : `${coupon.available} disp. / ${coupon.totalQuota || coupon.available} total`}
+                          {isExhausted ? 'Agotado (0 disp.)' : isMasterAdminOnly ? 'Ilimitado (Admin)' : `${coupon.available} disp. / ${coupon.totalQuota || coupon.available} total`}
                         </small>
                       </div>
                     </div>

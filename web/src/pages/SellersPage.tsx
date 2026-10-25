@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { UserAvatar } from '../components/UserAvatar'
+import { isLimitationExpired } from '../lib/dateUtils'
 
 type Seller = {
   id: string
@@ -167,7 +168,7 @@ export function SellersPage() {
             {panelOpen && (
               <div className="seller-grid doors-seller-grid">
                 {sellers.map((seller) => {
-                  const sellerLimits = limitations.filter((l) => l.personId === seller.id)
+                  const sellerLimits = limitations.filter((l) => l.personId === seller.id && !isLimitationExpired(l))
                   const totalQuota = sellerLimits.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0)
 
                   return (

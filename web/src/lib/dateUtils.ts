@@ -18,6 +18,27 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Retorna la fecha operativa actual en formato YYYY-MM-DD.
+ * Regla de corte nocturno:
+ * Si la hora actual es antes de las 06:00 AM (00:00:00 a 05:59:59),
+ * la jornada operativa pertenece a la noche anterior (día - 1).
+ * Aplica para cualquier día de la semana:
+ * - Domingo 03:00 AM pertenece a la noche del Sábado.
+ * - Lunes 04:30 AM pertenece a la noche del Domingo.
+ * - Sábado 02:00 AM pertenece a la noche del Viernes.
+ */
+export function getOperationalDateString(now: Date = new Date()): string {
+  const d = new Date(now)
+  if (d.getHours() < 6) {
+    d.setDate(d.getDate() - 1)
+  }
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function parseDate(dateStr: string): Date {
   if (!dateStr) return new Date()
   const clean = String(dateStr).trim().split(/[T\s]/)[0]
@@ -306,60 +327,236 @@ export function checkCouponScheduleValidity(
 }
 
 
-export function getTicketActivitySummary(tickets: Ticket[], selectedDate: string) {
-  const sat = isSaturday(selectedDate)
-  
-  if (sat) {
-    // Sábados: Resumen semanal total
-    const { startStr, endStr } = getWeeklyDateRange(selectedDate)
-    const weekStart = new Date(startStr + 'T00:00:00').getTime()
-    const weekEnd = new Date(endStr + 'T23:59:59').getTime()
+export function getTicketEventDate(
+  ticket: Ticket,
+  events?: ClubEvent[],
+  qrCatalog?: any[]
+): string {
+  // 1. Si el ticket ya tiene su eventDate explícito grabado
+  if ((ticket as any).eventDate) {
+    const d = String((ticket as any).eventDate).split('T')[0].trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  }
 
-    const weekIssued = tickets.filter((t) => {
-      const time = new Date(t.issuedAt).getTime()
-      if (isNaN(time)) return t.issuedAt?.startsWith(selectedDate)
-      return time >= weekStart && time <= weekEnd
-    })
+  // 2. Buscar cupón y evento asociados
+  const coupon = qrCatalog && ticket.couponId ? qrCatalog.find((q: any) => q.id === ticket.couponId) : undefined
+  const event = events && ticket.eventId ? events.find((e: any) => e.id === ticket.eventId) : undefined
 
-    const weekRedeemed = tickets.filter((t) => {
-      if (!t.redeemedAt) return false
-      const time = new Date(t.redeemedAt).getTime()
-      if (isNaN(time)) return t.redeemedAt?.startsWith(selectedDate)
-      return time >= weekStart && time <= weekEnd
-    })
+  // Verificar si el cupón tiene días específicos asignados (ej: solo Domingo ['D'], solo Sábado ['S'])
+  const couponDays: string[] = Array.isArray(coupon?.days) ? coupon.days : []
+  const hasSpecificDays = couponDays.length > 0 && couponDays.length < 7
 
-    const sales = weekIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
-    const issuedCount = weekIssued.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
-    const redeemedCount = weekRedeemed.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
-    const pendingCount = Math.max(0, issuedCount - redeemedCount)
-
-    return {
-      isWeeklySummary: true,
-      issuedTickets: weekIssued,
-      redeemedTickets: weekRedeemed,
-      sales,
-      issuedCount,
-      redeemedCount,
-      pendingCount,
+  if (hasSpecificDays) {
+    // Si el evento asignado coincide con uno de los días válidos del cupón, usar la fecha de ese evento
+    if (event?.date) {
+      const eventD = parseDate(event.date)
+      const eventDayIndex = eventD.getDay()
+      const matchesEvent = couponDays.some(
+        (d) => DAY_CODE_TO_INDEX[String(d).trim().toUpperCase()] === eventDayIndex
+      )
+      if (matchesEvent) {
+        const y = eventD.getFullYear()
+        const m = String(eventD.getMonth() + 1).padStart(2, '0')
+        const day = String(eventD.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+      }
     }
-  } else {
-    // Días Domingo a Viernes: Actividad exclusiva del día
-    const dayIssued = tickets.filter((t) => t.issuedAt?.startsWith(selectedDate))
-    const dayRedeemed = tickets.filter((t) => t.redeemedAt?.startsWith(selectedDate))
 
-    const sales = dayIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
-    const issuedCount = dayIssued.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
-    const redeemedCount = dayRedeemed.reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
-    const pendingCount = Math.max(0, issuedCount - redeemedCount)
+    // De lo contrario, calcular la fecha destino del cupón relativa a la fecha de emisión
+    const refDate = ticket.issuedAt ? parseDate(ticket.issuedAt) : new Date()
+    const targetDate = getCouponBaseDate(undefined, coupon, refDate)
+    const y = targetDate.getFullYear()
+    const m = String(targetDate.getMonth() + 1).padStart(2, '0')
+    const day = String(targetDate.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
 
-    return {
-      isWeeklySummary: false,
-      issuedTickets: dayIssued,
-      redeemedTickets: dayRedeemed,
-      sales,
-      issuedCount,
-      redeemedCount,
-      pendingCount,
-    }
+  // 3. Si tiene un evento asociado, usar la fecha del evento
+  if (event?.date) {
+    const eventD = parseDate(event.date)
+    const y = eventD.getFullYear()
+    const m = String(eventD.getMonth() + 1).padStart(2, '0')
+    const day = String(eventD.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  // 4. Fallback: fecha de emisión del ticket
+  if (ticket.issuedAt) {
+    const raw = String(ticket.issuedAt).split('T')[0].trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  }
+
+  return getTodayDateString()
+}
+
+export function getTicketActivitySummary(
+  tickets: Ticket[],
+  selectedDate: string,
+  events?: ClubEvent[],
+  qrCatalog?: any[]
+) {
+  const targetDateStr = selectedDate.split('T')[0]
+
+  // Filtrar los tickets cuyo día de evento/cupón corresponda a la fecha seleccionada
+  const dayIssued = tickets.filter((t) => {
+    const ticketDate = getTicketEventDate(t, events, qrCatalog)
+    return ticketDate === targetDateStr
+  })
+
+  // Canjeados correspondientes a este evento
+  const dayRedeemed = dayIssued.filter((t) => Boolean(t.redeemedAt))
+
+  const sales = dayIssued.reduce((sum, t) => sum + (Number((t as any).price) || 0), 0)
+  const issuedCount = dayIssued.reduce(
+    (sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1),
+    0
+  )
+  const redeemedCount = dayRedeemed.reduce(
+    (sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1),
+    0
+  )
+  const pendingCount = Math.max(0, issuedCount - redeemedCount)
+
+  return {
+    isWeeklySummary: false,
+    issuedTickets: dayIssued,
+    redeemedTickets: dayRedeemed,
+    sales,
+    issuedCount,
+    redeemedCount,
+    pendingCount,
   }
 }
+
+/**
+ * Calcula la fecha y hora de corte final de una limitación teniendo en cuenta
+ * la regla de jornada nocturna (el evento continúa hasta las 06:00 AM del día siguiente).
+ * - Si es sábado, finaliza el domingo a las 06:00:00 AM.
+ * - Si es domingo, finaliza el lunes a las 06:00:00 AM.
+ * - Para cualquier día D, finaliza el día (D+1) a las 06:00:00 AM.
+ */
+export function getLimitationCutoffDate(
+  limitation: { period?: string; days?: string[] }
+): Date | null {
+  if (!limitation || !limitation.period || limitation.period === 'Ilimitado') return null
+
+  const parts = limitation.period.split('-').map((s) => s.trim())
+  const start = parseDMY(parts[0])
+  const end = parseDMY(parts[1] || parts[0])
+  if (isNaN(end.getTime())) return null
+
+  // Si tiene días específicos asignados (ej: ['S'] para Sábado)
+  const rawDays = limitation.days || []
+  const cleanDays = rawDays
+    .map((d) => DAY_CODE_TO_INDEX[String(d).trim().toUpperCase()])
+    .filter((d): d is number => typeof d === 'number' && !isNaN(d))
+
+  let lastActiveDate = new Date(end)
+
+  if (cleanDays.length > 0 && cleanDays.length < 7 && !isNaN(start.getTime())) {
+    // Buscar la última fecha dentro del rango [start, end] que coincida con alguno de los días asignados
+    let curr = new Date(end)
+    let found = false
+    while (curr.getTime() >= start.getTime()) {
+      if (cleanDays.includes(curr.getDay())) {
+        lastActiveDate = new Date(curr)
+        found = true
+        break
+      }
+      curr.setDate(curr.getDate() - 1)
+    }
+    if (!found) {
+      lastActiveDate = new Date(end)
+    }
+  }
+
+  // Corte final a las 06:00:00 AM de la mañana siguiente al último día activo
+  return new Date(
+    lastActiveDate.getFullYear(),
+    lastActiveDate.getMonth(),
+    lastActiveDate.getDate() + 1,
+    6,
+    0,
+    0,
+    0
+  )
+}
+
+/**
+ * Comprueba si una limitación ya venció/expiró.
+ * Retorna true si ya pasó el horario de corte de las 06:00 AM del día posterior al evento.
+ */
+export function isLimitationExpired(
+  limitation: { period?: string; days?: string[] },
+  now: Date = new Date()
+): boolean {
+  const cutoff = getLimitationCutoffDate(limitation)
+  if (!cutoff) return false
+  return now.getTime() >= cutoff.getTime()
+}
+
+/**
+ * Comprueba si una limitación corresponde/aplica a una fecha específica de evento (ej: '2026-10-24').
+ */
+export function isLimitationMatchingDate(
+  limitation: { period?: string; days?: string[] },
+  dateStr: string
+): boolean {
+  if (!limitation) return false
+  if (limitation.period === 'Ilimitado') return true
+
+  const targetDate = parseDate(dateStr)
+  if (isNaN(targetDate.getTime())) return true
+
+  // 1. Verificar si coincide con los días asignados
+  const rawDays = limitation.days || []
+  const cleanDays = rawDays
+    .map((d) => DAY_CODE_TO_INDEX[String(d).trim().toUpperCase()])
+    .filter((d): d is number => typeof d === 'number' && !isNaN(d))
+
+  if (cleanDays.length > 0 && cleanDays.length < 7) {
+    if (!cleanDays.includes(targetDate.getDay())) {
+      return false
+    }
+  }
+
+  // 2. Verificar si cae dentro del rango [start, end]
+  if (limitation.period && limitation.period.includes('-')) {
+    const parts = limitation.period.split('-').map((s) => s.trim())
+    const start = parseDMY(parts[0])
+    const end = parseDMY(parts[1] || parts[0])
+    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+      const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+      const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
+      const t = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime()
+      if (t < startTime || t > endTime) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
+/**
+ * Comprueba si un ticket emitido corresponde a una limitación determinada,
+ * garantizando que tickets de semanas pasadas no descuenten cupos de la nueva semana.
+ */
+export function isTicketForLimitation(
+  ticket: Ticket,
+  limitation: { period?: string; days?: string[]; couponId?: string },
+  events?: ClubEvent[],
+  qrCatalog?: any[]
+): boolean {
+  if (limitation.couponId && ticket.couponId && ticket.couponId !== limitation.couponId) {
+    return false
+  }
+
+  if (!limitation.period || limitation.period === 'Ilimitado') {
+    return true
+  }
+
+  const ticketDateStr = getTicketEventDate(ticket, events, qrCatalog)
+  return isLimitationMatchingDate(limitation, ticketDateStr)
+}
+

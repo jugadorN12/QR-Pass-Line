@@ -6,10 +6,11 @@ import {
   getTodayDateString,
   formatDateLabel,
   getTicketActivitySummary,
+  isLimitationMatchingDate,
 } from '../lib/dateUtils'
 
 export function InformeLecPage() {
-  const { tickets, users, qrCatalog, limitations, currentUser, activeVenue, venues } = useApp()
+  const { tickets, events, users, qrCatalog, limitations, currentUser, activeVenue, venues } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialDate = searchParams.get('dia') || getTodayDateString()
   const initialVer = searchParams.get('ver')?.toLowerCase() === 'no' ? 'no' : 'si'
@@ -51,10 +52,10 @@ export function InformeLecPage() {
     return tickets.filter(t => isEntityForVenue(t.venueId, targetVenueId, venues))
   }, [tickets, currentUser, targetVenueId, venues])
 
-  // Summary for selectedDate (daily or weekly if Saturday)
+  // Summary for selectedDate
   const summary = useMemo(() => {
-    return getTicketActivitySummary(venueTickets, selectedDate)
-  }, [venueTickets, selectedDate])
+    return getTicketActivitySummary(venueTickets, selectedDate, events, qrCatalog)
+  }, [venueTickets, selectedDate, events, qrCatalog])
 
   const dateLabel = formatDateLabel(selectedDate)
 
@@ -64,7 +65,11 @@ export function InformeLecPage() {
       if (u.role === 'admin') return false
       const matchesVenue = isEntityForVenue(u.venueId, targetVenueId, venues)
       if (!matchesVenue) return false
-      return u.role === 'vendedor' || u.roles?.includes('vendedor')
+      return (
+        u.role === 'vendedor' ||
+        u.role === 'organizador' ||
+        Boolean(u.roles?.includes('vendedor') || u.roles?.includes('organizador'))
+      )
     })
     const rows: Array<{
       id: string
@@ -84,9 +89,11 @@ export function InformeLecPage() {
       for (const coupon of qrCatalog) {
         if (selectedCoupon !== 'all' && coupon.id !== selectedCoupon) continue
 
-        // Limitation assigned
+        // Limitation assigned matching the selected date
         const limitObj = limitations.find(
-          (l) => l.personId === seller.id && l.couponId === coupon.id
+          (l) => l.personId === seller.id && l.couponId === coupon.id && isLimitationMatchingDate(l, selectedDate)
+        ) || limitations.find(
+          (l) => l.personId === seller.id && l.couponId === coupon.id && (!l.period || l.period === 'Ilimitado')
         )
         const limit = Number(limitObj?.quantity) || 0
 
@@ -136,10 +143,10 @@ export function InformeLecPage() {
     }
 
     return rows
-  }, [users, qrCatalog, limitations, summary.issuedTickets, selectedSeller, selectedCoupon, verEmitidos])
+  }, [users, qrCatalog, limitations, summary.issuedTickets, selectedSeller, selectedCoupon, verEmitidos, selectedDate, targetVenueId, venues])
 
-  // Total KPIs
-  const totalLimitados = limitations.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)
+  // Total KPIs alineados a la fecha seleccionada
+  const totalLimitados = lecData.reduce((acc, r) => acc + r.limit, 0)
   const totalEmitidos = summary.issuedCount
   const totalCanjeados = summary.redeemedCount
   const totalNoCargados = Math.max(0, totalLimitados - totalEmitidos)

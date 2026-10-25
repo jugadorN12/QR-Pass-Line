@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
+import { getTicketEventDate, isLimitationExpired } from '../lib/dateUtils'
 
 type ReportType = 'LEC' | 'CANJEO' | 'CANJEABLES' | 'ESCANEO' | 'AFORO' | null
 
@@ -61,7 +62,7 @@ export function InformesPage() {
         .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
       const availableToRedeem = totalIssued - totalRedeemed
       const totalAssignedLimit = limitations
-        .filter((l) => l.couponId === coupon.id)
+        .filter((l) => l.couponId === coupon.id && !isLimitationExpired(l))
         .reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
 
       return {
@@ -91,10 +92,10 @@ export function InformesPage() {
           t.couponName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.holderName.toLowerCase().includes(searchTerm.toLowerCase())
         : true
-      const matchDate = dateFilter ? t.issuedAt.startsWith(dateFilter) : true
+      const matchDate = dateFilter ? (getTicketEventDate(t, events, venueQrCatalog) === dateFilter || t.issuedAt.startsWith(dateFilter)) : true
       return matchSearch && matchDate
     })
-  }, [issuedTickets, searchTerm, dateFilter])
+  }, [issuedTickets, searchTerm, dateFilter, events, venueQrCatalog])
 
   // Filtros de búsqueda en CANJEO
   const filteredRedeemed = useMemo(() => {
