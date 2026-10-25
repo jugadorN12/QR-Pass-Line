@@ -10,7 +10,6 @@ export function SellerEmitPage() {
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [genderCounts, setGenderCounts] = useState<Record<string, { men: number; women: number }>>({})
   const [previewTicket, setPreviewTicket] = useState<{
     code: string
     couponName: string
@@ -18,6 +17,13 @@ export function SellerEmitPage() {
     quantity: number
     bgImage: string
     sellerName: string
+    items?: {
+      couponId: string
+      couponName: string
+      quantity: number
+      schedule: string
+      limitTime?: string
+    }[]
     menQuantity?: number
     womenQuantity?: number
     isMixed?: boolean
@@ -52,8 +58,21 @@ export function SellerEmitPage() {
       if (venueQrCatalog.length > 0) {
         return venueQrCatalog.map((item) => {
           const issuedCount = tickets
-            .filter((t) => t.issuedBy === currentUser?.id && t.couponId === item.id)
-            .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+            .filter((t) => {
+              if (t.issuedBy !== currentUser?.id) return false
+              if (t.items && t.items.length > 0) {
+                return t.items.some((it) => it.couponId === item.id)
+              }
+              return t.couponId === item.id
+            })
+            .reduce((sum, t) => {
+              if (t.items && t.items.length > 0) {
+                const matched = t.items.find((it) => it.couponId === item.id)
+                return sum + (matched ? matched.quantity : 0)
+              }
+              return sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1)
+            }, 0)
+
           return {
             id: item.id,
             limitationId: 'unlimited-' + item.id,
@@ -107,10 +126,19 @@ export function SellerEmitPage() {
         const issuedCount = tickets
           .filter((t) => {
             if (t.issuedBy !== currentUser?.id) return false
+            if (t.items && t.items.length > 0) {
+              return t.items.some((it) => it.couponId === lim.couponId) && isTicketForLimitation(t, lim, events, qrCatalog)
+            }
             if (t.couponId !== lim.couponId && !(qrCatalog.length === 1 && !t.couponId)) return false
             return isTicketForLimitation(t, lim, events, qrCatalog)
           })
-          .reduce((sum, t) => sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1), 0)
+          .reduce((sum, t) => {
+            if (t.items && t.items.length > 0) {
+              const matched = t.items.find((it) => it.couponId === lim.couponId)
+              return sum + (matched ? matched.quantity : 0)
+            }
+            return sum + (typeof t.quantity === 'number' && t.quantity > 0 ? t.quantity : 1)
+          }, 0)
 
         const totalQuota = Number(lim.quantity) || 0
         const available = Math.max(0, totalQuota - issuedCount)
@@ -146,6 +174,10 @@ export function SellerEmitPage() {
     // Sin limitaciones activas asignadas para esta fecha (arranca la semana en limpio en 0)
     return []
   }, [isMasterAdminOnly, activeUserLimitations, qrCatalog, tickets, currentUser, activeEvent, events, venueQrCatalog])
+
+  const totalSelectedCount = useMemo(() => {
+    return couponsToDisplay.reduce((sum, c) => sum + (counts[c.id] || 0), 0)
+  }, [couponsToDisplay, counts])
 
   const activeCouponId = selectedCouponId || couponsToDisplay[0]?.id || ''
   const selectedCoupon = couponsToDisplay.find((c) => c.id === activeCouponId) || couponsToDisplay[0]
@@ -191,64 +223,51 @@ export function SellerEmitPage() {
       const next = Math.min(maxAvailable, Math.max(0, current + delta))
       return { ...prev, [couponId]: next }
     })
-  }
-
-  function updateGenderCount(couponId: string, gender: 'men' | 'women', delta: number) {
-    const coupon = couponsToDisplay.find((c) => c.id === couponId)
-    const maxAvailable = isMasterAdminOnly ? 999 : (coupon?.available ?? 200)
-    setGenderCounts((prev) => {
-      const cur = prev[couponId] || { men: 1, women: 1 }
-      const currentVal = gender === 'men' ? cur.men : cur.women
-      const otherVal = gender === 'men' ? cur.women : cur.men
-      const nextVal = Math.max(0, currentVal + delta)
-      if (nextVal + otherVal > maxAvailable) {
-        return prev
-      }
-      return {
-        ...prev,
-        [couponId]: {
-          ...cur,
-          [gender]: nextVal
-        }
-      }
-    })
+    setSelectedCouponId(couponId)
   }
 
   async function handleDirectEmit() {
-    if (!activeEvent || issuing || !selectedCoupon) return
+    if (!activeEvent || issuing) return
 
-    let count = 1
-    let menQty: number | undefined = undefined
-    let womenQty: number | undefined = undefined
+    const selectedItems = couponsToDisplay.filter((c) => (counts[c.id] || 0) > 0)
+    if (selectedItems.length === 0) {
+      alert('Debes agregar al menos 1 persona con el botón (+) en alguno de los cupones.')
+      return
+    }
 
-    if (selectedCoupon.hasGenderSchedules) {
-      const gCount = genderCounts[selectedCoupon.id] || { men: 1, women: 1 }
-      menQty = gCount.men
-      womenQty = gCount.women
-      count = menQty + womenQty
-      if (count <= 0) {
-        alert('Debes seleccionar al menos 1 persona (caballero o dama).')
+    // Verificar cupos disponibles para cada cupón seleccionado
+    for (const item of selectedItems) {
+      const qty = counts[item.id] || 0
+      if (qty > item.available) {
+        alert(`Solo tienes ${item.available} cupones disponibles para ${item.name}.`)
         return
       }
-    } else {
-      count = counts[selectedCoupon.id] || 1
     }
 
-    if (selectedCoupon.available <= 0) {
-      alert(`Has alcanzado el límite disponible (${selectedCoupon.totalQuota || 0}) para este cupón.`)
-      return
-    }
-    if (count > selectedCoupon.available) {
-      alert(`Solo tienes ${selectedCoupon.available} cupones disponibles para emitir.`)
-      return
-    }
     setIssuing(true)
     try {
-      const quantityToIssue = count > 0 ? count : 1
+      const items = selectedItems.map((c) => ({
+        couponId: c.id,
+        couponName: c.name,
+        quantity: counts[c.id] || 1,
+        schedule: c.schedule,
+        from: c.from,
+        duration: c.duration,
+        scheduleMode: c.scheduleMode,
+        hasGenderSchedules: c.hasGenderSchedules,
+        menDuration: c.menDuration,
+        womenDuration: c.womenDuration
+      }))
+
+      const totalQuantity = items.reduce((sum, it) => sum + it.quantity, 0)
+
+      // Identificar Damas y Caballeros si están presentes
+      const menItem = items.find((it) => it.couponName.toLowerCase().includes('caballero') || it.couponName.toLowerCase().includes('hombre'))
+      const womenItem = items.find((it) => it.couponName.toLowerCase().includes('dama') || it.couponName.toLowerCase().includes('mujer'))
 
       // Buscar si existe un evento activo cuya fecha coincida con el día del cupón (ej: Domingo)
       let targetEvent = activeEvent
-      const targetBaseDate = getCouponBaseDate(undefined, selectedCoupon)
+      const targetBaseDate = getCouponBaseDate(undefined, selectedItems[0])
       const targetDateIso = `${targetBaseDate.getFullYear()}-${String(targetBaseDate.getMonth() + 1).padStart(2, '0')}-${String(targetBaseDate.getDate()).padStart(2, '0')}`
 
       const matchingEvent = venueEvents.find(
@@ -260,44 +279,42 @@ export function SellerEmitPage() {
 
       const ticket = await issueTicket({
         eventId: targetEvent?.id || activeEvent.id,
-        couponId: selectedCoupon.id,
+        couponId: selectedItems[0].id,
         kind: 'qr',
         holderName: `Cliente ${currentUser?.name || 'Vendedor'}`,
         dni: '',
-        quantity: quantityToIssue,
+        quantity: totalQuantity,
         eventDate: targetDateIso,
-        menQuantity: menQty,
-        womenQuantity: womenQty
+        menQuantity: menItem?.quantity,
+        womenQuantity: womenItem?.quantity,
+        items
       })
 
-      const couponBg = (selectedCoupon as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || ''
+      const couponBg = (selectedItems[0] as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || ''
 
-      const computedSchedule = formatCouponSchedule(targetEvent, selectedCoupon)
+      const combinedSchedule = items.length > 1
+        ? items.map((it) => `${it.couponName}: ${it.schedule}`).join(' · ')
+        : formatCouponSchedule(targetEvent, selectedItems[0])
+
+      const combinedName = items.length > 1
+        ? items.map((it) => it.couponName).join(' + ')
+        : selectedItems[0].name
 
       setPreviewTicket({
         code: ticket.code,
-        couponName: selectedCoupon.name,
-        schedule: computedSchedule,
-        quantity: quantityToIssue,
+        couponName: combinedName,
+        schedule: combinedSchedule,
+        quantity: totalQuantity,
         bgImage: couponBg,
         sellerName: sellerDisplayName.toUpperCase(),
-        menQuantity: menQty,
-        womenQuantity: womenQty,
-        isMixed: selectedCoupon.hasGenderSchedules
+        items,
+        menQuantity: menItem?.quantity,
+        womenQuantity: womenItem?.quantity,
+        isMixed: items.length > 1
       })
 
-      // Restablecer contadores automáticamente tras emitir
-      if (selectedCoupon.hasGenderSchedules) {
-        setGenderCounts((prev) => ({
-          ...prev,
-          [selectedCoupon.id]: { men: 1, women: 1 }
-        }))
-      } else {
-        setCounts((prev) => ({
-          ...prev,
-          [selectedCoupon.id]: 0
-        }))
-      }
+      // Restablecer contadores a 0 tras emitir
+      setCounts({})
     } catch (err: any) {
       alert(err?.message || 'Error al emitir cupón.')
     } finally {
@@ -379,14 +396,21 @@ export function SellerEmitPage() {
     ctx.drawImage(qrCanvas, qrCardX + qrPadding, qrCardY + qrPadding, innerQrSize, innerQrSize)
 
     // 4. Draw Table (Cleanly placed below QR card)
-    const tableY = 760
+    const tableY = 740
+    const itemsToDraw = previewTicket.items && previewTicket.items.length > 0
+      ? previewTicket.items
+      : [{ couponName: previewTicket.couponName, quantity: previewTicket.quantity, schedule: previewTicket.schedule }]
+
+    const rowHeight = 36
+    const tableBottomY = tableY + 40 + (itemsToDraw.length * rowHeight)
+
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(80, tableY)
     ctx.lineTo(640, tableY)
-    ctx.moveTo(80, tableY + 76)
-    ctx.lineTo(640, tableY + 76)
+    ctx.moveTo(80, tableY + 40)
+    ctx.lineTo(640, tableY + 40)
     ctx.stroke()
 
     ctx.font = '22px sans-serif'
@@ -396,29 +420,39 @@ export function SellerEmitPage() {
     ctx.textAlign = 'right'
     ctx.fillText('Cant.', 620, tableY + 28)
 
-    ctx.font = '900 30px sans-serif'
-    ctx.fillStyle = '#ffffff'
-    ctx.textAlign = 'left'
-    ctx.fillText(previewTicket.couponName, 100, tableY + 62)
+    itemsToDraw.forEach((it, idx) => {
+      const rowY = tableY + 40 + (idx * rowHeight) + 26
+      ctx.font = '900 24px sans-serif'
+      ctx.fillStyle = '#ffffff'
+      ctx.textAlign = 'left'
+      ctx.fillText(it.couponName, 100, rowY)
 
-    ctx.fillStyle = '#ff4d4d'
-    ctx.textAlign = 'right'
-    if (previewTicket.isMixed && (previewTicket.menQuantity !== undefined || previewTicket.womenQuantity !== undefined)) {
-      const h = previewTicket.menQuantity ?? 0
-      const m = previewTicket.womenQuantity ?? 0
-      ctx.fillText(`${previewTicket.quantity} (${h}H · ${m}M)`, 620, tableY + 62)
-    } else {
-      ctx.fillText(String(previewTicket.quantity), 620, tableY + 62)
-    }
+      ctx.fillStyle = '#ff4d4d'
+      ctx.textAlign = 'right'
+      ctx.fillText(String(it.quantity), 620, rowY)
+    })
+
+    ctx.beginPath()
+    ctx.moveTo(80, tableBottomY + 6)
+    ctx.lineTo(640, tableBottomY + 6)
+    ctx.stroke()
 
     // 5. Draw Valid Schedule & Seller Name
     ctx.textAlign = 'center'
     ctx.fillStyle = '#ffffff'
-    ctx.font = '22px sans-serif'
-    ctx.fillText(previewTicket.schedule, width / 2, 890)
+    ctx.font = '20px sans-serif'
+    if (itemsToDraw.length > 1) {
+      itemsToDraw.forEach((it, idx) => {
+        if (idx < 2) {
+          ctx.fillText(`${it.couponName}: ${it.schedule || ''}`, width / 2, tableBottomY + 36 + (idx * 24))
+        }
+      })
+    } else {
+      ctx.fillText(previewTicket.schedule, width / 2, tableBottomY + 38)
+    }
 
-    ctx.font = '900 32px sans-serif'
-    ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 950)
+    ctx.font = '900 30px sans-serif'
+    ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 970)
 
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -495,10 +529,10 @@ export function SellerEmitPage() {
           ) : (
             <div className="stack" style={{ gap: 12 }}>
               {couponsToDisplay.map((coupon) => {
-                const isSelected = activeCouponId === coupon.id
                 const count = counts[coupon.id] ?? 0
                 const formattedSchedule = formatCouponSchedule(activeEvent, coupon)
                 const isExhausted = coupon.available <= 0
+                const hasSelected = count > 0
 
                 return (
                   <div
@@ -510,14 +544,15 @@ export function SellerEmitPage() {
                       justifyContent: 'space-between',
                       padding: '12px 14px',
                       borderRadius: 12,
-                      border: isSelected ? '2px solid #1e3a8a' : '1px solid #f1f5f9',
-                      background: isExhausted ? '#f8fafc' : isSelected ? '#f0f7ff' : '#fafafa',
+                      border: hasSelected ? '2px solid #1e3a8a' : '1px solid #f1f5f9',
+                      background: isExhausted ? '#f8fafc' : hasSelected ? '#f0f7ff' : '#fafafa',
                       opacity: isExhausted ? 0.6 : 1,
-                      cursor: isExhausted ? 'not-allowed' : 'pointer'
+                      cursor: isExhausted ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 24, color: isExhausted ? '#94a3b8' : '#3b82f6' }}>▱</span>
+                      <span style={{ fontSize: 24, color: isExhausted ? '#94a3b8' : hasSelected ? '#1e3a8a' : '#3b82f6' }}>▱</span>
                       <div>
                         <small style={{ color: '#64748b', fontSize: 10, display: 'block' }}>{formattedSchedule}</small>
                         <strong style={{ fontSize: 14, color: '#0f172a', display: 'block', margin: '2px 0' }}>{coupon.name}</strong>
@@ -528,124 +563,54 @@ export function SellerEmitPage() {
                     </div>
 
                     {/* Stepper (+ / -) Box */}
-                    {coupon.hasGenderSchedules ? (
-                      <div
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: isExhausted ? '#94a3b8' : hasSelected ? '#1e3a8a' : '#1e3a8a',
+                        color: '#fff',
+                        padding: '4px 8px',
+                        borderRadius: 10
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        disabled={isExhausted || count <= 0}
+                        onClick={() => updateCount(coupon.id, -1)}
                         style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                          alignItems: 'flex-end'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Fila Caballeros */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>🚹 Cab:</span>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              background: isExhausted ? '#94a3b8' : '#1e3a8a',
-                              color: '#fff',
-                              padding: '2px 6px',
-                              borderRadius: 8,
-                              gap: 4
-                            }}
-                          >
-                            <button
-                              type="button"
-                              disabled={isExhausted}
-                              onClick={() => updateGenderCount(coupon.id, 'men', -1)}
-                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
-                            >
-                              -
-                            </button>
-                            <strong style={{ fontSize: 13, minWidth: 14, textAlign: 'center' }}>
-                              {(genderCounts[coupon.id]?.men ?? 1)}
-                            </strong>
-                            <button
-                              type="button"
-                              disabled={isExhausted}
-                              onClick={() => updateGenderCount(coupon.id, 'men', 1)}
-                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Fila Damas */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#db2777' }}>🚺 Dam:</span>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              background: isExhausted ? '#94a3b8' : '#db2777',
-                              color: '#fff',
-                              padding: '2px 6px',
-                              borderRadius: 8,
-                              gap: 4
-                            }}
-                          >
-                            <button
-                              type="button"
-                              disabled={isExhausted}
-                              onClick={() => updateGenderCount(coupon.id, 'women', -1)}
-                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
-                            >
-                              -
-                            </button>
-                            <strong style={{ fontSize: 13, minWidth: 14, textAlign: 'center' }}>
-                              {(genderCounts[coupon.id]?.women ?? 1)}
-                            </strong>
-                            <button
-                              type="button"
-                              disabled={isExhausted}
-                              onClick={() => updateGenderCount(coupon.id, 'women', 1)}
-                              style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 3px' }}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-
-                        <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b' }}>
-                          Total: {((genderCounts[coupon.id]?.men ?? 1) + (genderCounts[coupon.id]?.women ?? 1))} pers.
-                        </span>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          background: isExhausted ? '#94a3b8' : '#1e3a8a',
+                          border: 0,
+                          background: 'transparent',
                           color: '#fff',
-                          padding: '4px 8px',
-                          borderRadius: 10
+                          fontSize: 16,
+                          fontWeight: 800,
+                          cursor: (isExhausted || count <= 0) ? 'not-allowed' : 'pointer',
+                          padding: '0 4px',
+                          opacity: count <= 0 ? 0.4 : 1
                         }}
-                        onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          type="button"
-                          disabled={isExhausted}
-                          onClick={() => updateCount(coupon.id, -1)}
-                          style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
-                        >
-                          -
-                        </button>
-                        <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
-                        <button
-                          type="button"
-                          disabled={isExhausted}
-                          onClick={() => updateCount(coupon.id, 1)}
-                          style={{ border: 0, background: 'transparent', color: '#fff', fontSize: 16, fontWeight: 800, cursor: isExhausted ? 'not-allowed' : 'pointer', padding: '0 4px' }}
-                        >
-                          +
-                        </button>
-                      </div>
-                    )}
+                        -
+                      </button>
+                      <strong style={{ fontSize: 14, minWidth: 16, textAlign: 'center' }}>{count}</strong>
+                      <button
+                        type="button"
+                        disabled={isExhausted || count >= coupon.available}
+                        onClick={() => updateCount(coupon.id, 1)}
+                        style={{
+                          border: 0,
+                          background: 'transparent',
+                          color: '#fff',
+                          fontSize: 16,
+                          fontWeight: 800,
+                          cursor: (isExhausted || count >= coupon.available) ? 'not-allowed' : 'pointer',
+                          padding: '0 4px',
+                          opacity: (isExhausted || count >= coupon.available) ? 0.4 : 1
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 )
               })}
@@ -657,29 +622,29 @@ export function SellerEmitPage() {
             <button
               className="btn btn-block"
               type="button"
-              disabled={issuing || !selectedCoupon || selectedCoupon.available <= 0}
+              disabled={issuing || totalSelectedCount <= 0}
               onClick={handleDirectEmit}
               style={{
                 marginTop: 20,
                 height: 48,
                 borderRadius: 12,
-                background: (!selectedCoupon || selectedCoupon.available <= 0) ? '#94a3b8' : '#1e3a8a',
+                background: totalSelectedCount <= 0 ? '#94a3b8' : '#1e3a8a',
                 color: '#fff',
                 fontSize: 15,
                 fontWeight: 800,
                 letterSpacing: '0.04em',
                 border: 0,
-                cursor: (!selectedCoupon || selectedCoupon.available <= 0) ? 'not-allowed' : 'pointer',
-                boxShadow: (!selectedCoupon || selectedCoupon.available <= 0) ? 'none' : '0 4px 12px rgba(30,58,138,0.2)'
+                cursor: totalSelectedCount <= 0 ? 'not-allowed' : 'pointer',
+                boxShadow: totalSelectedCount <= 0 ? 'none' : '0 4px 12px rgba(30,58,138,0.2)'
               }}
             >
               {issuing
                 ? 'GENERANDO CUPÓN...'
-                : selectedCoupon && selectedCoupon.available <= 0
-                ? 'LÍMITE ALCANZADO'
-                : selectedCoupon?.hasGenderSchedules
-                ? `EMITIR CUPÓN (${(genderCounts[selectedCoupon.id]?.men ?? 1) + (genderCounts[selectedCoupon.id]?.women ?? 1)} PERS: ${genderCounts[selectedCoupon.id]?.men ?? 1}H · ${genderCounts[selectedCoupon.id]?.women ?? 1}M)`
-                : 'EMITIR CUPÓN'}
+                : totalSelectedCount <= 0
+                ? 'SELECCIONÁ CANTIDAD (+)'
+                : totalSelectedCount === 1
+                ? 'EMITIR CUPÓN (1 PERSONA)'
+                : `EMITIR CUPÓN (${totalSelectedCount} PERSONAS)`}
             </button>
           )}
         </div>
@@ -688,7 +653,37 @@ export function SellerEmitPage() {
       {/* Modal Previsualización de Cupón QR (Sincronizado 100% con Admin Template Config) */}
       {previewTicket && (
         <div className="qr-preview-backdrop" style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.85)', display: 'grid', placeItems: 'center', padding: 16, overflowY: 'auto' }}>
-          <div style={{ width: 'min(360px, 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 'min(360px, 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            {/* Resumen Superior de Cupones Emitidos (Foto 2) */}
+            {previewTicket.items && previewTicket.items.length > 1 && (
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, background: '#ffffff', borderRadius: 14, padding: '10px 14px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                {previewTicket.items.map((it, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: idx < (previewTicket.items?.length || 0) - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🎟️</span>
+                      <div>
+                        <small style={{ fontSize: 10, color: '#64748b', display: 'block' }}>{it.schedule}</small>
+                        <strong style={{ fontSize: 13, color: '#0f172a' }}>{it.couponName}</strong>
+                      </div>
+                    </div>
+                    <strong style={{ fontSize: 15, color: '#1e3a8a' }}>{it.quantity}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Botón de Compartir Superior / Acción Directa */}
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={handleShare}
+                style={{ flex: 1, height: 44, borderRadius: 12, background: '#1e3a8a', color: '#fff', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                <span>➦</span> Enviar QR
+              </button>
+            </div>
+
             {/* Card con Fondo de Imagen */}
             <div
               style={{
@@ -759,19 +754,32 @@ export function SellerEmitPage() {
                     <span>Cupón</span>
                     <span>Cant.</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
-                    <span>{previewTicket.couponName}</span>
-                    <span style={{ color: '#ff4d4d' }}>
-                      {previewTicket.isMixed && (previewTicket.menQuantity !== undefined || previewTicket.womenQuantity !== undefined)
-                        ? `${previewTicket.quantity} (${previewTicket.menQuantity ?? 0}H · ${previewTicket.womenQuantity ?? 0}M)`
-                        : previewTicket.quantity}
-                    </span>
-                  </div>
+                  {previewTicket.items && previewTicket.items.length > 0 ? (
+                    previewTicket.items.map((it, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginBottom: 2 }}>
+                        <span>{it.couponName}</span>
+                        <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                      <span>{previewTicket.couponName}</span>
+                      <span style={{ color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                    </div>
+                  )}
                 </div>
 
-                <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateShadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                  {previewTicket.schedule}
-                </p>
+                {previewTicket.items && previewTicket.items.length > 1 ? (
+                  previewTicket.items.map((it, idx) => (
+                    <p key={idx} style={{ fontSize: 11, margin: '0 0 2px', color: 'rgba(255,255,255,0.9)', textShadow: templateShadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
+                      {it.couponName}: {it.schedule}
+                    </p>
+                  ))
+                ) : (
+                  <p style={{ fontSize: 12, margin: '0 0 4px', color: 'rgba(255,255,255,0.9)', textShadow: templateShadow ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
+                    {previewTicket.schedule}
+                  </p>
+                )}
 
                 <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
                   RR.PP: {previewTicket.sellerName || 'JOSE'}
@@ -779,7 +787,7 @@ export function SellerEmitPage() {
               </div>
             </div>
 
-            {/* Acciones de Cierre y Compartir */}
+            {/* Acción de Cierre */}
             <div style={{ display: 'flex', gap: 10, width: '100%' }}>
               <button
                 className="btn btn-secondary"
@@ -788,14 +796,6 @@ export function SellerEmitPage() {
                 style={{ flex: 1, height: 44, borderRadius: 12, background: '#fff', color: '#0f172a', fontWeight: 800 }}
               >
                 Cerrar
-              </button>
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={handleShare}
-                style={{ flex: 1.5, height: 44, borderRadius: 12, background: '#2563eb', color: '#fff', fontWeight: 800, gap: 8 }}
-              >
-                <span>➦</span> Compartir
               </button>
             </div>
           </div>

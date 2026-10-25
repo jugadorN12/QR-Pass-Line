@@ -46,6 +46,19 @@ export type ClubEvent = {
   createdAt: string
 }
 
+export interface TicketItem {
+  couponId: string
+  couponName: string
+  quantity: number
+  schedule?: string
+  from?: string
+  duration?: string
+  scheduleMode?: 'full' | 'end' | 'hidden'
+  hasGenderSchedules?: boolean
+  menDuration?: string
+  womenDuration?: string
+}
+
 export type Ticket = {
   id: string
   eventId: string
@@ -58,6 +71,7 @@ export type Ticket = {
   quantity?: number
   menQuantity?: number
   womenQuantity?: number
+  items?: TicketItem[]
   issuedBy: string
   issuedAt: string
   eventDate?: string

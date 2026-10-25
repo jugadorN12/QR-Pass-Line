@@ -34,7 +34,7 @@ import { ticketCode } from '../lib/ids'
 import { defaultQrCatalog } from '../lib/qrCatalog'
 import { formatCouponSchedule, checkCouponScheduleValidity, getCouponBaseDate } from '../lib/dateUtils'
 
-import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketKind, User, Venue } from '../types'
+import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketItem, TicketKind, User, Venue } from '../types'
 import { defaultCouponTemplate } from '../types'
 
 type AppContextValue = AppData & {
@@ -52,7 +52,7 @@ type AppContextValue = AppData & {
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus; venueId?: string }) => Promise<ClubEvent>
 
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string }) => Promise<Ticket>
+  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string; items?: TicketItem[] }) => Promise<Ticket>
 
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
   redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string; [key: string]: any }>
@@ -693,23 +693,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         limitations: prev.limitations.filter((l) => l.id !== id),
       }))
     },
-    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, menQuantity, womenQuantity, venueId: customVenueId, eventDate }) {
+    async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, menQuantity, womenQuantity, venueId: customVenueId, eventDate, items }) {
       if (!currentUser) throw new Error('Sesión vencida.')
       const event = data.events.find((item) => item.id === eventId)
       if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
-      const ticketQty = typeof quantity === 'number' && quantity > 0 ? quantity : 1
+      const computedQty = items && items.length > 0
+        ? items.reduce((sum, it) => sum + (it.quantity || 0), 0)
+        : (typeof quantity === 'number' && quantity > 0 ? quantity : 1)
+      const ticketQty = computedQty > 0 ? computedQty : 1
       const venueId = customVenueId || event.venueId || currentUser.venueId || ''
       const computedEventDate = eventDate || (event?.date ? event.date.split('T')[0] : undefined)
+      const primaryCouponId = couponId || (items && items.length > 0 ? items[0].couponId : '')
       const ticket: Omit<Ticket, 'id'> = {
         eventId,
         venueId,
-        couponId: couponId || '',
+        couponId: primaryCouponId,
         kind,
         code: ticketCode(),
         holderName: holderName.trim(),
         dni: (dni ?? '').replace(/\D/g, ''),
         quantity: ticketQty,
+        ...(items && items.length > 0 ? { items } : {}),
         ...(typeof menQuantity === 'number' ? { menQuantity } : {}),
         ...(typeof womenQuantity === 'number' ? { womenQuantity } : {}),
         issuedBy: currentUser.id,
@@ -754,7 +759,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const genderDetail = hasGenderCounts
         ? ` (${ticket.menQuantity ?? 0} ${ticket.menQuantity === 1 ? 'Caballero' : 'Caballeros'} · ${ticket.womenQuantity ?? 0} ${ticket.womenQuantity === 1 ? 'Dama' : 'Damas'})`
         : ''
-      const quantityText = (numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`) + genderDetail
 
       // Lookup Seller / RRPP Name
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
@@ -764,13 +768,102 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const event = data.events.find((e) => e.id === ticket.eventId)
       const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
       const ticketVenue = event?.venue || ''
-      const ticketName = coupon?.name || (ticket.kind === 'dni' ? 'Acceso por DNI' : 'Acceso QR')
       const baseDate = getCouponBaseDate(event, coupon)
       const formattedDate = `${String(baseDate.getDate()).padStart(2, '0')}/${String(baseDate.getMonth() + 1).padStart(2, '0')}`
 
-      // Check Schedule
-      const schedule = formatCouponSchedule(event, coupon)
-      const validity = checkCouponScheduleValidity(event, coupon)
+      // Check Schedule & Multi-Item Breakdown
+      let schedule = formatCouponSchedule(event, coupon)
+      let validity: any
+      let itemsBreakdown: Array<{
+        name: string
+        quantity: number
+        expired: boolean
+        limitTime: string
+        schedule: string
+      }> | undefined = undefined
+
+      let validQuantity = 0
+      let expiredQuantity = 0
+      let validItemsText = ''
+      let expiredItemsText = ''
+
+      if (ticket.items && ticket.items.length > 0) {
+        const now = new Date()
+        itemsBreakdown = ticket.items.map((it) => {
+          const catalogCoupon = data.qrCatalog.find((q) => q.id === it.couponId)
+          const targetCoupon = {
+            ...catalogCoupon,
+            from: it.from || catalogCoupon?.from || event?.doorsOpen || '23:59',
+            duration: it.duration || catalogCoupon?.duration || '02:00',
+            scheduleMode: it.scheduleMode || catalogCoupon?.scheduleMode,
+            hasGenderSchedules: it.hasGenderSchedules ?? catalogCoupon?.hasGenderSchedules,
+            menDuration: it.menDuration ?? catalogCoupon?.menDuration,
+            womenDuration: it.womenDuration ?? catalogCoupon?.womenDuration
+          }
+          const itemVal = checkCouponScheduleValidity(event, targetCoupon, now)
+          const isExpired = !itemVal.ok
+          const rawDuration = targetCoupon.duration || '02:00'
+          const limitTime = (itemVal as any).limitTime || rawDuration
+          return {
+            name: it.couponName,
+            quantity: it.quantity,
+            expired: isExpired,
+            limitTime,
+            schedule: it.schedule || formatCouponSchedule(event, targetCoupon)
+          }
+        })
+
+        const allExpired = itemsBreakdown.every((it) => it.expired)
+        const someExpired = itemsBreakdown.some((it) => it.expired)
+        validQuantity = itemsBreakdown.filter((it) => !it.expired).reduce((s, it) => s + it.quantity, 0)
+        expiredQuantity = itemsBreakdown.filter((it) => it.expired).reduce((s, it) => s + it.quantity, 0)
+        validItemsText = itemsBreakdown.filter((it) => !it.expired).map((it) => it.name).join(' + ')
+        expiredItemsText = itemsBreakdown.filter((it) => it.expired).map((it) => it.name).join(' + ')
+
+        schedule = itemsBreakdown.map((it) => `${it.name}: hasta ${it.limitTime} hs`).join(' · ')
+
+        if (allExpired) {
+          validity = {
+            ok: false,
+            reason: 'expired_schedule',
+            message: `Los horarios para los cupones de este QR vencieron.`,
+            limitTime: itemsBreakdown.map((it) => `${it.name} ${it.limitTime}`).join(' / '),
+            isMixed: true,
+            itemsBreakdown
+          }
+        } else if (someExpired) {
+          validity = {
+            ok: false,
+            reason: 'partial_schedule_expired',
+            message: `Horario vencido para ${expiredItemsText} (${expiredQuantity} pers.). Vigente para ${validItemsText} (${validQuantity} pers.).`,
+            limitTime: itemsBreakdown.map((it) => `${it.name} ${it.limitTime}`).join(' / '),
+            isMixed: true,
+            menExpired: itemsBreakdown.some((it) => it.expired && (it.name.toLowerCase().includes('caballero') || it.name.toLowerCase().includes('hombre'))),
+            womenExpired: itemsBreakdown.some((it) => it.expired && (it.name.toLowerCase().includes('dama') || it.name.toLowerCase().includes('mujer'))),
+            validQuantity,
+            expiredQuantity,
+            validItemsText,
+            expiredItemsText,
+            itemsBreakdown
+          }
+        } else {
+          validity = {
+            ok: true,
+            isMixed: itemsBreakdown.length > 1,
+            itemsBreakdown
+          }
+        }
+      } else {
+        validity = checkCouponScheduleValidity(event, coupon)
+      }
+
+      const ticketName = ticket.items && ticket.items.length > 1
+        ? ticket.items.map((it) => it.couponName).join(' + ')
+        : (coupon?.name || (ticket.kind === 'dni' ? 'Acceso por DNI' : 'Acceso QR'))
+
+      const quantityText = ticket.items && ticket.items.length > 1
+        ? `${numBenefited} personas (${ticket.items.map((it) => `${it.quantity} ${it.couponName}`).join(' · ')})`
+        : ((numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`) + genderDetail)
 
       // 1. Check Establishment / Venue Match (only if staff has a specific venueId assigned)
       const currentVenueName = currentUser?.venueId
@@ -814,6 +907,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           womenLimitTime: validity.womenLimitTime,
           menQuantity: ticket.menQuantity,
           womenQuantity: ticket.womenQuantity,
+          itemsBreakdown: validity.itemsBreakdown,
+          validQuantity: validity.validQuantity,
+          expiredQuantity: validity.expiredQuantity,
+          validItemsText: validity.validItemsText,
+          expiredItemsText: validity.expiredItemsText,
         }
       }
 
@@ -839,6 +937,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           womenLimitTime: validity.womenLimitTime,
           menQuantity: ticket.menQuantity,
           womenQuantity: ticket.womenQuantity,
+          itemsBreakdown: validity.itemsBreakdown,
         }
       }
 
@@ -875,6 +974,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         womenLimitTime: validity.womenLimitTime,
         menQuantity: ticket.menQuantity,
         womenQuantity: ticket.womenQuantity,
+        itemsBreakdown: validity.itemsBreakdown,
+        validQuantity,
+        expiredQuantity,
+        validItemsText,
+        expiredItemsText,
       }
     },
 
