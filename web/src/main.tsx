@@ -5,8 +5,31 @@ import App from './App.tsx'
 import { AppProvider } from './context/AppContext'
 import { registerSW } from 'virtual:pwa-register'
 
-// Auto-register service worker for instant offline loading and fast shell opening
-registerSW({ immediate: true })
+// Auto-register service worker con detección y recarga instantánea de nuevas versiones
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true)
+  },
+  onRegisteredSW(_swUrl, registration) {
+    if (registration) {
+      // Chequear actualizaciones cada 60 segundos
+      setInterval(() => {
+        registration.update().catch(() => {})
+      }, 60 * 1000)
+
+      // Chequear actualizaciones cuando el usuario abre o vuelve a la app en su teléfono
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          registration.update().catch(() => {})
+        }
+      })
+      window.addEventListener('focus', () => {
+        registration.update().catch(() => {})
+      })
+    }
+  },
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

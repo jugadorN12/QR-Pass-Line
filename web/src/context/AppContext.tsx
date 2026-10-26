@@ -152,6 +152,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let unsubscribeEvents: (() => void) | null = null
     let unsubscribeUsers: (() => void) | null = null
     let unsubscribeVenues: (() => void) | null = null
+    let unsubscribeLimitations: (() => void) | null = null
+    let unsubscribeQrCatalog: (() => void) | null = null
+    let unsubscribeCouponTemplate: (() => void) | null = null
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (unsubscribeTickets) {
@@ -169,6 +172,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (unsubscribeVenues) {
         unsubscribeVenues()
         unsubscribeVenues = null
+      }
+      if (unsubscribeLimitations) {
+        unsubscribeLimitations()
+        unsubscribeLimitations = null
+      }
+      if (unsubscribeQrCatalog) {
+        unsubscribeQrCatalog()
+        unsubscribeQrCatalog = null
+      }
+      if (unsubscribeCouponTemplate) {
+        unsubscribeCouponTemplate()
+        unsubscribeCouponTemplate = null
       }
 
       if (!firebaseUser) {
@@ -394,6 +409,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         )
 
+        // Sincronización en tiempo real de limitaciones (asignación de cupones a RRPPs)
+        unsubscribeLimitations = onSnapshot(
+          collection(db, 'limitations'),
+          (snap) => {
+            const liveLimitations = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
+            setData((prev) => ({ ...prev, limitations: liveLimitations }))
+          },
+          (err) => {
+            console.warn('Aviso sincronización de limitaciones en vivo:', err)
+          }
+        )
+
+        // Sincronización en tiempo real del catálogo de cupones
+        unsubscribeQrCatalog = onSnapshot(
+          collection(db, 'qrCatalog'),
+          (snap) => {
+            if (!snap.empty) {
+              const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+              setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
+            }
+          },
+          (err) => {
+            console.warn('Aviso sincronización de catálogo de cupones en vivo:', err)
+          }
+        )
+
+        // Sincronización en tiempo real de plantilla y afiche de cupón
+        unsubscribeCouponTemplate = onSnapshot(
+          doc(db, 'settings', 'couponTemplate'),
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const liveTemplate: CouponTemplateConfig = { ...defaultCouponTemplate, ...docSnap.data() }
+              localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(liveTemplate))
+              setData((prev) => ({ ...prev, couponTemplate: liveTemplate }))
+            }
+          },
+          (err) => {
+            console.warn('Aviso sincronización de plantilla de cupón en vivo:', err)
+          }
+        )
+
       } catch (error) {
         console.error('No se pudieron cargar los datos de Firebase.', error)
         const fallbackUser: User = {
@@ -423,6 +479,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (unsubscribeEvents) unsubscribeEvents()
       if (unsubscribeUsers) unsubscribeUsers()
       if (unsubscribeVenues) unsubscribeVenues()
+      if (unsubscribeLimitations) unsubscribeLimitations()
+      if (unsubscribeQrCatalog) unsubscribeQrCatalog()
+      if (unsubscribeCouponTemplate) unsubscribeCouponTemplate()
       unsubscribeAuth()
     }
   }, [])
