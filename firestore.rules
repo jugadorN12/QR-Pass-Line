@@ -46,7 +46,7 @@ service cloud.firestore {
     }
 
     match /tickets/{ticketId} {
-      allow read: if signedIn();
+      allow read: if isCanjeador() || (signedIn() && resource.data.issuedBy == request.auth.uid);
       allow create: if signedIn();
       allow update: if isCanjeador();
       allow delete: if isOrganizerOrAdmin();

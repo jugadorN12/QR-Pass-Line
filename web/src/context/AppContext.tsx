@@ -279,14 +279,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
         // Fast parallel fetch for lightweight collections
-        // Optimización: cargar tickets recientes (últimos 45 días) para ahorrar memoria en celular
+        // Privacidad y rendimiento: organizadores y canjeadores sincronizan tickets globales (45 días);
+        // vendedores puros solo sincronizan sus propios tickets (where issuedBy == currentUser.id)
+        const hasGlobalTicketAccess =
+          currentUserObj.email.toLowerCase() === ADMIN_EMAIL ||
+          currentUserObj.role === 'admin' ||
+          currentUserObj.role === 'organizador' ||
+          currentUserObj.role === 'supervisor' ||
+          currentUserObj.role === 'canjeador' ||
+          Boolean(currentUserObj.roles?.some((r) => r === 'admin' || r === 'organizador' || r === 'supervisor' || r === 'canjeador'))
+
         const recentCutoff = new Date()
         recentCutoff.setDate(recentCutoff.getDate() - 45)
         const recentCutoffIso = recentCutoff.toISOString()
-        const recentTicketsQuery = query(
-          collection(db, 'tickets'),
-          where('issuedAt', '>=', recentCutoffIso)
-        )
+
+        const userTicketsQuery = hasGlobalTicketAccess
+          ? query(collection(db, 'tickets'), where('issuedAt', '>=', recentCutoffIso))
+          : query(collection(db, 'tickets'), where('issuedBy', '==', currentUserObj.id))
 
         const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot, ticketsSnapshot] = await Promise.all([
           getDocs(collection(db, 'users')),
@@ -295,7 +304,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           getDocs(collection(db, 'limitations')),
           getDocs(collection(db, 'venues')),
           getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
-          getDocs(recentTicketsQuery).catch(() => getDocs(collection(db, 'tickets')).catch(() => null)),
+          getDocs(userTicketsQuery).catch(() => null),
         ])
 
         // Deduplicate users list by email so UI never shows duplicate rows
@@ -408,9 +417,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         )
 
-        // Sincronización en tiempo real de tickets recientes (últimos 45 días)
+        // Sincronización en tiempo real de tickets (globales o personales según rol)
         unsubscribeTickets = onSnapshot(
-          recentTicketsQuery,
+          userTicketsQuery,
           (snap) => {
             const liveTickets = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket))
             setData((prev) => {

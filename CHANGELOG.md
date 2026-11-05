@@ -20,3 +20,6 @@
 - **Seguridad en Contraseñas:**
   - Se eliminó el almacenamiento de contraseñas en texto plano (`tempPassword`) en los documentos de usuario de Firestore.
   - Se fijaron como definitivas las contraseñas actuales de todo el personal registrado, desactivando el cambio forzado de contraseña para evitar interrupciones operativas.
+
+- **Privacidad entre RRPPs:**
+  - Aislamiento en el servidor (`firestore.rules`) y en la aplicación (`AppContext.tsx`): los RRPPs puros solo pueden ver y consultar las entradas emitidas por ellos mismos, protegiendo las estadísticas y la competencia comercial entre compañeros.

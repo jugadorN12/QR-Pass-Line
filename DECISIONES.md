@@ -29,3 +29,10 @@
   1. Las contraseñas de todos los usuarios registrados quedan como definitivas y permanentes en Firebase Auth.
   2. Se desactiva el cartel forzado (`mustChangePassword: false`) para no interrumpir el flujo operativo de ningún RRPP ni personal de puerta.
   3. Se elimina y limpia el campo `tempPassword` de Firestore para que las contraseñas nunca queden guardadas en texto plano en la base de datos.
+
+## [2026-11-04] Aislamiento y Privacidad de Tickets por Vendedor
+- **Contexto:** En las reglas anteriores, cualquier usuario autenticado podía leer todos los tickets del sistema, permitiendo que un vendedor curioso pudiera inspeccionar la cantidad de tickets emitidos por otros RRPPs.
+- **Decisión:**
+  1. En `firestore.rules`: restringir la lectura de `/tickets/{ticketId}` para que los vendedores puros solo puedan leer los tickets que hayan emitido ellos mismos (`resource.data.issuedBy == request.auth.uid`).
+  2. Los roles con acceso global a tickets (`canjeador`, `organizador`, `admin`, o usuarios con rol combinado `vendedor + canjeador`) mantienen acceso de lectura global (`isCanjeador()`).
+  3. En `AppContext.tsx`: para vendedores puros, la consulta inicial y el listener `onSnapshot` se filtran nativamente por `where('issuedBy', '==', currentUser.id)`.
