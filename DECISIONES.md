@@ -8,3 +8,17 @@
 ## [2026-11-04] Caché local persistente en Firestore
 - **Contexto:** Cortes de señal 4G en la puerta de los boliches por acumulación de público.
 - **Decisión:** Habilitar `persistentLocalCache` con `persistentMultipleTabManager` en `firebase.ts` para permitir validaciones incluso con fluctuaciones de red.
+
+
+## [2026-11-04] Endurecimiento de Reglas de Seguridad en Firestore
+- **Contexto:** Las colecciones `/events` y `/tickets` permitían creación, edición y borrado a cualquier usuario autenticado, dejando expuesta la anulación o alteración de tickets y eventos por parte de RRPPs.
+- **Decisión:** 
+  1. Restringir `/events` para que solo organizadores y administradores (`isOrganizerOrAdmin()`) puedan crear, modificar o borrar fechas.
+  2. En `/tickets`, permitir que los vendedores creen tickets (`allow create: if signedIn();`), pero restringir la actualización exclusivamente a quienes posean el rol de puerta o administración (`isCanjeador()`), soportando tanto usuarios con rol primario como con roles combinados (`'canjeador' in userDoc().roles`).
+  3. El borrado de tickets se reserva exclusivamente a administradores y organizadores.
+- **Alternativas descartadas:** Restringir lectura de tickets por vendedor (descartado temporalmente para no quebrar pantallas de informes y validaciones en puerta).
+
+## [2026-11-04] Ventana móvil de sincronización de tickets (45 días)
+- **Contexto:** El listener en tiempo real `onSnapshot` descargaba la totalidad de los tickets históricos de Firestore, consumiendo memoria RAM del dispositivo y aumentando lecturas innecesarias en eventos de alta concurrencia (+1.700 personas).
+- **Decisión:** Limitar la escucha activa en tiempo real a tickets emitidos en los últimos 45 días (`where('issuedAt', '>=', recentCutoffIso)`), combinando en memoria cualquier ticket escaneado fuera de ventana mediante el buscador por código directo (`where('code', '==', normalizedCode)`).
+- **Garantía:** Los cupones de la fecha actual y de las semanas recientes se cargan al instante; cupones más antiguos se resuelven en milisegundos bajo demanda sin bloquear la puerta.

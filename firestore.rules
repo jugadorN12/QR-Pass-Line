@@ -24,6 +24,16 @@ service cloud.firestore {
       );
     }
 
+    function isCanjeador() {
+      return signedIn() && (
+        isOrganizerOrAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          userDoc().role == 'canjeador' ||
+          ('roles' in userDoc() && 'canjeador' in userDoc().roles)
+        ))
+      );
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create: if signedIn() && (request.auth.uid == userId || isOrganizerOrAdmin());
@@ -32,12 +42,14 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if signedIn();
-      allow create, update, delete: if signedIn();
+      allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /tickets/{ticketId} {
       allow read: if signedIn();
-      allow create, update, delete: if signedIn();
+      allow create: if signedIn();
+      allow update: if isCanjeador();
+      allow delete: if isOrganizerOrAdmin();
     }
 
     match /qrCatalog/{qrId} {

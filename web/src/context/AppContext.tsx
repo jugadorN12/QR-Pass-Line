@@ -279,6 +279,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
         // Fast parallel fetch for lightweight collections
+        // Optimización: cargar tickets recientes (últimos 45 días) para ahorrar memoria en celular
+        const recentCutoff = new Date()
+        recentCutoff.setDate(recentCutoff.getDate() - 45)
+        const recentCutoffIso = recentCutoff.toISOString()
+        const recentTicketsQuery = query(
+          collection(db, 'tickets'),
+          where('issuedAt', '>=', recentCutoffIso)
+        )
+
         const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot, ticketsSnapshot] = await Promise.all([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'events')),
@@ -286,7 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           getDocs(collection(db, 'limitations')),
           getDocs(collection(db, 'venues')),
           getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
-          getDocs(collection(db, 'tickets')).catch(() => null),
+          getDocs(recentTicketsQuery).catch(() => getDocs(collection(db, 'tickets')).catch(() => null)),
         ])
 
         // Deduplicate users list by email so UI never shows duplicate rows
@@ -385,12 +394,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         )
 
-        // Sincronización en tiempo real de tickets
+        // Sincronización en tiempo real de tickets recientes (últimos 45 días)
         unsubscribeTickets = onSnapshot(
-          collection(db, 'tickets'),
+          recentTicketsQuery,
           (snap) => {
             const liveTickets = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket))
-            setData((prev) => ({ ...prev, tickets: liveTickets }))
+            setData((prev) => {
+              // Combinar los tickets recientes en vivo con cualquier ticket individual ya cargado
+              const liveIds = new Set(liveTickets.map((t) => t.id))
+              const extraTickets = prev.tickets.filter((t) => !liveIds.has(t.id))
+              return {
+                ...prev,
+                tickets: [...liveTickets, ...extraTickets],
+              }
+            })
           },
           (err) => {
             console.warn('Aviso sincronización de tickets en vivo:', err)

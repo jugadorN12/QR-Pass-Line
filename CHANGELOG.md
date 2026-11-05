@@ -7,3 +7,12 @@
 - Despliegue de la versión actualizada a Firebase Hosting (`https://qr-pass-line.web.app`).
 ### Documentación
 - Creación de archivos base de gobernanza y seguimiento (`PROYECTO.md`, `ARQUITECTURA.md`, `DECISIONES.md`, `PENDIENTES.md`, `PROGRESO.md`, `CHANGELOG.md`).
+
+
+### Seguridad
+- **Reglas de Firestore (`firestore.rules`):**
+  - Eventos (`/events`): creación, edición y borrado restringido a organizadores y administradores.
+  - Entradas (`/tickets`): actualización limitada a personal con rol de canjeador (incluyendo usuarios con roles dobles como vendedor + canjeador) o administradores. Borrado restringido a administradores y organizadores.
+### Rendimiento
+- **Optimización de memoria en AppContext (`web/src/context/AppContext.tsx`):**
+  - Implementación de ventana móvil de 45 días para la sincronización en vivo de tickets, reduciendo el consumo de RAM en celulares y optimizando costos en Firestore, con fallback automático transparente para tickets anteriores.
