@@ -97,7 +97,7 @@ export function EventsPage() {
           {/* Titlebar con < Fechas ⓘ + */}
           <div className="sellers-titlebar" style={{ padding: 0, marginBottom: 16 }}>
             <Link to="/encargado" className="back-link">‹</Link>
-            <h1 className="doors-title" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, fontWeight: 700, color: '#0860bd', margin: 0 }}>
+            <h1 className="doors-title" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, fontWeight: 700, color: 'var(--brand)', margin: 0 }}>
               <span>Fechas</span>
               <button
                 type="button"

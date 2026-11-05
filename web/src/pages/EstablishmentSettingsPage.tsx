@@ -17,6 +17,9 @@ export function EstablishmentSettingsPage() {
   const [minAgeWomen, setMinAgeWomen] = useState('18')
   const [logo, setLogo] = useState('')
   const [qrBackground, setQrBackground] = useState('')
+  const [primaryColor, setPrimaryColor] = useState('')
+  const [brandStrongColor, setBrandStrongColor] = useState('')
+  const [backgroundColor, setBackgroundColor] = useState('')
   const [saved, setSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -29,6 +32,9 @@ export function EstablishmentSettingsPage() {
       setMinAgeWomen(activeVenue.minAgeWomen || '18')
       setLogo(activeVenue.logo || '')
       setQrBackground(activeVenue.qrBackground || '')
+      setPrimaryColor(activeVenue.primaryColor || '')
+      setBrandStrongColor(activeVenue.brandStrongColor || '')
+      setBackgroundColor(activeVenue.backgroundColor || '')
     } else {
       setName(localStorage.getItem('qr-pass-line.business-name') ?? 'Cubano')
       setLogo(localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
@@ -51,6 +57,30 @@ export function EstablishmentSettingsPage() {
     reader.readAsDataURL(file)
   }
 
+  function applyColorTheme(pColor: string, bColor: string, bgCol: string) {
+    setPrimaryColor(pColor)
+    setBrandStrongColor(bColor)
+    setBackgroundColor(bgCol)
+    const root = document.documentElement
+    if (pColor) {
+      const bStrong = bColor || '#180500'
+      const bgGrad = bgCol && bgCol.includes('gradient')
+        ? bgCol
+        : `linear-gradient(135deg, ${bStrong} 0%, #3d1000 45%, ${pColor} 100%)`
+      root.style.setProperty('--brand', pColor)
+      root.style.setProperty('--brand-strong', bStrong)
+      root.style.setProperty('--bg-gradient', bgGrad)
+      root.style.setProperty('--brand-soft', `${pColor}20`)
+      root.style.setProperty('--brand-glow', `${pColor}55`)
+    } else {
+      root.style.removeProperty('--brand')
+      root.style.removeProperty('--brand-strong')
+      root.style.removeProperty('--bg-gradient')
+      root.style.removeProperty('--brand-soft')
+      root.style.removeProperty('--brand-glow')
+    }
+  }
+
   async function save() {
     setIsSaving(true)
     const cleanName = name.trim() || activeVenue?.name || 'Mi Establecimiento'
@@ -71,6 +101,9 @@ export function EstablishmentSettingsPage() {
           minAgeWomen,
           logo,
           qrBackground,
+          primaryColor: primaryColor || '',
+          brandStrongColor: brandStrongColor || '',
+          backgroundColor: backgroundColor || '',
         })
       }
       setSaved(true)
@@ -127,7 +160,7 @@ export function EstablishmentSettingsPage() {
         <main className="settings-main" style={{ padding: '20px 32px 100px' }}>
           <div className="sellers-titlebar" style={{ marginBottom: 16 }}>
             <Link to="/encargado" className="back-link">‹</Link>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, fontWeight: 800, color: '#0860bd' }}>
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, fontWeight: 800, color: 'var(--brand)' }}>
               <span>{name || activeVenue?.name || 'Mi Establecimiento'}</span>
               <button className="doors-info-btn" type="button" aria-label="Información" style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>i</button>
             </h1>
@@ -144,10 +177,10 @@ export function EstablishmentSettingsPage() {
                 fontWeight: 800,
                 fontSize: 14,
                 cursor: 'pointer',
-                border: activeTab === 'general' ? '2px solid #0860bd' : '1px solid #dce4ed',
-                background: activeTab === 'general' ? '#0860bd' : '#fff',
+                border: activeTab === 'general' ? '2px solid var(--brand)' : '1px solid #dce4ed',
+                background: activeTab === 'general' ? 'var(--brand)' : '#fff',
                 color: activeTab === 'general' ? '#fff' : '#475569',
-                boxShadow: activeTab === 'general' ? '0 4px 12px rgba(8,96,189,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                boxShadow: activeTab === 'general' ? '0 4px 12px var(--brand-soft)' : '0 1px 3px rgba(0,0,0,0.05)',
                 transition: 'all 0.15s ease-in-out'
               }}
             >
@@ -166,10 +199,10 @@ export function EstablishmentSettingsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                border: activeTab === 'template' ? '2px solid #0860bd' : '1px solid #dce4ed',
-                background: activeTab === 'template' ? '#0860bd' : '#fff',
+                border: activeTab === 'template' ? '2px solid var(--brand)' : '1px solid #dce4ed',
+                background: activeTab === 'template' ? 'var(--brand)' : '#fff',
                 color: activeTab === 'template' ? '#fff' : '#475569',
-                boxShadow: activeTab === 'template' ? '0 4px 12px rgba(8,96,189,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                boxShadow: activeTab === 'template' ? '0 4px 12px var(--brand-soft)' : '0 1px 3px rgba(0,0,0,0.05)',
                 transition: 'all 0.15s ease-in-out'
               }}
             >
@@ -192,6 +225,166 @@ export function EstablishmentSettingsPage() {
                     <label className="settings-field"><span>Edad mínima H</span><input value={minAgeMen} onChange={(event) => setMinAgeMen(event.target.value)} /></label>
                     <label className="settings-field"><span>Edad mínima M</span><input value={minAgeWomen} onChange={(event) => setMinAgeWomen(event.target.value)} /></label>
                   </div>
+
+                  <div style={{ marginTop: 14, padding: '16px', background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <strong style={{ fontSize: 14, color: '#0f172a' }}>🎨 Paleta de colores del local</strong>
+                      {(primaryColor || backgroundColor || brandStrongColor) && (
+                        <button
+                          type="button"
+                          onClick={() => applyColorTheme('', '', '')}
+                          style={{ border: 'none', background: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          Restablecer por defecto
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                      <button
+                        type="button"
+                        onClick={() => applyColorTheme('#FF4606', '#180500', 'linear-gradient(135deg, #180500 0%, #3d1000 45%, #ff4606 100%)')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 20,
+                          border: primaryColor === '#FF4606' ? '2px solid #FF4606' : '1px solid #fed7aa',
+                          background: '#fff7ed',
+                          color: '#c2410c',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#FF4606' }} />
+                        Naranja JOSEO
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyColorTheme('#0860bd', '#071322', 'linear-gradient(135deg, #071322 0%, #0d2746 45%, #0860bd 100%)')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 20,
+                          border: primaryColor === '#0860bd' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                          background: '#f1f5f9',
+                          color: '#0f172a',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#0860bd' }} />
+                        Cubano (Original)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyColorTheme('#8B5CF6', '#120524', 'linear-gradient(135deg, #120524 0%, #290848 45%, #8b5cf6 100%)')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 20,
+                          border: primaryColor === '#8B5CF6' ? '2px solid #8B5CF6' : '1px solid #e9d5ff',
+                          background: '#faf5ff',
+                          color: '#6b21a8',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#8B5CF6' }} />
+                        Violeta Neón
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyColorTheme('#10B981', '#03140e', 'linear-gradient(135deg, #03140e 0%, #063122 45%, #10b981 100%)')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 20,
+                          border: primaryColor === '#10B981' ? '2px solid #10B981' : '1px solid #a7f3d0',
+                          background: '#f0fdf4',
+                          color: '#047857',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
+                        Verde Esmeralda
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                        <span>Color Principal (Botones)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="color"
+                            value={primaryColor || '#0860bd'}
+                            onChange={(e) => applyColorTheme(e.target.value, brandStrongColor, backgroundColor)}
+                            style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
+                          />
+                          <input
+                            type="text"
+                            value={primaryColor}
+                            placeholder="#0860bd"
+                            onChange={(e) => applyColorTheme(e.target.value, brandStrongColor, backgroundColor)}
+                            style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, fontFamily: 'monospace' }}
+                          />
+                        </div>
+                      </label>
+
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                        <span>Color de Fondo (Pantallas)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="color"
+                            value={backgroundColor || '#eef2f7'}
+                            onChange={(e) => applyColorTheme(primaryColor, brandStrongColor, e.target.value)}
+                            style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
+                          />
+                          <input
+                            type="text"
+                            value={backgroundColor}
+                            placeholder="#eef2f7"
+                            onChange={(e) => applyColorTheme(primaryColor, brandStrongColor, e.target.value)}
+                            style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, fontFamily: 'monospace' }}
+                          />
+                        </div>
+                      </label>
+
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                        <span>Color Oscuro (Encabezados)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="color"
+                            value={brandStrongColor || '#102d4a'}
+                            onChange={(e) => applyColorTheme(primaryColor, e.target.value, backgroundColor)}
+                            style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
+                          />
+                          <input
+                            type="text"
+                            value={brandStrongColor}
+                            placeholder="#102d4a"
+                            onChange={(e) => applyColorTheme(primaryColor, e.target.value, backgroundColor)}
+                            style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, fontFamily: 'monospace' }}
+                          />
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                   <button className="btn btn-primary settings-save" type="button" onClick={save} disabled={isSaving}>
                     {isSaving ? 'GUARDANDO...' : 'GUARDAR ESTABLECIMIENTO'}
                   </button>
@@ -208,7 +401,7 @@ export function EstablishmentSettingsPage() {
                     type="button"
                     className="btn btn-primary"
                     onClick={() => setActiveTab('template')}
-                    style={{ background: '#0860bd', fontWeight: 800, padding: '10px 20px', borderRadius: 10 }}
+                    style={{ background: 'var(--brand)', fontWeight: 800, padding: '10px 20px', borderRadius: 10 }}
                   >
                     ⚙️ Abrir Editor de Cupón de este Local
                   </button>

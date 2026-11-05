@@ -567,6 +567,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return data.couponTemplate || defaultCouponTemplate
   }, [activeVenue, data.couponTemplate])
 
+  // Dynamic venue theme synchronization across CSS variables
+  useEffect(() => {
+    const root = document.documentElement
+    if (activeVenue?.primaryColor) {
+      const pColor = activeVenue.primaryColor
+      const bStrong = activeVenue.brandStrongColor || '#180500'
+      const bgGrad = activeVenue.backgroundColor && activeVenue.backgroundColor.includes('gradient')
+        ? activeVenue.backgroundColor
+        : `linear-gradient(135deg, ${bStrong} 0%, #3d1000 45%, ${pColor} 100%)`
+      root.style.setProperty('--brand', pColor)
+      root.style.setProperty('--brand-strong', bStrong)
+      root.style.setProperty('--bg-gradient', bgGrad)
+      root.style.setProperty('--brand-soft', `${pColor}20`)
+      root.style.setProperty('--brand-glow', `${pColor}55`)
+    } else {
+      root.style.removeProperty('--brand')
+      root.style.removeProperty('--brand-strong')
+      root.style.removeProperty('--bg-gradient')
+      root.style.removeProperty('--brand-soft')
+      root.style.removeProperty('--brand-glow')
+    }
+  }, [activeVenue])
+
   const value: AppContextValue = {
     ...data,
     couponTemplate: resolvedCouponTemplate,

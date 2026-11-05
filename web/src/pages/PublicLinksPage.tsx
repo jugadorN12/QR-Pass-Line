@@ -93,7 +93,7 @@ export function PublicLinksPage() {
           {/* Titlebar con < Links Publicos */}
           <div className="sellers-titlebar" style={{ padding: 0, marginBottom: 24 }}>
             <Link to="/encargado" className="back-link">‹</Link>
-            <h1 className="doors-title" style={{ fontSize: 24, fontWeight: 700, color: '#0860bd', margin: 0 }}>
+            <h1 className="doors-title" style={{ fontSize: 24, fontWeight: 700, color: 'var(--brand)', margin: 0 }}>
               Links Publicos
             </h1>
           </div>

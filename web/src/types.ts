@@ -30,6 +30,9 @@ export type Venue = {
   minAgeWomen?: string
   visibleDays?: string
   couponTemplate?: CouponTemplateConfig
+  primaryColor?: string
+  brandStrongColor?: string
+  backgroundColor?: string
   createdAt: string
 }
 

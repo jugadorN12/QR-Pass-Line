@@ -34,7 +34,7 @@ const roleOptions: RoleOption[] = [
 ]
 
 export function RoleSelectionPage() {
-  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar, activeVenue, venues } = useApp()
+  const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar, activeVenue, venues, setAdminActiveVenue } = useApp()
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileDialog, setProfileDialog] = useState<'name' | 'password' | null>(null)
   const [profileValue, setProfileValue] = useState('')
@@ -151,19 +151,40 @@ export function RoleSelectionPage() {
     <div className="role-screen">
       <header className="role-header">
         <div className="role-brand">
-          <img src={localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'} alt="" />
-          <strong>QR Pass Line</strong>
+          <img src={businessLogo || '/app-icon.png'} alt="" />
+          <strong style={{ letterSpacing: '0.02em' }}>{businessName}</strong>
+          {currentUser.role === 'admin' && (
+            <span className="badge-pill">SUPERADMIN</span>
+          )}
         </div>
-        <button className="role-exit-btn" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
-          <UserAvatar
-            userId={currentUser.id}
-            name={currentUser.name}
-            email={currentUser.email}
-            avatar={currentUser.avatar}
-            size={36}
-            canEdit={false}
-          />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button
+            type="button"
+            onClick={async () => { await logout(); navigate('/ingresar', { replace: true }) }}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              color: '#d1d5db',
+              borderRadius: 20,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar Sesión
+          </button>
+          <button className="role-exit-btn" type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil">
+            <UserAvatar
+              userId={currentUser.id}
+              name={currentUser.name}
+              email={currentUser.email}
+              avatar={currentUser.avatar}
+              size={36}
+              canEdit={false}
+            />
+          </button>
+        </div>
       </header>
 
       <main className="role-main">
@@ -180,8 +201,8 @@ export function RoleSelectionPage() {
               canEdit={true}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ display: 'block', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.name}</strong>
-              <small style={{ color: '#64748b', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{currentUser.email}</small>
+              <strong style={{ display: 'block', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{currentUser.name}</strong>
+              <small style={{ color: '#94a3b8', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{currentUser.email}</small>
             </div>
             <button
               type="button"
@@ -195,12 +216,54 @@ export function RoleSelectionPage() {
         </section>
 
         <section className="role-card role-business-card">
-          <div className="business-heading">
-            <div className="business-logo"><img src={businessLogo} alt="" /></div>
-            <div>
-              <strong>{businessName}</strong>
-              <small>{currentUser.role === 'admin' ? 'Modo Superusuario' : `${availableRoleOptions.length} ${availableRoleOptions.length === 1 ? 'rol disponible' : 'roles disponibles'}`}</small>
+          <div className="business-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="business-logo"><img src={businessLogo} alt="" /></div>
+              <div>
+                <strong>{businessName}</strong>
+                <div style={{ marginTop: 6 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: 'var(--brand, #ff4606)',
+                    background: 'rgba(255, 70, 6, 0.12)',
+                    border: '1px solid var(--brand, #ff4606)',
+                    borderRadius: 9999,
+                    padding: '2px 10px',
+                    letterSpacing: '0.04em'
+                  }}>
+                    {currentUser.role === 'admin' ? 'MODO SUPERADMIN' : `${availableRoleOptions.length} ${availableRoleOptions.length === 1 ? 'ROL DISPONIBLE' : 'ROLES DISPONIBLES'}`}
+                  </span>
+                </div>
+              </div>
             </div>
+
+            {venues.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>Cambiar local:</span>
+                <select
+                  value={userVenue?.id || activeVenue?.id || ''}
+                  onChange={(e) => setAdminActiveVenue(e.target.value)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255, 255, 255, 0.22)',
+                    background: 'rgba(255, 255, 255, 0.12)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                >
+                  {venues.map((v) => (
+                    <option key={v.id} value={v.id} style={{ background: '#111827', color: '#ffffff' }}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <div className="role-grid" style={availableRoleOptions.length > 4 ? { gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' } : undefined}>
             {availableRoleOptions.map((option) => {

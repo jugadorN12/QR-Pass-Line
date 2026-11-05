@@ -1,13 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
 
 :root {
-  --bg: #eef2f7;
+  --bg: #071322;
+  --bg-gradient: linear-gradient(135deg, #071322 0%, #0d2746 45%, #0860bd 100%);
   --surface: #ffffff;
   --ink: #152238;
   --muted: #68768a;
   --line: #dbe2eb;
-  --brand: #16b7bd;
-  --brand-strong: #102d4a;
+  --brand: #0860bd;
+  --brand-strong: #071322;
+  --brand-soft: #eaf1fa;
+  --brand-glow: rgba(8, 96, 189, 0.40);
   --accent: #55e0c1;
   --ok: #157a45;
   --ok-bg: #e4f7eb;
@@ -334,8 +337,8 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 
 .role-screen {
   min-height: 100dvh;
-  background: #e5e9f0; /* Fondo más oscurito para resaltar el blanco */
-  color: #0b192c;
+  background: var(--bg, #09080e);
+  color: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -344,22 +347,32 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #dce4ed;
+  padding: 0 28px;
+  background: #09080e;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.role-brand { display: flex; align-items: center; gap: 12px; color: #0b192c; font-size: 20px; font-weight: 900; letter-spacing: -.03em; }
-.role-brand img { width: 44px; height: 44px; }
+.role-brand { display: flex; align-items: center; gap: 10px; color: #ffffff; font-size: 19px; font-weight: 900; letter-spacing: -.02em; }
+.role-brand img { width: 38px; height: 38px; object-fit: contain; }
+.role-brand .badge-pill {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 70, 6, 0.12);
+  color: var(--brand, #ff4606);
+  border: 1px solid var(--brand, #ff4606);
+  letter-spacing: 0.06em;
+}
 .role-exit-btn {
   display: grid;
   place-items: center;
   padding: 0;
-  border: 2px solid #000;
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   background: #000;
   cursor: pointer;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
 }
 .role-exit-avatar {
@@ -369,43 +382,45 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
   background: #fff;
 }
 .role-main {
-  width: min(980px, calc(100% - 18px)); /* Ligeramente más ancho */
-  margin: 75px auto;
+  width: min(880px, calc(100% - 28px));
+  margin: 36px auto 60px;
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 .role-card {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(15, 23, 52, 0.03);
+  background: #14131b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  color: #ffffff;
 }
 .role-user-card {
-  padding: 20px 24px; /* Más fino de arriba/abajo, menos padding */
-  margin-bottom: 12px; /* Más pegado al panel de abajo */
+  padding: 22px 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 12px;
 }
 .role-user-card h1 {
-  margin: 0 0 2px; /* Menos espacio debajo del título */
-  color: #051429;
-  font-size: 30px; /* Un poco más chico para encajar mejor */
-  font-weight: 1800;
+  margin: 0;
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 900;
   letter-spacing: -.02em;
 }
 .role-user {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 16px 4px 4px; /* Más ajustado alrededor del avatar */
-  border: 3px solid #cbd5e1;
-  border-radius: 20px;
-  background: #f4f7fb;
+  padding: 6px 18px 6px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: #1b1a24;
 }
 .role-avatar {
-  width: 36px; /* Aún más chico, más sutil */
+  width: 36px;
   height: 36px;
   display: grid;
   place-items: center;
@@ -417,66 +432,90 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 }
 .role-user strong, .role-user small, .business-heading strong, .business-heading small {
   display: block;
-  line-height: 1.2; /* Textos más juntos verticalmente */
+  line-height: 1.2;
 }
-.role-user strong { font-size: 12px; color: #051429; font-weight: 900; }
-.role-user small { color: #64748b; font-size: 12px; font-weight: 300;}
-.role-business-card { padding: 20px 12px; } /* Mismo padding que la de arriba */
+.role-user strong { font-size: 14px; color: #ffffff; font-weight: 800; }
+.role-user small { color: #8b8a97; font-size: 12px; font-weight: 500; }
+.role-edit-profile-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #d1d5db;
+  border-radius: 12px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.role-edit-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.role-business-card {
+  padding: 22px 28px 26px;
+}
 .business-heading {
   display: flex;
   align-items: center;
-  gap: 1px;
-  padding: 0 0 10px; /* Menos padding inferior */
-  border-bottom: px solid #e2e8f1;
-  margin-bottom: 8px; /* Menos margen inferior */
+  justify-content: space-between;
+  padding: 0 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 18px;
 }
 .business-logo {
-  width: 56px; /* Logo más chico */
-  height: 56px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
-  border: 1px solid #e2e8f1;
-  border-radius: 10px; /* Radio acorde al tamaño */
-  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: #1b1a24;
+  padding: 4px;
 }
-.business-logo img { width: 44px; height: 44px; }
-.business-heading strong { color: #051429; font-size: 18px; font-weight: 900; }
-.business-heading small { margin-top: 4px; color: #64748b; font-size: 13px; font-weight: 500;}
+.business-logo img { width: 100%; height: 100%; object-fit: contain; }
+.business-heading strong { color: #ffffff; font-size: 20px; font-weight: 900; letter-spacing: -0.02em; }
+.business-heading small { margin-top: 4px; color: var(--brand, #ff4606); font-size: 12px; font-weight: 700; display: block; }
 .role-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px; /* DRÁSTICA reducción del espacio entre botones */
+  gap: 12px;
 }
 .role-option {
   position: relative;
-  min-height: 104px; /* Botones apenas más bajitos */
+  min-height: 110px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px; /* Menos padding interno para que no "infle" la caja */
-  border: 1px solid #e2e8f1;
-  border-radius: 10px; /* Radio de los botones similar a DOORS */
-  background: #ffffff;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: #1b1a24;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.40);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .role-option:hover:not(:disabled) {
-  border-color: #74c8ee;
+  border-color: var(--brand, #ff4606);
+  background: rgba(255, 70, 6, 0.12);
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(22, 183, 189, 0.08);
+  box-shadow: 0 8px 24px var(--brand-glow, rgba(255, 70, 6, 0.35));
+}
+.role-option:hover .role-option-icon {
+  color: var(--brand, #ff4606);
+  opacity: 0.45;
 }
 .role-option-icon {
   position: absolute;
   top: 50%;
-  left: -12px; /* Posición del icono ajustada al nuevo tamaño */
+  left: -8px;
   transform: translateY(-50%);
-  color: #D3D3D3;
-  width: 76px; /* Icono achicado proporcionalmente */
+  color: rgba(255, 255, 255, 0.12);
+  width: 76px;
   height: 76px;
   z-index: 0;
   pointer-events: none;
+  transition: all 0.22s ease;
 }
 .role-option-icon svg {
   width: 200%;
@@ -485,26 +524,27 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .role-option strong {
   position: relative;
   z-index: 9;
-  font-size: 18px; /* Texto un poquito más chico para encajar en la nueva caja */
-  font-weight: 1000;
-  letter-spacing: 0.02em;
-  color: #051429;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ffffff;
 }
 .role-option.is-disabled {
-  opacity: 1.2;
+  opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
-  filter: grayscale(10);
+  filter: grayscale(1);
 }
 .role-footer {
-  margin-top: 32px;
-  color: #94a3b8;
-  font-size: 13px;
-  font-weight: 500;
+  margin-top: 28px;
+  text-align: center;
+  color: #555361;
+  font-size: 12px;
+  font-weight: 600;
 }
-.manager-screen { min-height: 100dvh; background: #f2f5fa; }
+.manager-screen { min-height: 100dvh; background: var(--bg-gradient); }
 .manager-header { height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #fff; border-bottom: 1px solid #e0e6ee; }
-.manager-brand { display: flex; align-items: center; gap: 8px; color: #477cc4; font-size: 20px; letter-spacing: -.04em; }
+.manager-brand { display: flex; align-items: center; gap: 8px; color: var(--brand); font-size: 20px; letter-spacing: -.04em; }
 .manager-brand img { width: 40px; height: 40px; }
 .manager-close { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #050505; color: #e5141b; font-size: 28px; line-height: 25px; transform: rotate(45deg); }
 .manager-page { position: relative; width: 100%; padding: 68px 12px 110px; color: #182940; }
@@ -650,9 +690,9 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .staff-subtile strong { font-size: 12px; }
 .staff-is-open { align-items: start; }
 .staff-is-open .staff-subtiles { min-height: 84px; }
-.staff-page { min-height: 100dvh; background: #f2f5fa; color: #182940; }
+.staff-page { min-height: 100dvh; background: var(--bg); color: #182940; }
 .staff-header { height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #fff; border-bottom: 1px solid #e0e6ee; }
-.staff-brand { display: flex; align-items: center; gap: 8px; color: #477cc4; font-size: 20px; letter-spacing: -.04em; }
+.staff-brand { display: flex; align-items: center; gap: 8px; color: var(--brand); font-size: 20px; letter-spacing: -.04em; }
 .staff-brand img { width: 40px; height: 40px; object-fit: contain; }
 .org-brand { display: flex; align-items: center; gap: 10px; }
 .org-brand img { width: 40px; height: 40px; object-fit: contain; }
@@ -660,15 +700,15 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .staff-layout { display: flex; min-height: calc(100dvh - 72px); }
 .staff-sidebar { width: 64px; flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0 0 12px; padding: 8px 6px; border-radius: 17px; background: #f8fafc; box-shadow: 0 14px 25px rgba(31,54,80,.12); }
 .staff-sidebar a { width: 42px; height: 38px; display: grid; place-items: center; border-radius: 9px; color: #53749c; font-size: 20px; }
-.staff-sidebar a.active, .staff-sidebar a:hover { color: #205da0; background: #eaf1fa; }
+.staff-sidebar a.active, .staff-sidebar a:hover { color: var(--brand); background: var(--brand-soft); }
 .staff-sidebar-control { border-bottom: 1px solid #e1e7ef; margin-bottom: 6px; font-size: 28px !important; }
 .sellers-main { flex: 1; min-width: 0; padding: 10px 0 110px; }
 .sellers-titlebar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 28px; }
-.back-link { color: #2164a9; font-size: 34px; line-height: 1; text-decoration: none; cursor: pointer; }
-.sellers-titlebar h1 { color: #0860bd; font-size: 20px; letter-spacing: -.04em; }
+.back-link { color: var(--brand); font-size: 34px; line-height: 1; text-decoration: none; cursor: pointer; }
+.sellers-titlebar h1 { color: var(--brand); font-size: 20px; letter-spacing: -.04em; }
 
 /* Doors Tickets Sellers & Limitations Styling */
-.doors-title { color: #0860bd; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.doors-title { color: var(--brand); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .doors-add-user-btn { width: 32px; height: 32px; border-radius: 50%; background: #e0f2fe; color: #0284c7; border: none; display: grid; place-items: center; cursor: pointer; transition: transform 0.15s; }
 .doors-add-user-btn:hover { transform: scale(1.1); }
 .doors-profile-icon { margin-left: auto; display: grid; place-items: center; }
@@ -729,7 +769,7 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 /* Limitations Page (Doors Screen 3) */
 .doors-limitation-main { padding: 10px 24px 100px; }
 .doors-limit-titlebar { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
-.doors-limit-heading { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; color: #0860bd; margin: 0; }
+.doors-limit-heading { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; color: var(--brand); margin: 0; }
 .doors-add-limit-circle-btn { width: 28px; height: 28px; border-radius: 50%; background: #e0f2fe; color: #0284c7; border: none; display: grid; place-items: center; cursor: pointer; transition: transform 0.15s; }
 .doors-add-limit-circle-btn:hover { transform: scale(1.15); }
 .doors-limit-action-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -765,7 +805,7 @@ h2 { font-size: 1.15rem; letter-spacing: -0.03em; }
 .doors-form-top { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
 .doors-back-btn { display: inline-flex; align-items: center; gap: 6px; color: #0284c7; text-decoration: none; font-size: 14px; font-weight: 600; width: fit-content; }
 .doors-back-btn:hover { text-decoration: underline; }
-.doors-form-title { font-size: 22px; font-weight: 700; color: #0860bd; margin: 0; }
+.doors-form-title { font-size: 22px; font-weight: 700; color: var(--brand); margin: 0; }
 .doors-limitation-form { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; background: #fff; padding: 24px 28px; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.02); }
 .doors-field-group { display: flex; flex-direction: column; gap: 6px; }
 .doors-field-label { font-size: 12px; font-weight: 600; color: #475569; }
