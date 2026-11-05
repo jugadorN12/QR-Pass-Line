@@ -160,23 +160,7 @@ export function DoorsDateRangePicker({ initialRange = '', onClose, onSelectRange
     const endFormatted = endDate ? formatDate(endDate) : startFormatted
     const rangeResult = `${startFormatted} - ${endFormatted}`
 
-    // Compute active days of week
-    const activeDays: string[] = []
-    const dayLetters = ['D', 'L', 'M', 'X', 'J', 'V', 'S'] // JS index 0=Dom, 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab
-    if (endDate) {
-      const cur = new Date(startDate)
-      while (cur.getTime() <= endDate.getTime()) {
-        const letter = dayLetters[cur.getDay()]
-        if (!activeDays.includes(letter)) {
-          activeDays.push(letter)
-        }
-        cur.setDate(cur.getDate() + 1)
-      }
-    } else {
-      activeDays.push(dayLetters[startDate.getDay()])
-    }
-
-    onSelectRange(rangeResult, activeDays)
+    onSelectRange(rangeResult)
     onClose()
   }
 

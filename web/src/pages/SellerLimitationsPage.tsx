@@ -356,11 +356,8 @@ export function NewSellerLimitationPage() {
           <DoorsDateRangePicker
             initialRange={period}
             onClose={() => setCalendarOpen(false)}
-            onSelectRange={(newRange, newDays) => {
+            onSelectRange={(newRange) => {
               setPeriod(newRange)
-              if (newDays && newDays.length) {
-                setDays(newDays)
-              }
             }}
           />
         )}
@@ -553,11 +550,8 @@ export function EditSellerLimitationPage() {
           <DoorsDateRangePicker
             initialRange={period}
             onClose={() => setCalendarOpen(false)}
-            onSelectRange={(newRange, newDays) => {
+            onSelectRange={(newRange) => {
               setPeriod(newRange)
-              if (newDays && newDays.length) {
-                setDays(newDays)
-              }
             }}
           />
         )}
