@@ -10,3 +10,4 @@
   - Auditoría técnica completa bajo los principios de los manuales `00` al `08`.
 - **Siguiente:**
   - Plan de optimización para escaneo masivo en puerta y refuerzo de seguridad en Firestore.
+

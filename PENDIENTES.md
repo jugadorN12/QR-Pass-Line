@@ -24,3 +24,4 @@
   - Para iluminar códigos impresos o enfocar pantallas con bajo brillo en veredas oscuras.
 - [ ] **División de código (Code Splitting):**
   - El archivo `GatePage` y el bundle principal superan los 500 KB; cargarlo bajo demanda para acelerar el inicio en 4G.
+

@@ -28,3 +28,4 @@
    - Que coincida con el local y el evento activo.
    - Que el horario de ingreso esté dentro del límite establecido (o solicita confirmación si está vencido).
 7. Se actualiza el ticket en Firestore con la hora exacta y el personal que lo canjeó.
+

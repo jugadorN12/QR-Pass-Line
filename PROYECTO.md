@@ -27,3 +27,4 @@ Plataforma web/PWA para boliches y eventos que gestiona la asignación de cupone
 ## 4. Riesgos y Supuestos
 - **Conectividad en puerta:** Con más de 1.000 personas, la red 4G se satura; la app debe responder desde caché local.
 - **Crecimiento de base de datos:** La descarga de todos los tickets históricos sin filtro saturará la memoria del celular en pocos meses.
+
