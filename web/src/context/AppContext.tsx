@@ -122,8 +122,8 @@ function asUser(id: string, value: Record<string, unknown>): User {
     roles: Array.from(new Set(rawRoles)),
     venueId: String(value.venueId ?? ''),
     avatar,
-    mustChangePassword: Boolean(value.mustChangePassword),
-    tempPassword: String(value.tempPassword ?? ''),
+    mustChangePassword: false,
+    tempPassword: '',
     createdAt: String(value.createdAt ?? new Date().toISOString()),
   }
 }
@@ -315,6 +315,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
         }
         const allUsers = Array.from(userMap.values())
+
+        // Limpieza de seguridad: convertir contraseñas provisorias en permanentes y eliminar texto plano de Firestore
+        const isMasterAdmin = currentUserObj.email.toLowerCase() === ADMIN_EMAIL || currentUserObj.role === 'admin' || currentUserObj.roles?.includes('admin')
+        if (isMasterAdmin) {
+          for (const docSnap of usersSnapshot.docs) {
+            const uData = docSnap.data()
+            if (uData.tempPassword || uData.mustChangePassword) {
+              updateDoc(doc(db, 'users', docSnap.id), {
+                tempPassword: '',
+                mustChangePassword: false,
+              }).catch(() => {})
+            }
+          }
+        }
 
         let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
         if (!qrCatalog.length) {
@@ -687,8 +701,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           roles: assignedRoles,
           venueId,
           avatar: defaultAvatar,
-          tempPassword: cleanPassword,
-          mustChangePassword: true,
+          tempPassword: '',
+          mustChangePassword: false,
           createdAt: new Date().toISOString(),
         }
         await setDoc(doc(db, 'users', user.id), user)
@@ -1290,13 +1304,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       await updateDoc(doc(db, 'users', userId), {
-        tempPassword: newPassword,
-        mustChangePassword: true,
+        tempPassword: '',
+        mustChangePassword: false,
       })
 
       setData((prev) => ({
         ...prev,
-        users: prev.users.map((u) => (u.id === userId ? { ...u, tempPassword: newPassword, mustChangePassword: true } : u)),
+        users: prev.users.map((u) => (u.id === userId ? { ...u, tempPassword: '', mustChangePassword: false } : u)),
       }))
     },
     async createVenue(input) {

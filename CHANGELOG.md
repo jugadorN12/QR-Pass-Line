@@ -16,3 +16,7 @@
 ### Rendimiento
 - **Optimización de memoria en AppContext (`web/src/context/AppContext.tsx`):**
   - Implementación de ventana móvil de 45 días para la sincronización en vivo de tickets, reduciendo el consumo de RAM en celulares y optimizando costos en Firestore, con fallback automático transparente para tickets anteriores.
+
+- **Seguridad en Contraseñas:**
+  - Se eliminó el almacenamiento de contraseñas en texto plano (`tempPassword`) en los documentos de usuario de Firestore.
+  - Se fijaron como definitivas las contraseñas actuales de todo el personal registrado, desactivando el cambio forzado de contraseña para evitar interrupciones operativas.

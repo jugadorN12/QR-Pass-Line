@@ -1,11 +1,8 @@
 # PENDIENTES Y OPORTUNIDADES DE MEJORA
 
 ## 1. Seguridad (Alta prioridad)
-- [ ] **Endurecer reglas de Firestore (`firestore.rules`):**
-  - Actualmente cualquier usuario autenticado (incluso un RRPP) puede actualizar o eliminar documentos en `/tickets` y `/events`.
-  - Solo los roles `canjeador`, `admin` y `organizador` deben poder actualizar el estado de canje de un ticket.
-- [ ] **Eliminar almacenamiento de contraseñas temporales en texto plano:**
-  - En `AppContext.tsx` se guarda el campo `tempPassword` en el documento del usuario en Firestore. Como las reglas permiten leer `/users` a cualquier usuario autenticado, cualquier vendedor podría leer contraseñas ajenas.
+- [x] **Endurecer reglas de Firestore (`firestore.rules`):** (RESUELTO: eventos y tickets blindados con soporte para roles combinados vendedor + canjeador).
+- [x] **Eliminar almacenamiento de contraseñas temporales en texto plano:** (RESUELTO: claves provisorias convertidas en permanentes sin forzar cambio y eliminadas de Firestore).
 - [ ] **Remover correo hardcodeado en reglas:**
   - En `firestore.rules` está escrito fijo `simplemente_anibal@hotmail.com`. Debería gestionarse mediante Custom Claims de Firebase Auth o roles en base de datos.
 

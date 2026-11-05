@@ -22,3 +22,10 @@
 - **Contexto:** El listener en tiempo real `onSnapshot` descargaba la totalidad de los tickets históricos de Firestore, consumiendo memoria RAM del dispositivo y aumentando lecturas innecesarias en eventos de alta concurrencia (+1.700 personas).
 - **Decisión:** Limitar la escucha activa en tiempo real a tickets emitidos en los últimos 45 días (`where('issuedAt', '>=', recentCutoffIso)`), combinando en memoria cualquier ticket escaneado fuera de ventana mediante el buscador por código directo (`where('code', '==', normalizedCode)`).
 - **Garantía:** Los cupones de la fecha actual y de las semanas recientes se cargan al instante; cupones más antiguos se resuelven en milisegundos bajo demanda sin bloquear la puerta.
+
+## [2026-11-04] Eliminación de texto plano en contraseñas y desactivación de cambio forzado
+- **Contexto:** Se guardaba el campo `tempPassword` en texto plano en la colección `/users` de Firestore y se marcaba `mustChangePassword: true`, lo cual exponía contraseñas y podía forzar a usuarios en producción a tener que crear claves nuevas.
+- **Decisión:**
+  1. Las contraseñas de todos los usuarios registrados quedan como definitivas y permanentes en Firebase Auth.
+  2. Se desactiva el cartel forzado (`mustChangePassword: false`) para no interrumpir el flujo operativo de ningún RRPP ni personal de puerta.
+  3. Se elimina y limpia el campo `tempPassword` de Firestore para que las contraseñas nunca queden guardadas en texto plano en la base de datos.
