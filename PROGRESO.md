@@ -11,3 +11,6 @@
 - **Siguiente:**
   - Plan de optimización para escaneo masivo en puerta y refuerzo de seguridad en Firestore.
 
+
+- **Backup en GitHub:**
+  - Código sincronizado y resguardado al 100% en `https://github.com/jugadorN12/QR-Pass-Line.git`.
