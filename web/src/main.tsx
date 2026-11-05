@@ -31,6 +31,17 @@ const updateSW = registerSW({
   },
 })
 
+// Recarga instantánea y automática de la pantalla apenas se activa una nueva versión
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  let refreshing = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true
+      window.location.reload()
+    }
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProvider>
