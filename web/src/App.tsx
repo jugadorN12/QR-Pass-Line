@@ -33,6 +33,7 @@ const InformeVentasPage = lazy(() => import('./pages/InformeVentasPage').then((m
 const InformeLecPage = lazy(() => import('./pages/InformeLecPage').then((m) => ({ default: m.InformeLecPage })))
 const InformeCanjeoPage = lazy(() => import('./pages/InformeCanjeoPage').then((m) => ({ default: m.InformeCanjeoPage })))
 const PublicLinksPage = lazy(() => import('./pages/PublicLinksPage').then((m) => ({ default: m.PublicLinksPage })))
+const PublicInvitationPage = lazy(() => import('./pages/PublicInvitationPage').then((m) => ({ default: m.PublicInvitationPage })))
 const BansPage = lazy(() => import('./pages/BansPage').then((m) => ({ default: m.BansPage })))
 
 
@@ -172,6 +173,10 @@ export default function App() {
           <Route path="/publiclink" element={<ManagerGate><PublicLinksPage /></ManagerGate>} />
           <Route path="/baneos" element={<ManagerGate><BansPage /></ManagerGate>} />
           <Route path="/informebaneos" element={<ManagerGate><BansPage /></ManagerGate>} />
+
+          {/* Rutas Públicas de Invitación y Autogestión de Pases QR */}
+          <Route path="/invitacion" element={<PublicInvitationPage />} />
+          <Route path="/invitacion/:eventId" element={<PublicInvitationPage />} />
           {/* La pantalla principal del Organizador (HomePage) ahora va por fuera del Shell para verse a pantalla completa */}
           <Route path="/resumen" element={<ProtectedRoutesNoShell><HomePage /></ProtectedRoutesNoShell>} />
 

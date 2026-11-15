@@ -54,8 +54,8 @@ type AppContextValue = AppData & {
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
   issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string; items?: TicketItem[] }) => Promise<Ticket>
 
-  redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket; [key: string]: any } | { ok: false; message: string; [key: string]: any }>
-  redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string; [key: string]: any }>
+  redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket;[key: string]: any } | { ok: false; message: string;[key: string]: any }>
+  redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string;[key: string]: any }>
   updateTicketQuantity: (ticketId: string, newQuantity: number) => Promise<{ ok: boolean; ticket?: Ticket; error?: string }>
 
   saveQrItem: (item: QrCatalogItem) => Promise<void>
@@ -193,6 +193,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
 
+      // Visitante anónimo (página pública de invitaciones): no crear documento en /users ni cargar datos de staff
+      if (firebaseUser.isAnonymous) {
+        setLoading(false)
+        return
+      }
+
       try {
         const userDocRef = doc(db, 'users', firebaseUser.uid)
         const email = firebaseUser.email ? firebaseUser.email.toLowerCase() : ''
@@ -206,7 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (parsed && parsed.id === firebaseUser.uid) {
               initialUser = parsed
             }
-          } catch {}
+          } catch { }
         }
 
         // Set quick initial state if cached to avoid any loading screen flicker
@@ -234,7 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               if (!snap.empty) {
                 existingUserDoc = snap.docs[0]
               }
-            } catch {}
+            } catch { }
           }
 
           if (existingUserDoc) {
@@ -251,7 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             await setDoc(userDocRef, currentUserObj)
             if (existingUserDoc.id !== firebaseUser.uid) {
-              await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => {})
+              await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => { })
             }
           } else {
             const usersSnap = await getDocs(collection(db, 'users'))
@@ -334,7 +340,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updateDoc(doc(db, 'users', docSnap.id), {
                 tempPassword: '',
                 mustChangePassword: false,
-              }).catch(() => {})
+              }).catch(() => { })
             }
           }
         }
@@ -357,7 +363,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           const localSaved = localStorage.getItem('qr-pass-line.coupon-template')
           if (localSaved) {
-            try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch {}
+            try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch { }
           }
         }
         localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
@@ -775,7 +781,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : err?.message || 'No se pudo registrar el usuario.'
         throw new Error(msg)
       } finally {
-        await signOut(secondaryAuth).catch(() => {})
+        await signOut(secondaryAuth).catch(() => { })
       }
     },
     async createEvent(input) {
@@ -901,7 +907,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Lookup Seller / RRPP Name
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
-      const sellerName = seller ? seller.name : 'Vendedor General'
+      const sellerName = ticket.sellerName || (seller ? seller.name : 'Vendedor General')
 
       // Lookup Event & Venue & Coupon
       const event = data.events.find((e) => e.id === ticket.eventId)
@@ -1165,7 +1171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const quantityText = finalQuantity === 1 ? '1 persona beneficiada' : `${finalQuantity} personas beneficiadas`
 
       const seller = data.users.find((u) => u.id === ticket.issuedBy)
-      const sellerName = seller ? seller.name : 'Vendedor General'
+      const sellerName = ticket.sellerName || (seller ? seller.name : 'Vendedor General')
       const event = data.events.find((e) => e.id === ticket.eventId)
       const coupon = data.qrCatalog.find((q) => q.id === ticket.couponId)
       const ticketVenue = event?.venue || ''
@@ -1290,7 +1296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const userLimits = data.limitations.filter((l) => l.personId === userId)
       for (const lim of userLimits) {
-        await deleteDoc(doc(db, 'limitations', lim.id)).catch(() => {})
+        await deleteDoc(doc(db, 'limitations', lim.id)).catch(() => { })
       }
 
       setData((prev) => ({
@@ -1327,7 +1333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const cred = await signInWithEmailAndPassword(secondaryAuth, targetUser.email, pass)
           if (cred && cred.user) {
             await updatePassword(cred.user, newPassword)
-            await signOut(secondaryAuth).catch(() => {})
+            await signOut(secondaryAuth).catch(() => { })
             break
           }
         } catch {
@@ -1377,7 +1383,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async saveCouponTemplate(config: CouponTemplateConfig) {
       const targetVenueId = currentUser?.venueId || ''
       if (targetVenueId) {
-        await updateDoc(doc(db, 'venues', targetVenueId), { couponTemplate: config }).catch(() => {})
+        await updateDoc(doc(db, 'venues', targetVenueId), { couponTemplate: config }).catch(() => { })
         setData((prev) => ({
           ...prev,
           venues: prev.venues.map((v) => (v.id === targetVenueId ? { ...v, couponTemplate: config } : v)),

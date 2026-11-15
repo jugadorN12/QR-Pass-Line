@@ -71,6 +71,8 @@ export type Ticket = {
   code: string
   holderName: string
   dni: string
+  phone?: string
+  sellerName?: string
   quantity?: number
   menQuantity?: number
   womenQuantity?: number

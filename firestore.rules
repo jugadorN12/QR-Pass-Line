@@ -41,34 +41,39 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /tickets/{ticketId} {
       allow read: if isCanjeador() || (signedIn() && resource.data.issuedBy == request.auth.uid);
-      allow create: if signedIn();
+      allow create: if signedIn() || (
+        request.resource.data.holderName is string &&
+        request.resource.data.holderName.size() >= 3 &&
+        request.resource.data.code is string &&
+        request.resource.data.eventId is string
+      );
       allow update: if isCanjeador();
       allow delete: if isOrganizerOrAdmin();
     }
 
     match /qrCatalog/{qrId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /limitations/{limitId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /venues/{venueId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isOrganizerOrAdmin();
     }
 
     match /settings/{settingId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isOrganizerOrAdmin();
     }
   }
