@@ -768,27 +768,55 @@ export function PublicInvitationPage() {
     }
   }
 
-  // Compartir en WhatsApp
-  function handleShareWhatsApp() {
+  // Guardar / Compartir pase en WhatsApp (Envía la imagen oficial del pase, NO texto suelto)
+  async function handleShareWhatsApp() {
     if (generatedTickets.length === 0) return
+    setDownloading(true)
 
-    let text = `¡Hola! Acá tengo mis Pases QR para *Cubano Bar*:\n👤 Titular: ${holderName || generatedTickets[0].holderName}\n\n`
+    try {
+      // 1. Generar la imagen del pase (o pases si generó para ambos días)
+      const files: File[] = []
+      for (let i = 0; i < generatedTickets.length; i++) {
+        const t = generatedTickets[i]
+        const blob = await generateCouponPng(t)
+        if (blob) {
+          const sanitizedName = t.holderName.replace(/[^a-zA-Z0-9]/g, '_')
+          const daySuffix = t.items?.[0]?.couponName.includes('Domingo') ? 'Domingo' : 'Sabado'
+          files.push(new File([blob], `Pase-Cubano-${daySuffix}-${sanitizedName}.png`, { type: 'image/png' }))
+        }
+      }
 
-    if (generatedTickets.length > 1) {
-      const satTicket = generatedTickets[0]
-      const sunTicket = generatedTickets[1]
-      text += `📅 *SÁBADO (${weekend.satStr})*:\n🎟️ Código: #${satTicket.code} (${satTicket.quantity} pers.)\n\n`
-      text += `📅 *DOMINGO (${weekend.sunStr})*:\n🎟️ Código: #${sunTicket.code} (${sunTicket.quantity} pers.)\n\n`
-    } else {
-      const single = generatedTickets[0]
-      const isSun = single.items?.[0]?.couponName.includes('Domingo')
-      text += `📅 *${isSun ? weekend.sunStr : weekend.satStr}*:\n🎟️ Código: #${single.code} (${single.quantity} pers.)\n\n`
+      if (files.length === 0) return
+
+      // 2. Si el navegador/celular soporta compartir archivos directamente (Android / iOS con WhatsApp)
+      if (navigator.canShare && navigator.canShare({ files })) {
+        await navigator.share({
+          title: `Pase de Ingreso - Cubano Bar`,
+          files,
+        })
+        return
+      }
+
+      // 3. Si es PC o navegador que no soporta enviar archivos directamente por Web Share API:
+      // Descargamos las imágenes automáticamente
+      for (const file of files) {
+        const url = URL.createObjectURL(file)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(url)
+        await new Promise((r) => setTimeout(r, 400))
+      }
+
+      alert('¡Se descargó la foto oficial de tu pase! Ya podés enviarla o mostrarla en la puerta.')
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Error al compartir imagen:', err)
+      }
+    } finally {
+      setDownloading(false)
     }
-
-    text += `🤝 RRPP: RR.PP ANIBAL\n`
-    text += `Mostrá cada QR en puerta al llegar: ${window.location.href}`
-
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   if (loading) {
@@ -1038,6 +1066,7 @@ export function PublicInvitationPage() {
               <button
                 type="button"
                 onClick={handleShareWhatsApp}
+                disabled={downloading}
                 style={{
                   height: 46,
                   borderRadius: 14,
@@ -1046,14 +1075,15 @@ export function PublicInvitationPage() {
                   color: '#25d366',
                   fontSize: 14,
                   fontWeight: 800,
-                  cursor: 'pointer',
+                  cursor: downloading ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8
+                  gap: 8,
+                  opacity: downloading ? 0.7 : 1
                 }}
               >
-                <span>💬</span> Guardar en WhatsApp
+                <span>💬</span> {downloading ? 'Preparando pase...' : 'Guardar / Enviar a WhatsApp'}
               </button>
 
               <button
