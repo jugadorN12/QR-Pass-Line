@@ -393,14 +393,22 @@ export function SellerEmitPage() {
 
     ctx.drawImage(qrCanvas, qrCardX + qrPadding, qrCardY + qrPadding, innerQrSize, innerQrSize)
 
-    // 4. Draw Table (Cleanly placed below QR card)
-    const tableY = 740
+    // 4. Draw Table (Cleanly aligned to the bottom to match preview and avoid overlapping flyer graphics)
     const itemsToDraw = previewTicket.items && previewTicket.items.length > 0
       ? previewTicket.items
       : [{ couponName: previewTicket.couponName, quantity: previewTicket.quantity, schedule: previewTicket.schedule }]
 
     const rowHeight = 36
-    const tableBottomY = tableY + 40 + (itemsToDraw.length * rowHeight)
+    const tableHeight = 40 + (itemsToDraw.length * rowHeight)
+    // En el canvas de 1040px, el RR.PP está en Y=970, por lo que la tabla termina en Y=920
+    const tableBottomY = 920
+    const tableY = tableBottomY - tableHeight
+
+    // Fondo oscuro translúcido para garantizar legibilidad perfecta sobre cualquier afiche
+    ctx.fillStyle = 'rgba(10, 8, 16, 0.72)'
+    ctx.beginPath()
+    ctx.roundRect(70, tableY - 4, 580, tableHeight + 8, 14)
+    ctx.fill()
 
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'
     ctx.lineWidth = 2
@@ -431,15 +439,18 @@ export function SellerEmitPage() {
     })
 
     ctx.beginPath()
-    ctx.moveTo(80, tableBottomY + 6)
-    ctx.lineTo(640, tableBottomY + 6)
+    ctx.moveTo(80, tableBottomY + 4)
+    ctx.lineTo(640, tableBottomY + 4)
     ctx.stroke()
 
     // 5. Draw Seller Name
     ctx.textAlign = 'center'
     ctx.fillStyle = '#ffffff'
     ctx.font = '900 30px sans-serif'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+    ctx.shadowBlur = 8
     ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 970)
+    ctx.shadowBlur = 0
 
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -736,7 +747,17 @@ export function SellerEmitPage() {
 
               {/* Detalle Inferior del Cupón */}
               <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 10px', width: '92%' }}>
+                <div style={{
+                  background: 'rgba(10, 8, 16, 0.72)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  borderRadius: 12,
+                  borderTop: '1px solid rgba(255,255,255,0.4)',
+                  borderBottom: '1px solid rgba(255,255,255,0.4)',
+                  padding: '8px 12px',
+                  margin: '0 auto 10px',
+                  width: '92%'
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
                     <span>Cupón</span>
                     <span>Cant.</span>
