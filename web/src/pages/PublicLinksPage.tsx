@@ -72,15 +72,45 @@ export function PublicLinksPage() {
     return 6
   })
 
+  // Date selection state in ISO format (YYYY-MM-DD)
+  const [selectedDateIso, setSelectedDateIso] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved && JSON.parse(saved).selectedDateIso) return JSON.parse(saved).selectedDateIso
+    } catch {}
+    if (activeEvent?.date) return activeEvent.date.split('T')[0]
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  })
+
   // Guardar configuración en LocalStorage cuando cambia
   useEffect(() => {
     try {
       localStorage.setItem(
         'qr-pass-line.public-links-config',
-        JSON.stringify({ dateMode, allowBothDays, singleDay, maxPersons })
+        JSON.stringify({ dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso })
       )
     } catch {}
-  }, [dateMode, allowBothDays, singleDay, maxPersons])
+  }, [dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso])
+
+  // Formato legible de la fecha seleccionada
+  const selectedDateFormatted = useMemo(() => {
+    if (!selectedDateIso) return 'Fecha no seleccionada'
+    const parts = selectedDateIso.split('-')
+    if (parts.length === 3) {
+      const [y, m, d] = parts
+      const dateObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10), 12, 0, 0)
+      const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+      const months = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+      ]
+      const dayName = days[dateObj.getDay()]
+      const monthName = months[dateObj.getMonth()]
+      return `${dayName} ${parseInt(d, 10)} de ${monthName} ${y}`
+    }
+    return selectedDateIso
+  }, [selectedDateIso])
 
   // Sincronizar selección inicial
   useEffect(() => {
@@ -88,16 +118,6 @@ export function PublicLinksPage() {
       setSelectedCouponId(availableOptions[0].couponId)
     }
   }, [availableOptions, selectedCouponId])
-
-  // Date selection state
-  const [selectedDateStr, setSelectedDateStr] = useState(() => {
-    const now = new Date()
-    const months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-    ]
-    return `${months[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`
-  })
 
   // URL del link público con el cupón / tipo de entrada y parámetros seleccionados
   const baseUrl = window.location.origin
@@ -115,6 +135,9 @@ export function PublicLinksPage() {
   if (maxPersons !== 6) {
     params.set('max', String(maxPersons))
   }
+  if (selectedDateIso) {
+    params.set('fecha', selectedDateIso)
+  }
 
   const publicLink = `${baseUrl}/invitacion/${activeEvent?.id || 'evento'}?${params.toString()}`
 
@@ -125,7 +148,7 @@ export function PublicLinksPage() {
       try {
         await navigator.share({
           title: `Link Público de Acceso - Cubano Bar`,
-          text: `Generá tu pase QR para ${selectedOptionInfo?.name || 'Ingreso'} (${selectedDateStr}):`,
+          text: `Generá tu pase QR para ${selectedOptionInfo?.name || 'Ingreso'} (${selectedDateFormatted}):`,
           url: publicLink,
         })
         return
@@ -424,9 +447,9 @@ export function PublicLinksPage() {
               </div>
 
               <div>
-                <small style={{ display: 'block', color: '#6c757d', fontSize: 11 }}>Seleccionar fecha del evento</small>
+                <small style={{ display: 'block', color: '#6c757d', fontSize: 11 }}>Seleccionar fecha del evento en calendario</small>
                 <strong style={{ display: 'block', color: '#212529', fontSize: 14, fontWeight: 700 }}>
-                  {selectedDateStr}
+                  {selectedDateFormatted}
                 </strong>
               </div>
             </div>
@@ -516,19 +539,19 @@ export function PublicLinksPage() {
 
       {calendarOpen && (
         <DoorsDateRangePicker
-          initialRange="22/09/2026 - 26/09/2026"
+          initialRange={
+            selectedDateIso
+              ? `${selectedDateIso.split('-')[2]}/${selectedDateIso.split('-')[1]}/${selectedDateIso.split('-')[0]} - ${selectedDateIso.split('-')[2]}/${selectedDateIso.split('-')[1]}/${selectedDateIso.split('-')[0]}`
+              : '26/09/2026 - 26/09/2026'
+          }
           onClose={() => setCalendarOpen(false)}
           onSelectRange={(newRange) => {
             if (newRange) {
               const startPart = newRange.split('-')[0].trim()
               const [d, m, y] = startPart.split('/')
-              const months = [
-                'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-              ]
               if (d && m && y) {
-                const monthName = months[parseInt(m, 10) - 1] || 'septiembre'
-                setSelectedDateStr(`${monthName} ${parseInt(d, 10)} ${y}`)
+                const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+                setSelectedDateIso(iso)
               }
             }
           }}

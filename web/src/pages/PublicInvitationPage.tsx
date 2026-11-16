@@ -16,36 +16,38 @@ import { ticketCode } from '../lib/ids'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
 import type { ClubEvent, Ticket, TicketItem, Limitation, QrCatalogItem, User, Venue } from '../types'
 
-function getWeekendDates(baseEvent?: ClubEvent | null) {
+function getWeekendDates(baseEvent?: ClubEvent | null, customDateIso?: string | null) {
   const now = new Date()
-  let satDate: Date = new Date()
-  let sunDate: Date = new Date()
+  let baseDate: Date = now
 
-  if (baseEvent?.date) {
-    const evDate = new Date(baseEvent.date)
-    if (!isNaN(evDate.getTime())) {
-      const day = evDate.getDay() // 0 = Domingo, 6 = Sábado
-      if (day === 6) {
-        satDate = evDate
-        sunDate = new Date(evDate)
-        sunDate.setDate(sunDate.getDate() + 1)
-      } else if (day === 0) {
-        sunDate = evDate
-        satDate = new Date(evDate)
-        satDate.setDate(satDate.getDate() - 1)
-      } else {
-        const daysUntilSat = (6 - day + 7) % 7
-        satDate = new Date(evDate)
-        satDate.setDate(satDate.getDate() + daysUntilSat)
-        sunDate = new Date(satDate)
-        sunDate.setDate(sunDate.getDate() + 1)
-      }
+  const dateToUse = customDateIso || baseEvent?.date
+  if (dateToUse) {
+    const cleanDate = dateToUse.includes('T') ? dateToUse.split('T')[0] : dateToUse
+    const parts = cleanDate.split('-')
+    if (parts.length === 3) {
+      baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
+    } else {
+      const evDate = new Date(dateToUse)
+      if (!isNaN(evDate.getTime())) baseDate = evDate
     }
+  }
+
+  const day = baseDate.getDay() // 0 = Domingo, 6 = Sábado
+  let satDate = new Date(baseDate)
+  let sunDate = new Date(baseDate)
+
+  if (day === 6) {
+    satDate = new Date(baseDate)
+    sunDate = new Date(baseDate)
+    sunDate.setDate(sunDate.getDate() + 1)
+  } else if (day === 0) {
+    sunDate = new Date(baseDate)
+    satDate = new Date(baseDate)
+    satDate.setDate(satDate.getDate() - 1)
   } else {
-    const currentDay = now.getDay()
-    const daysUntilSat = (6 - currentDay + 7) % 7
-    satDate = new Date(now)
-    satDate.setDate(satDate.getDate() + (daysUntilSat === 0 ? 0 : daysUntilSat))
+    const daysUntilSat = (6 - day + 7) % 7
+    satDate = new Date(baseDate)
+    satDate.setDate(satDate.getDate() + daysUntilSat)
     sunDate = new Date(satDate)
     sunDate.setDate(sunDate.getDate() + 1)
   }
@@ -61,8 +63,21 @@ function getWeekendDates(baseEvent?: ClubEvent | null) {
 
 function formatEventDay(dateStr?: string) {
   if (!dateStr) return { dayName: 'Día del Evento', formattedStr: 'Fecha confirmada', iso: new Date().toISOString().split('T')[0] }
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return { dayName: 'Día del Evento', formattedStr: dateStr, iso: new Date().toISOString().split('T')[0] }
+  
+  // Extraer año, mes, día numéricamente para evitar desfases de zona horaria
+  const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr
+  const parts = cleanDate.split('-')
+  let d: Date
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10)
+    const m = parseInt(parts[1], 10) - 1
+    const day = parseInt(parts[2], 10)
+    d = new Date(y, m, day, 12, 0, 0)
+  } else {
+    d = new Date(dateStr)
+  }
+
+  if (isNaN(d.getTime())) return { dayName: 'Día del Evento', formattedStr: dateStr, iso: cleanDate }
   const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
   const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   const dayName = days[d.getDay()]
@@ -80,6 +95,7 @@ export function PublicInvitationPage() {
   const paramDateMode = searchParams.get('dias') === 'simple' ? 'simple' : 'doble'
   const paramAllowBothDays = searchParams.get('ambos') !== '0'
   const paramSingleDay = (searchParams.get('dia') || 'sabado') as 'sabado' | 'domingo' | 'evento'
+  const paramFecha = searchParams.get('fecha') || ''
   const parsedMax = parseInt(searchParams.get('max') || '6', 10)
   const maxAllowedPersons = isNaN(parsedMax) ? 6 : Math.max(1, Math.min(6, parsedMax))
 
@@ -129,8 +145,8 @@ export function PublicInvitationPage() {
   const templateBgPosY = couponTemplate?.bgPosY ?? 0
   const templateShadow = couponTemplate?.shadow ?? true
 
-  const weekend = useMemo(() => getWeekendDates(event), [event])
-  const eventDay = useMemo(() => formatEventDay(event?.date), [event?.date])
+  const weekend = useMemo(() => getWeekendDates(event, paramFecha), [event, paramFecha])
+  const eventDay = useMemo(() => formatEventDay(paramFecha || event?.date), [paramFecha, event?.date])
 
   // Flyer background resolution
   const flyerBg = useMemo(() => {
