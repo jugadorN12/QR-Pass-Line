@@ -90,6 +90,8 @@ export function PublicInvitationPage() {
   const { eventId: urlEventId } = useParams<{ eventId?: string }>()
   const [searchParams] = useSearchParams()
   const urlCouponId = searchParams.get('coupon') || searchParams.get('couponId') || searchParams.get('tipo')
+  const urlCouponSatId = searchParams.get('couponSat') || urlCouponId
+  const urlCouponSunId = searchParams.get('couponSun') || urlCouponId
 
   // URL parameters for flexible configuration
   const paramDateMode = searchParams.get('dias') === 'simple' ? 'simple' : 'doble'
@@ -106,9 +108,15 @@ export function PublicInvitationPage() {
   const [event, setEvent] = useState<ClubEvent | null>(null)
   const [venue, setVenue] = useState<Venue | null>(null)
   const [coupon, setCoupon] = useState<QrCatalogItem | null>(null)
+  const [couponSat, setCouponSat] = useState<QrCatalogItem | null>(null)
+  const [couponSun, setCouponSun] = useState<QrCatalogItem | null>(null)
   const [anibalUser, setAnibalUser] = useState<User | null>(null)
   const [limitation, setLimitation] = useState<Limitation | null>(null)
+  const [limitationSat, setLimitationSat] = useState<Limitation | null>(null)
+  const [limitationSun, setLimitationSun] = useState<Limitation | null>(null)
   const [availableQuota, setAvailableQuota] = useState<number>(2000)
+  const [quotaSat, setQuotaSat] = useState<number>(2000)
+  const [quotaSun, setQuotaSun] = useState<number>(2000)
 
   // Form states: Full Name, Phone, Date Option ('sabado' | 'domingo' | 'ambos' | 'evento'), Quantity
   const [holderName, setHolderName] = useState('')
@@ -148,20 +156,61 @@ export function PublicInvitationPage() {
   const weekend = useMemo(() => getWeekendDates(event, paramFecha), [event, paramFecha])
   const eventDay = useMemo(() => formatEventDay(paramFecha || event?.date), [paramFecha, event?.date])
 
-  // Flyer background resolution
+  // Cupón, cupo y limitación activos según el día seleccionado por el usuario
+  const activeCoupon = useMemo(() => {
+    if (paramDateMode === 'doble') {
+      if (dateOption === 'sabado') return couponSat || coupon
+      if (dateOption === 'domingo') return couponSun || coupon
+      return couponSat || coupon
+    }
+    return coupon
+  }, [paramDateMode, dateOption, couponSat, couponSun, coupon])
+
+  const activeQuota = useMemo(() => {
+    if (paramDateMode === 'doble') {
+      if (dateOption === 'sabado') return quotaSat
+      if (dateOption === 'domingo') return quotaSun
+      if (dateOption === 'ambos') return Math.min(quotaSat, quotaSun)
+    }
+    return availableQuota
+  }, [paramDateMode, dateOption, quotaSat, quotaSun, availableQuota])
+
+  const activeLimitation = useMemo(() => {
+    if (paramDateMode === 'doble') {
+      if (dateOption === 'sabado') return limitationSat || limitation
+      if (dateOption === 'domingo') return limitationSun || limitation
+      return limitationSat || limitation
+    }
+    return limitation
+  }, [paramDateMode, dateOption, limitationSat, limitationSun, limitation])
+
+  // Current active ticket to render
+  const currentTicket = generatedTickets[activeTicketIdx] || generatedTickets[0] || null
+
+  // Afiche de fondo dinámico (específico para el cupón del pase mostrado o seleccionado)
+  const currentTicketCoupon = useMemo(() => {
+    if (!currentTicket) return activeCoupon
+    const tCouponId = currentTicket.items?.[0]?.couponId || currentTicket.couponId
+    if (couponSat && tCouponId === couponSat.id) return couponSat
+    if (couponSun && tCouponId === couponSun.id) return couponSun
+    if (coupon && tCouponId === coupon.id) return coupon
+    if (appContext?.qrCatalog) {
+      return appContext.qrCatalog.find((c) => c.id === tCouponId) || null
+    }
+    return activeCoupon
+  }, [currentTicket, couponSat, couponSun, coupon, activeCoupon, appContext?.qrCatalog])
+
   const flyerBg = useMemo(() => {
     return (
-      coupon?.backgroundImage ||
+      currentTicketCoupon?.backgroundImage ||
+      activeCoupon?.backgroundImage ||
       venue?.qrBackground ||
       (event as any)?.backgroundImage ||
       (event as any)?.imageUrl ||
       localStorage.getItem('qr-pass-line.qr-background') ||
       ''
     )
-  }, [coupon, venue, event])
-
-  // Current active ticket to render
-  const currentTicket = generatedTickets[activeTicketIdx] || generatedTickets[0] || null
+  }, [currentTicketCoupon, activeCoupon, venue, event])
 
   // 1. Initial Load: Authenticate if needed, load Event, Venue, Limitation, Anibal User
   useEffect(() => {
@@ -199,18 +248,33 @@ export function PublicInvitationPage() {
               null
             setVenue(matchedVenue)
 
-            // Buscar cupón especificado en el link público o el primero
+            // Buscar cupones especificados en el link público o el primero
             let matchedCoupon: QrCatalogItem | null = null
+            let matchedCouponSat: QrCatalogItem | null = null
+            let matchedCouponSun: QrCatalogItem | null = null
+
             if (urlCouponId) {
               matchedCoupon = appContext.qrCatalog.find((c) => c.id === urlCouponId) || null
             }
-            if (!matchedCoupon) {
-              matchedCoupon =
-                appContext.qrCatalog.find((c) => (c.name || '').toLowerCase().includes('general') || (c.name || '').toLowerCase().includes('ingreso')) ||
-                appContext.qrCatalog[0] ||
-                null
+            if (urlCouponSatId) {
+              matchedCouponSat = appContext.qrCatalog.find((c) => c.id === urlCouponSatId) || null
             }
+            if (urlCouponSunId) {
+              matchedCouponSun = appContext.qrCatalog.find((c) => c.id === urlCouponSunId) || null
+            }
+
+            const defaultCatCoupon =
+              appContext.qrCatalog.find((c) => (c.name || '').toLowerCase().includes('general') || (c.name || '').toLowerCase().includes('ingreso')) ||
+              appContext.qrCatalog[0] ||
+              null
+
+            if (!matchedCoupon) matchedCoupon = defaultCatCoupon
+            if (!matchedCouponSat) matchedCouponSat = matchedCoupon || defaultCatCoupon
+            if (!matchedCouponSun) matchedCouponSun = matchedCoupon || defaultCatCoupon
+
             setCoupon(matchedCoupon)
+            setCouponSat(matchedCouponSat)
+            setCouponSun(matchedCouponSun)
 
             const foundAnibal =
               appContext.users.find((u) => {
@@ -222,21 +286,65 @@ export function PublicInvitationPage() {
               null
             setAnibalUser(foundAnibal)
 
-            if (foundAnibal && matchedCoupon) {
-              const lim =
-                appContext.limitations.find((l) => l.personId === foundAnibal.id && l.couponId === matchedCoupon!.id) ||
+            if (foundAnibal) {
+              const limSat =
+                (matchedCouponSat ? appContext.limitations.find((l) => l.personId === foundAnibal.id && l.couponId === matchedCouponSat!.id) : null) ||
                 appContext.limitations.find((l) => l.personId === foundAnibal.id) ||
                 null
+              const limSun =
+                (matchedCouponSun ? appContext.limitations.find((l) => l.personId === foundAnibal.id && l.couponId === matchedCouponSun!.id) : null) ||
+                appContext.limitations.find((l) => l.personId === foundAnibal.id) ||
+                null
+              const lim =
+                (matchedCoupon ? appContext.limitations.find((l) => l.personId === foundAnibal.id && l.couponId === matchedCoupon!.id) : null) ||
+                appContext.limitations.find((l) => l.personId === foundAnibal.id) ||
+                null
+
               setLimitation(lim)
+              setLimitationSat(limSat)
+              setLimitationSun(limSun)
+
+              const totalQuotaSat = limSat ? Number(limSat.quantity) || 2000 : 2000
+              const totalQuotaSun = limSun ? Number(limSun.quantity) || 2000 : 2000
               const totalQuota = lim ? Number(lim.quantity) || 2000 : 2000
-              const issued = appContext.tickets.filter((t) => {
-                if (t.issuedBy !== foundAnibal.id || t.eventId !== matchedEv.id) return false
+
+              const anibalTickets = appContext.tickets.filter((t) => t.issuedBy === foundAnibal.id)
+              const satIso = weekend.satIso
+              const sunIso = weekend.sunIso
+
+              const issuedSat = anibalTickets.filter((t) => {
+                if (t.eventDate && t.eventDate !== satIso) return false
+                if (!t.eventDate && t.eventId !== matchedEv.id) return false
                 if (t.items && t.items.length > 0) {
-                  return t.items.some((it) => it.couponId === matchedCoupon!.id)
+                  return t.items.some((it) => it.couponId === matchedCouponSat?.id)
                 }
-                return t.couponId === matchedCoupon!.id
+                return t.couponId === matchedCouponSat?.id
               }).length
-              setAvailableQuota(Math.max(0, totalQuota - issued))
+
+              const issuedSun = anibalTickets.filter((t) => {
+                if (t.eventDate && t.eventDate !== sunIso) return false
+                if (!t.eventDate && t.eventId !== matchedEv.id) return false
+                if (t.items && t.items.length > 0) {
+                  return t.items.some((it) => it.couponId === matchedCouponSun?.id)
+                }
+                return t.couponId === matchedCouponSun?.id
+              }).length
+
+              const issued = anibalTickets.filter((t) => {
+                if (t.eventId !== matchedEv.id) return false
+                if (t.items && t.items.length > 0) {
+                  return t.items.some((it) => it.couponId === matchedCoupon?.id)
+                }
+                return t.couponId === matchedCoupon?.id
+              }).length
+
+              const remSat = Math.max(0, totalQuotaSat - issuedSat)
+              const remSun = Math.max(0, totalQuotaSun - issuedSun)
+              const remGral = Math.max(0, totalQuota - issued)
+
+              setQuotaSat(remSat)
+              setQuotaSun(remSun)
+              setAvailableQuota(remGral)
             }
 
             // Check localStorage for saved pass
@@ -303,19 +411,36 @@ export function PublicInvitationPage() {
             } catch {}
 
             let matchedCoupon: QrCatalogItem | null = null
+            let matchedCouponSat: QrCatalogItem | null = null
+            let matchedCouponSun: QrCatalogItem | null = null
+
             try {
               const qSnap = await getDocs(collection(db, 'qrCatalog'))
               const catalog = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as QrCatalogItem[]
               if (urlCouponId) {
                 matchedCoupon = catalog.find((c) => c.id === urlCouponId) || null
               }
-              if (!matchedCoupon) {
-                matchedCoupon =
-                  catalog.find((c) => (c.name || '').toLowerCase().includes('general') || (c.name || '').toLowerCase().includes('ingreso')) ||
-                  catalog[0] ||
-                  null
+              if (urlCouponSatId) {
+                matchedCouponSat = catalog.find((c) => c.id === urlCouponSatId) || null
               }
-              if (isMounted) setCoupon(matchedCoupon)
+              if (urlCouponSunId) {
+                matchedCouponSun = catalog.find((c) => c.id === urlCouponSunId) || null
+              }
+
+              const defaultCatCoupon =
+                catalog.find((c) => (c.name || '').toLowerCase().includes('general') || (c.name || '').toLowerCase().includes('ingreso')) ||
+                catalog[0] ||
+                null
+
+              if (!matchedCoupon) matchedCoupon = defaultCatCoupon
+              if (!matchedCouponSat) matchedCouponSat = matchedCoupon || defaultCatCoupon
+              if (!matchedCouponSun) matchedCouponSun = matchedCoupon || defaultCatCoupon
+
+              if (isMounted) {
+                setCoupon(matchedCoupon)
+                setCouponSat(matchedCouponSat)
+                setCouponSun(matchedCouponSun)
+              }
             } catch {}
 
             let foundAnibal: User | null = null
@@ -334,38 +459,83 @@ export function PublicInvitationPage() {
             } catch {}
 
             let targetLimitation: Limitation | null = null
+            let targetLimitationSat: Limitation | null = null
+            let targetLimitationSun: Limitation | null = null
+
             try {
               const limSnap = await getDocs(collection(db, 'limitations'))
               const allLimits = limSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Limitation[]
-              if (foundAnibal && matchedCoupon) {
+              if (foundAnibal) {
                 targetLimitation =
-                  allLimits.find((l) => l.personId === foundAnibal!.id && l.couponId === matchedCoupon!.id) ||
+                  (matchedCoupon ? allLimits.find((l) => l.personId === foundAnibal!.id && l.couponId === matchedCoupon!.id) : null) ||
+                  allLimits.find((l) => l.personId === foundAnibal!.id) ||
+                  null
+
+                targetLimitationSat =
+                  (matchedCouponSat ? allLimits.find((l) => l.personId === foundAnibal!.id && l.couponId === matchedCouponSat!.id) : null) ||
+                  allLimits.find((l) => l.personId === foundAnibal!.id) ||
+                  null
+
+                targetLimitationSun =
+                  (matchedCouponSun ? allLimits.find((l) => l.personId === foundAnibal!.id && l.couponId === matchedCouponSun!.id) : null) ||
                   allLimits.find((l) => l.personId === foundAnibal!.id) ||
                   null
               }
-              if (isMounted) setLimitation(targetLimitation)
+              if (isMounted) {
+                setLimitation(targetLimitation)
+                setLimitationSat(targetLimitationSat)
+                setLimitationSun(targetLimitationSun)
+              }
             } catch {}
 
             try {
               let totalQuota = targetLimitation ? Number(targetLimitation.quantity) || 2000 : 2000
-              let issuedCount = 0
+              let totalQuotaSat = targetLimitationSat ? Number(targetLimitationSat.quantity) || 2000 : 2000
+              let totalQuotaSun = targetLimitationSun ? Number(targetLimitationSun.quantity) || 2000 : 2000
 
-              if (foundAnibal && matchedCoupon) {
-                const tq = query(collection(db, 'tickets'), where('issuedBy', '==', foundAnibal.id), where('eventId', '==', targetEvent.id))
+              if (foundAnibal) {
+                const tq = query(collection(db, 'tickets'), where('issuedBy', '==', foundAnibal.id))
                 const tSnap = await getDocs(tq)
-                issuedCount = tSnap.docs.filter((d) => {
-                  const data = d.data()
-                  if (data.items && data.items.length > 0) {
-                    return data.items.some((it: any) => it.couponId === matchedCoupon!.id)
-                  }
-                  return data.couponId === matchedCoupon!.id
-                }).length
-              }
+                const allTickets = tSnap.docs.map((d) => d.data())
 
-              const remaining = Math.max(0, totalQuota - issuedCount)
-              if (isMounted) setAvailableQuota(remaining)
+                const issuedSat = allTickets.filter((t: any) => {
+                  if (t.eventDate && t.eventDate !== weekend.satIso) return false
+                  if (!t.eventDate && t.eventId !== targetEvent.id) return false
+                  if (t.items && t.items.length > 0) {
+                    return t.items.some((it: any) => it.couponId === matchedCouponSat?.id)
+                  }
+                  return t.couponId === matchedCouponSat?.id
+                }).length
+
+                const issuedSun = allTickets.filter((t: any) => {
+                  if (t.eventDate && t.eventDate !== weekend.sunIso) return false
+                  if (!t.eventDate && t.eventId !== targetEvent.id) return false
+                  if (t.items && t.items.length > 0) {
+                    return t.items.some((it: any) => it.couponId === matchedCouponSun?.id)
+                  }
+                  return t.couponId === matchedCouponSun?.id
+                }).length
+
+                const issued = allTickets.filter((t: any) => {
+                  if (t.eventId !== targetEvent.id) return false
+                  if (t.items && t.items.length > 0) {
+                    return t.items.some((it: any) => it.couponId === matchedCoupon?.id)
+                  }
+                  return t.couponId === matchedCoupon?.id
+                }).length
+
+                if (isMounted) {
+                  setQuotaSat(Math.max(0, totalQuotaSat - issuedSat))
+                  setQuotaSun(Math.max(0, totalQuotaSun - issuedSun))
+                  setAvailableQuota(Math.max(0, totalQuota - issued))
+                }
+              }
             } catch {
-              if (isMounted) setAvailableQuota(targetLimitation ? Number(targetLimitation.quantity) || 2000 : 2000)
+              if (isMounted) {
+                setAvailableQuota(targetLimitation ? Number(targetLimitation.quantity) || 2000 : 2000)
+                setQuotaSat(targetLimitationSat ? Number(targetLimitationSat.quantity) || 2000 : 2000)
+                setQuotaSun(targetLimitationSun ? Number(targetLimitationSun.quantity) || 2000 : 2000)
+              }
             }
 
             const localPassesKey = `qr-pass-line.public-passes-${targetEvent.id}`
@@ -424,15 +594,24 @@ export function PublicInvitationPage() {
       return
     }
 
-    const qrsNeeded = dateOption === 'ambos' ? 2 : 1
-
-    if (availableQuota < qrsNeeded) {
-      if (dateOption === 'ambos' && availableQuota === 1) {
-        setFormError('Solo queda 1 QR disponible para este evento. Podés sacar tu pase para el Sábado o para el Domingo (válido para tu grupo de hasta 6 personas).')
-      } else {
-        setFormError('Lo sentimos, los códigos QR disponibles para este evento se han completado.')
+    if (paramDateMode === 'doble') {
+      if (dateOption === 'sabado' && quotaSat < 1) {
+        setFormError('Lo sentimos, los códigos QR para el Sábado se han agotado.')
+        return
       }
-      return
+      if (dateOption === 'domingo' && quotaSun < 1) {
+        setFormError('Lo sentimos, los códigos QR para el Domingo se han agotado.')
+        return
+      }
+      if (dateOption === 'ambos' && (quotaSat < 1 || quotaSun < 1)) {
+        setFormError('No hay cupo suficiente disponible en ambos días para emitir el pase doble.')
+        return
+      }
+    } else {
+      if (availableQuota < 1) {
+        setFormError('Lo sentimos, los códigos QR disponibles para este evento se han completado.')
+        return
+      }
     }
 
     setSubmitting(true)
@@ -459,20 +638,21 @@ export function PublicInvitationPage() {
         } catch {}
       }
 
-      // 2. Opción 1: Si es 'ambos', creamos 2 tickets separados (uno para Sábado y otro para Domingo)
+      // 2. Si es 'ambos', creamos 2 tickets separados (uno con el cupón de Sábado y otro con el de Domingo)
       const ticketsToCreate: Omit<Ticket, 'id'>[] = []
-      const couponTitle = coupon?.name || 'Ingreso General'
 
       if (dateOption === 'ambos') {
         // Pase 1: Sábado
+        const satCouponObj = couponSat || coupon
+        const satTitle = satCouponObj?.name || 'Ingreso General'
         const satCode = ticketCode()
         const satItems: TicketItem[] = [
-          { couponId: coupon?.id || 'cubano-sab', couponName: `${couponTitle} (Sábado)`, quantity }
+          { couponId: satCouponObj?.id || 'cubano-sab', couponName: `${satTitle} (Sábado)`, quantity }
         ]
         ticketsToCreate.push({
           eventId: event?.id || 'cubano-evento',
           venueId: venue?.id || event?.venueId || '',
-          couponId: coupon?.id || limitation?.couponId || '',
+          couponId: satCouponObj?.id || limitationSat?.couponId || '',
           kind: 'qr',
           code: satCode,
           holderName: cleanName,
@@ -489,14 +669,16 @@ export function PublicInvitationPage() {
         })
 
         // Pase 2: Domingo
+        const sunCouponObj = couponSun || coupon
+        const sunTitle = sunCouponObj?.name || 'Ingreso General'
         const sunCode = ticketCode()
         const sunItems: TicketItem[] = [
-          { couponId: coupon?.id || 'cubano-dom', couponName: `${couponTitle} (Domingo)`, quantity }
+          { couponId: sunCouponObj?.id || 'cubano-dom', couponName: `${sunTitle} (Domingo)`, quantity }
         ]
         ticketsToCreate.push({
           eventId: event?.id || 'cubano-evento',
           venueId: venue?.id || event?.venueId || '',
-          couponId: coupon?.id || limitation?.couponId || '',
+          couponId: sunCouponObj?.id || limitationSun?.couponId || '',
           kind: 'qr',
           code: sunCode,
           holderName: cleanName,
@@ -516,29 +698,33 @@ export function PublicInvitationPage() {
         const singleCode = ticketCode()
         let targetDateIso = weekend.satIso
         let dayLabel = 'Sábado'
+        let targetCouponObj = couponSat || coupon
+        let targetLim = limitationSat || limitation
 
         if (dateOption === 'domingo') {
           targetDateIso = weekend.sunIso
           dayLabel = 'Domingo'
+          targetCouponObj = couponSun || coupon
+          targetLim = limitationSun || limitation
         } else if (dateOption === 'evento') {
           targetDateIso = eventDay.iso
           dayLabel = eventDay.dayName
-        } else {
-          targetDateIso = weekend.satIso
-          dayLabel = 'Sábado'
+          targetCouponObj = coupon
+          targetLim = limitation
         }
 
+        const cTitle = targetCouponObj?.name || 'Ingreso General'
         const items: TicketItem[] = [
           {
-            couponId: coupon?.id || 'cubano-gral',
-            couponName: `${couponTitle} (${dayLabel})`,
+            couponId: targetCouponObj?.id || 'cubano-gral',
+            couponName: `${cTitle} (${dayLabel})`,
             quantity,
           }
         ]
         ticketsToCreate.push({
           eventId: event?.id || 'cubano-evento',
           venueId: venue?.id || event?.venueId || '',
-          couponId: coupon?.id || limitation?.couponId || '',
+          couponId: targetCouponObj?.id || targetLim?.couponId || '',
           kind: 'qr',
           code: singleCode,
           holderName: cleanName,
@@ -570,7 +756,20 @@ export function PublicInvitationPage() {
       setGeneratedTickets(createdTickets)
       setActiveTicketIdx(0)
       setIsExistingPass(false)
-      setAvailableQuota((prev) => Math.max(0, prev - qrsNeeded))
+
+      if (dateOption === 'ambos') {
+        setQuotaSat((prev) => Math.max(0, prev - 1))
+        setQuotaSun((prev) => Math.max(0, prev - 1))
+        setAvailableQuota((prev) => Math.max(0, prev - 2))
+      } else if (dateOption === 'sabado') {
+        setQuotaSat((prev) => Math.max(0, prev - 1))
+        setAvailableQuota((prev) => Math.max(0, prev - 1))
+      } else if (dateOption === 'domingo') {
+        setQuotaSun((prev) => Math.max(0, prev - 1))
+        setAvailableQuota((prev) => Math.max(0, prev - 1))
+      } else {
+        setAvailableQuota((prev) => Math.max(0, prev - 1))
+      }
     } catch (err: any) {
       console.error('Error al generar pase:', err)
       setFormError('Hubo un inconveniente al generar tu pase. Por favor intentá nuevamente.')
@@ -590,13 +789,31 @@ export function PublicInvitationPage() {
     if (!ctx) return null
 
     // 1. Dibujar afiche de fondo (con zoom, posición y brillo configurados en el panel)
-    if (flyerBg) {
+    const ticketCouponId = ticket.items?.[0]?.couponId || ticket.couponId
+    let ticketCoupon: QrCatalogItem | null = null
+    if (couponSat && ticketCouponId === couponSat.id) ticketCoupon = couponSat
+    else if (couponSun && ticketCouponId === couponSun.id) ticketCoupon = couponSun
+    else if (coupon && ticketCouponId === coupon.id) ticketCoupon = coupon
+    else if (appContext?.qrCatalog) {
+      ticketCoupon = appContext.qrCatalog.find((c) => c.id === ticketCouponId) || null
+    }
+
+    const ticketFlyerBg =
+      ticketCoupon?.backgroundImage ||
+      activeCoupon?.backgroundImage ||
+      venue?.qrBackground ||
+      (event as any)?.backgroundImage ||
+      (event as any)?.imageUrl ||
+      localStorage.getItem('qr-pass-line.qr-background') ||
+      ''
+
+    if (ticketFlyerBg) {
       const bgImg = new Image()
       bgImg.crossOrigin = 'anonymous'
       await new Promise((resolve) => {
         bgImg.onload = resolve
         bgImg.onerror = resolve
-        bgImg.src = flyerBg
+        bgImg.src = ticketFlyerBg
       })
 
       if (bgImg.complete && bgImg.naturalWidth > 0) {
@@ -1135,21 +1352,27 @@ export function PublicInvitationPage() {
                 justifyContent: 'space-between',
                 padding: '10px 14px',
                 borderRadius: 14,
-                background: availableQuota <= 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                border: availableQuota <= 0 ? '1px solid #ef4444' : '1px solid rgba(34, 197, 94, 0.3)',
+                background: activeQuota <= 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                border: activeQuota <= 0 ? '1px solid #ef4444' : '1px solid rgba(34, 197, 94, 0.3)',
                 marginBottom: 20
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>{availableQuota <= 0 ? '🚨' : '🔥'}</span>
+                <span style={{ fontSize: 16 }}>{activeQuota <= 0 ? '🚨' : '🔥'}</span>
                 <div>
-                  <strong style={{ fontSize: 13, color: availableQuota <= 0 ? '#ef4444' : '#22c55e', display: 'block' }}>
-                    {availableQuota <= 0 ? 'QRs Agotados para hoy' : `QRs Disponibles (${coupon?.name || 'Entrada'})`}
+                  <strong style={{ fontSize: 13, color: activeQuota <= 0 ? '#ef4444' : '#22c55e', display: 'block' }}>
+                    {activeQuota <= 0
+                      ? 'QRs Agotados para esta opción'
+                      : dateOption === 'ambos'
+                        ? `QRs Disponibles (Ambos Días)`
+                        : `QRs Disponibles (${activeCoupon?.name || 'Entrada'})`}
                   </strong>
                   <small style={{ fontSize: 11, color: '#94a3b8' }}>
-                    {availableQuota <= 0
-                      ? `El cupo de ${limitation ? limitation.quantity : 2000} QRs se ha completado`
-                      : `Cupo restante: ${availableQuota} de ${limitation ? limitation.quantity : 2000} QRs (hasta ${maxAllowedPersons} ${maxAllowedPersons === 1 ? 'persona' : 'personas'} por QR)`}
+                    {activeQuota <= 0
+                      ? 'El cupo de QRs para esta opción se ha completado'
+                      : dateOption === 'ambos'
+                        ? `Sáb: ${quotaSat} de ${limitationSat ? limitationSat.quantity : 2000} | Dom: ${quotaSun} de ${limitationSun ? limitationSun.quantity : 2000} QRs`
+                        : `Cupo restante: ${activeQuota} de ${activeLimitation ? activeLimitation.quantity : 2000} QRs (hasta ${maxAllowedPersons} ${maxAllowedPersons === 1 ? 'persona' : 'personas'} por QR)`}
                   </small>
                 </div>
               </div>
@@ -1157,17 +1380,17 @@ export function PublicInvitationPage() {
                 style={{
                   fontSize: 11,
                   fontWeight: 900,
-                  color: availableQuota <= 0 ? '#ef4444' : '#22c55e',
+                  color: activeQuota <= 0 ? '#ef4444' : '#22c55e',
                   background: 'rgba(0,0,0,0.25)',
                   padding: '3px 8px',
                   borderRadius: 8
                 }}
               >
-                {availableQuota > 0 ? 'ACTIVO' : 'CERRADO'}
+                {activeQuota > 0 ? 'ACTIVO' : 'CERRADO'}
               </span>
             </div>
 
-            {availableQuota <= 0 ? (
+            {(paramDateMode === 'doble' ? (quotaSat <= 0 && quotaSun <= 0) : availableQuota <= 0) ? (
               <div style={{ textAlign: 'center', padding: '24px 10px' }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
                 <h3 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 8px', color: '#fff' }}>
@@ -1207,6 +1430,7 @@ export function PublicInvitationPage() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                         <button
                           type="button"
+                          disabled={quotaSat <= 0}
                           onClick={() => setDateOption('sabado')}
                           style={{
                             padding: '12px 10px',
@@ -1214,17 +1438,22 @@ export function PublicInvitationPage() {
                             border: dateOption === 'sabado' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
                             background: dateOption === 'sabado' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
                             color: dateOption === 'sabado' ? '#ff6633' : '#cbd5e1',
-                            cursor: 'pointer',
+                            cursor: quotaSat <= 0 ? 'not-allowed' : 'pointer',
+                            opacity: quotaSat <= 0 ? 0.5 : 1,
                             textAlign: 'center',
                             transition: 'all 0.15s ease'
                           }}
                         >
                           <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Sábado</div>
                           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.satStr}</div>
+                          <div style={{ fontSize: 11, fontWeight: 800, marginTop: 4, color: quotaSat > 0 ? '#22c55e' : '#ef4444' }}>
+                            {couponSat?.name || 'Entrada'} ({quotaSat > 0 ? `${quotaSat} cupos` : 'Agotado'})
+                          </div>
                         </button>
 
                         <button
                           type="button"
+                          disabled={quotaSun <= 0}
                           onClick={() => setDateOption('domingo')}
                           style={{
                             padding: '12px 10px',
@@ -1232,13 +1461,17 @@ export function PublicInvitationPage() {
                             border: dateOption === 'domingo' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
                             background: dateOption === 'domingo' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
                             color: dateOption === 'domingo' ? '#ff6633' : '#cbd5e1',
-                            cursor: 'pointer',
+                            cursor: quotaSun <= 0 ? 'not-allowed' : 'pointer',
+                            opacity: quotaSun <= 0 ? 0.5 : 1,
                             textAlign: 'center',
                             transition: 'all 0.15s ease'
                           }}
                         >
                           <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Domingo</div>
                           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.sunStr}</div>
+                          <div style={{ fontSize: 11, fontWeight: 800, marginTop: 4, color: quotaSun > 0 ? '#22c55e' : '#ef4444' }}>
+                            {couponSun?.name || 'Entrada'} ({quotaSun > 0 ? `${quotaSun} cupos` : 'Agotado'})
+                          </div>
                         </button>
                       </div>
 
@@ -1246,31 +1479,31 @@ export function PublicInvitationPage() {
                       {paramAllowBothDays && (
                         <button
                           type="button"
-                          disabled={availableQuota < 2}
-                          onClick={() => availableQuota >= 2 && setDateOption('ambos')}
+                          disabled={quotaSat <= 0 || quotaSun <= 0}
+                          onClick={() => quotaSat > 0 && quotaSun > 0 && setDateOption('ambos')}
                           style={{
                             width: '100%',
                             padding: '12px 14px',
                             borderRadius: 14,
                             border: dateOption === 'ambos' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
-                            background: availableQuota < 2 ? 'rgba(255,255,255,0.02)' : dateOption === 'ambos' ? 'rgba(255, 70, 6, 0.18)' : 'rgba(255,255,255,0.03)',
-                            color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#94a3b8',
-                            cursor: availableQuota < 2 ? 'not-allowed' : 'pointer',
+                            background: (quotaSat <= 0 || quotaSun <= 0) ? 'rgba(255,255,255,0.02)' : dateOption === 'ambos' ? 'rgba(255, 70, 6, 0.18)' : 'rgba(255,255,255,0.03)',
+                            color: (quotaSat <= 0 || quotaSun <= 0) ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#cbd5e1',
+                            cursor: (quotaSat <= 0 || quotaSun <= 0) ? 'not-allowed' : 'pointer',
                             textAlign: 'center',
                             fontWeight: 800,
                             fontSize: 13,
                             transition: 'all 0.15s ease',
-                            opacity: availableQuota < 2 ? 0.6 : 1
+                            opacity: (quotaSat <= 0 || quotaSun <= 0) ? 0.6 : 1
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14, fontWeight: 900, color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#cbd5e1' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14, fontWeight: 900, color: (quotaSat <= 0 || quotaSun <= 0) ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#cbd5e1' }}>
                             <span>✨</span>
                             <span>Válido para ambos días (Sábado y Domingo)</span>
                           </div>
                           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-                            {availableQuota < 2
-                              ? `⚠️ Queda solo 1 QR disponible: podés sacarlo para Sábado o Domingo (hasta ${maxAllowedPersons} personas)`
-                              : 'Te generará 2 QRs independientes: uno para ingresar el sábado y otro para el domingo'}
+                            {quotaSat <= 0 || quotaSun <= 0
+                              ? `⚠️ Cupos agotados para uno de los días. Podés sacar tu pase individual para el día con cupo disponible.`
+                              : `Te generará 2 QRs independientes: uno para ${couponSat?.name || 'Sábado'} y otro para ${couponSun?.name || 'Domingo'}`}
                           </div>
                         </button>
                       )}

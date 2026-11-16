@@ -39,6 +39,23 @@ export function PublicLinksPage() {
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
 
+  // Cupones específicos para Sábado y Domingo cuando se usa Doble Fecha
+  const [selectedCouponSatId, setSelectedCouponSatId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved && JSON.parse(saved).selectedCouponSatId) return JSON.parse(saved).selectedCouponSatId
+    } catch {}
+    return ''
+  })
+
+  const [selectedCouponSunId, setSelectedCouponSunId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved && JSON.parse(saved).selectedCouponSunId) return JSON.parse(saved).selectedCouponSunId
+    } catch {}
+    return ''
+  })
+
   // Opciones de configuración del link público
   const [dateMode, setDateMode] = useState<'doble' | 'simple'>(() => {
     try {
@@ -83,17 +100,75 @@ export function PublicLinksPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   })
 
+  // Sincronizar selección inicial de cupones
+  useEffect(() => {
+    if (availableOptions.length > 0) {
+      if (!selectedCouponId) setSelectedCouponId(availableOptions[0].couponId)
+      if (!selectedCouponSatId) setSelectedCouponSatId(availableOptions[0].couponId)
+      if (!selectedCouponSunId) setSelectedCouponSunId(availableOptions[0].couponId)
+    }
+  }, [availableOptions, selectedCouponId, selectedCouponSatId, selectedCouponSunId])
+
   // Guardar configuración en LocalStorage cuando cambia
   useEffect(() => {
     try {
       localStorage.setItem(
         'qr-pass-line.public-links-config',
-        JSON.stringify({ dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso })
+        JSON.stringify({
+          dateMode,
+          allowBothDays,
+          singleDay,
+          maxPersons,
+          selectedDateIso,
+          selectedCouponId,
+          selectedCouponSatId,
+          selectedCouponSunId
+        })
       )
     } catch {}
-  }, [dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso])
+  }, [dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso, selectedCouponId, selectedCouponSatId, selectedCouponSunId])
 
-  // Formato legible de la fecha seleccionada
+  // Cálculo de las fechas del fin de semana (Sábado y Domingo) basado en la fecha seleccionada
+  const weekendDays = useMemo(() => {
+    const parts = (selectedDateIso || '').split('-')
+    let base = new Date()
+    if (parts.length === 3) {
+      base = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
+    }
+    const day = base.getDay() // 0 = Domingo, 6 = Sábado
+    let satDate = new Date(base)
+    let sunDate = new Date(base)
+
+    if (day === 6) {
+      satDate = new Date(base)
+      sunDate = new Date(base)
+      sunDate.setDate(sunDate.getDate() + 1)
+    } else if (day === 0) {
+      sunDate = new Date(base)
+      satDate = new Date(base)
+      satDate.setDate(satDate.getDate() - 1)
+    } else {
+      const daysUntilSat = (6 - day + 7) % 7
+      satDate = new Date(base)
+      satDate.setDate(satDate.getDate() + daysUntilSat)
+      sunDate = new Date(satDate)
+      sunDate.setDate(sunDate.getDate() + 1)
+    }
+
+    const months = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ]
+
+    const satFormatted = `Sábado ${satDate.getDate()} de ${months[satDate.getMonth()]}`
+    const sunFormatted = `Domingo ${sunDate.getDate()} de ${months[sunDate.getMonth()]}`
+    const satIso = `${satDate.getFullYear()}-${String(satDate.getMonth() + 1).padStart(2, '0')}-${String(satDate.getDate()).padStart(2, '0')}`
+    const sunIso = `${sunDate.getFullYear()}-${String(sunDate.getMonth() + 1).padStart(2, '0')}-${String(sunDate.getDate()).padStart(2, '0')}`
+
+    return { satFormatted, sunFormatted, satIso, sunIso }
+  }, [selectedDateIso])
+
+  // Formato legible de la fecha seleccionada (un solo día)
   const selectedDateFormatted = useMemo(() => {
     if (!selectedDateIso) return 'Fecha no seleccionada'
     const parts = selectedDateIso.split('-')
@@ -112,36 +187,34 @@ export function PublicLinksPage() {
     return selectedDateIso
   }, [selectedDateIso])
 
-  // Sincronizar selección inicial
-  useEffect(() => {
-    if (!selectedCouponId && availableOptions.length > 0) {
-      setSelectedCouponId(availableOptions[0].couponId)
-    }
-  }, [availableOptions, selectedCouponId])
-
   // URL del link público con el cupón / tipo de entrada y parámetros seleccionados
   const baseUrl = window.location.origin
   const currentCouponId = selectedCouponId || availableOptions[0]?.couponId || ''
+  const currentCouponSatId = selectedCouponSatId || availableOptions[0]?.couponId || ''
+  const currentCouponSunId = selectedCouponSunId || availableOptions[0]?.couponId || ''
 
   const params = new URLSearchParams()
-  if (currentCouponId) params.set('coupon', currentCouponId)
   params.set('mode', isDynamic ? 'dinamico' : 'estatico')
   params.set('dias', dateMode)
+
   if (dateMode === 'doble') {
+    params.set('couponSat', currentCouponSatId)
+    params.set('couponSun', currentCouponSunId)
     params.set('ambos', allowBothDays ? '1' : '0')
+    params.set('fecha', weekendDays.satIso)
   } else {
+    params.set('coupon', currentCouponId)
     params.set('dia', singleDay)
+    params.set('fecha', selectedDateIso)
   }
+
   if (maxPersons !== 6) {
     params.set('max', String(maxPersons))
-  }
-  if (selectedDateIso) {
-    params.set('fecha', selectedDateIso)
   }
 
   const publicLink = `${baseUrl}/invitacion/${activeEvent?.id || 'evento'}?${params.toString()}`
 
-  const selectedOptionInfo = availableOptions.find((o) => o.couponId === currentCouponId) || availableOptions[0]
+  const selectedOptionInfo = availableOptions.find((o) => o.couponId === (dateMode === 'doble' ? currentCouponSatId : currentCouponId)) || availableOptions[0]
 
   async function handleShare() {
     if (navigator.share) {
@@ -214,47 +287,14 @@ export function PublicLinksPage() {
           </div>
 
           <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* 1. Selector de Tipo de Entrada / Cupón Asignado */}
-            <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <label style={{ display: 'block', color: '#1e293b', fontSize: 13, fontWeight: 800, marginBottom: 8 }}>
-                🎟️ Tipo de Entrada / Cupón a Habilitar en el Link:
-              </label>
-              <select
-                value={currentCouponId}
-                onChange={(e) => setSelectedCouponId(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: 48,
-                  borderRadius: 12,
-                  border: '1.5px solid #cbd5e1',
-                  background: '#f8fafc',
-                  padding: '0 14px',
-                  fontSize: 15,
-                  fontWeight: 800,
-                  color: '#0f172a',
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {availableOptions.map((opt) => (
-                  <option key={opt.couponId} value={opt.couponId}>
-                    {opt.name} — ({opt.quantity} QRs asignados en tu cuenta)
-                  </option>
-                ))}
-              </select>
-              <small style={{ display: 'block', color: '#64748b', fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
-                ℹ️ Los QRs que la gente genere desde este link se descontarán estrictamente de esta limitación de tu cuenta de RRPP.
-              </small>
-            </div>
-
-            {/* 2. Selector de Modalidad de Fechas */}
+            {/* 1. Modalidad de Fechas */}
             <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <label style={{ display: 'block', color: '#1e293b', fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
-                🗓️ Modalidad de Fechas a Mostrar en el Pase:
+                🗓️ Modalidad del Link de Invitación:
               </label>
 
               {/* Botones de Selección Doble vs Un Solo Día */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => setDateMode('doble')}
@@ -291,43 +331,188 @@ export function PublicLinksPage() {
                   📅 Un solo día
                 </button>
               </div>
+            </div>
 
-              {/* Configuración específica según la modalidad */}
-              {dateMode === 'doble' ? (
-                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <strong style={{ fontSize: 13, color: '#1e293b', display: 'block' }}>
-                      Permitir opción "Válido para ambos días"
-                    </strong>
-                    <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 2 }}>
-                      {allowBothDays ? 'Genera 2 QRs separados (1 para sábado y 1 para domingo)' : 'Solo permite elegir uno de los dos días'}
-                    </small>
+            {/* SECCIÓN DOBLE FECHA */}
+            {dateMode === 'doble' ? (
+              <>
+                {/* 2A. Fechas del Fin de Semana */}
+                <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <label style={{ color: '#1e293b', fontSize: 13, fontWeight: 800 }}>
+                      📅 Fechas del Fin de Semana:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarOpen(true)}
+                      style={{
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      📅 Cambiar fin de semana
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={allowBothDays}
-                    onClick={() => setAllowBothDays(!allowBothDays)}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 12, padding: '12px 14px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Día 1</span>
+                      <strong style={{ display: 'block', fontSize: 14, color: '#0f172a', fontWeight: 900, marginTop: 2 }}>
+                        {weekendDays.satFormatted}
+                      </strong>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 12, padding: '12px 14px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Día 2</span>
+                      <strong style={{ display: 'block', fontSize: 14, color: '#0f172a', fontWeight: 900, marginTop: 2 }}>
+                        {weekendDays.sunFormatted}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2B. Asignación de Cupones por Día */}
+                <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <label style={{ color: '#1e293b', fontSize: 13, fontWeight: 800 }}>
+                    🎟️ Asignación de Entradas / Cupones por Día:
+                  </label>
+
+                  {/* Cupón Sábado */}
+                  <div>
+                    <label style={{ display: 'block', color: '#475569', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      Cupón a emitir para el SÁBADO:
+                    </label>
+                    <select
+                      value={currentCouponSatId}
+                      onChange={(e) => setSelectedCouponSatId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 46,
+                        borderRadius: 12,
+                        border: '1.5px solid #cbd5e1',
+                        background: '#f8fafc',
+                        padding: '0 14px',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: '#0f172a',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {availableOptions.map((opt) => (
+                        <option key={opt.couponId} value={opt.couponId}>
+                          {opt.name} — ({opt.quantity} QRs en tu cuenta)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Cupón Domingo */}
+                  <div>
+                    <label style={{ display: 'block', color: '#475569', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      Cupón a emitir para el DOMINGO:
+                    </label>
+                    <select
+                      value={currentCouponSunId}
+                      onChange={(e) => setSelectedCouponSunId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 46,
+                        borderRadius: 12,
+                        border: '1.5px solid #cbd5e1',
+                        background: '#f8fafc',
+                        padding: '0 14px',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: '#0f172a',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {availableOptions.map((opt) => (
+                        <option key={opt.couponId} value={opt.couponId}>
+                          {opt.name} — ({opt.quantity} QRs en tu cuenta)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Toggle Permitir Ambos Días */}
+                  <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <div>
+                      <strong style={{ fontSize: 13, color: '#1e293b', display: 'block' }}>
+                        Permitir opción "Válido para ambos días"
+                      </strong>
+                      <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 2 }}>
+                        {allowBothDays ? 'Genera 2 QRs separados (1 con el cupón del sábado y 1 con el del domingo)' : 'Solo permite elegir uno de los dos días'}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={allowBothDays}
+                      onClick={() => setAllowBothDays(!allowBothDays)}
+                      style={{
+                        width: 48,
+                        height: 26,
+                        borderRadius: 9999,
+                        background: allowBothDays ? '#0860bd' : '#cbd5e1',
+                        border: 'none',
+                        padding: 3,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: allowBothDays ? 'flex-end' : 'flex-start',
+                        transition: 'background 0.2s ease'
+                      }}
+                    >
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', display: 'block' }} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* SECCIÓN UN SOLO DÍA */
+              <>
+                {/* 2. Selector de Cupón Único */}
+                <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <label style={{ display: 'block', color: '#1e293b', fontSize: 13, fontWeight: 800, marginBottom: 8 }}>
+                    🎟️ Tipo de Entrada / Cupón a Habilitar en el Link:
+                  </label>
+                  <select
+                    value={currentCouponId}
+                    onChange={(e) => setSelectedCouponId(e.target.value)}
                     style={{
-                      width: 48,
-                      height: 26,
-                      borderRadius: 9999,
-                      background: allowBothDays ? '#0860bd' : '#cbd5e1',
-                      border: 'none',
-                      padding: 3,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: allowBothDays ? 'flex-end' : 'flex-start',
-                      transition: 'background 0.2s ease'
+                      width: '100%',
+                      height: 48,
+                      borderRadius: 12,
+                      border: '1.5px solid #cbd5e1',
+                      background: '#f8fafc',
+                      padding: '0 14px',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      color: '#0f172a',
+                      outline: 'none',
+                      cursor: 'pointer'
                     }}
                   >
-                    <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', display: 'block' }} />
-                  </button>
+                    {availableOptions.map((opt) => (
+                      <option key={opt.couponId} value={opt.couponId}>
+                        {opt.name} — ({opt.quantity} QRs asignados en tu cuenta)
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ) : (
-                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+
+                {/* 3. Selección de Día Específico */}
+                <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#1e293b', marginBottom: 8 }}>
                     ¿Para qué día querés que sea el pase?
                   </label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
@@ -335,13 +520,13 @@ export function PublicLinksPage() {
                       type="button"
                       onClick={() => setSingleDay('sabado')}
                       style={{
-                        padding: '8px',
-                        borderRadius: 8,
+                        padding: '10px 8px',
+                        borderRadius: 10,
                         border: singleDay === 'sabado' ? '2px solid #0860bd' : '1px solid #cbd5e1',
                         background: singleDay === 'sabado' ? '#eff6ff' : '#ffffff',
                         color: singleDay === 'sabado' ? '#0860bd' : '#475569',
-                        fontSize: 12,
-                        fontWeight: 700,
+                        fontSize: 13,
+                        fontWeight: 800,
                         cursor: 'pointer'
                       }}
                     >
@@ -351,13 +536,13 @@ export function PublicLinksPage() {
                       type="button"
                       onClick={() => setSingleDay('domingo')}
                       style={{
-                        padding: '8px',
-                        borderRadius: 8,
+                        padding: '10px 8px',
+                        borderRadius: 10,
                         border: singleDay === 'domingo' ? '2px solid #0860bd' : '1px solid #cbd5e1',
                         background: singleDay === 'domingo' ? '#eff6ff' : '#ffffff',
                         color: singleDay === 'domingo' ? '#0860bd' : '#475569',
-                        fontSize: 12,
-                        fontWeight: 700,
+                        fontSize: 13,
+                        fontWeight: 800,
                         cursor: 'pointer'
                       }}
                     >
@@ -367,13 +552,13 @@ export function PublicLinksPage() {
                       type="button"
                       onClick={() => setSingleDay('evento')}
                       style={{
-                        padding: '8px',
-                        borderRadius: 8,
+                        padding: '10px 8px',
+                        borderRadius: 10,
                         border: singleDay === 'evento' ? '2px solid #0860bd' : '1px solid #cbd5e1',
                         background: singleDay === 'evento' ? '#eff6ff' : '#ffffff',
                         color: singleDay === 'evento' ? '#0860bd' : '#475569',
-                        fontSize: 12,
-                        fontWeight: 700,
+                        fontSize: 13,
+                        fontWeight: 800,
                         cursor: 'pointer'
                       }}
                     >
@@ -381,11 +566,41 @@ export function PublicLinksPage() {
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* 3. Selector de Personas Máximas por QR */}
-            <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                {/* 4. Selector de Fecha en Calendario */}
+                <div
+                  onClick={() => setCalendarOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '14px 18px',
+                    background: '#e9ecef',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    border: '1px solid #dee2e6',
+                    userSelect: 'none'
+                  }}
+                >
+                  <div style={{ color: '#495057', display: 'grid', placeItems: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <rect x="1.5" y="1.5" width="21" height="13" rx="2.5" />
+                      <rect x="6" y="4.5" width="12" height="7" rx="1" />
+                    </svg>
+                  </div>
+
+                  <div>
+                    <small style={{ display: 'block', color: '#6c757d', fontSize: 11 }}>Seleccionar fecha del evento en calendario</small>
+                    <strong style={{ display: 'block', color: '#212529', fontSize: 14, fontWeight: 700 }}>
+                      {selectedDateFormatted}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Selector de Cantidad Máxima de Personas por Pase (1 a 6) */}
+            <div style={{ background: '#ffffff', borderRadius: 12, padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <label style={{ color: '#1e293b', fontSize: 13, fontWeight: 800 }}>
                   👥 Cantidad Máxima de Personas por Pase QR:
@@ -422,36 +637,6 @@ export function PublicLinksPage() {
                   ? '🔒 Modo individual: La persona solo podrá generar un QR para sí misma.'
                   : `👥 Modo grupal: La persona podrá elegir desde 1 hasta ${maxPersons} personas por QR.`}
               </small>
-            </div>
-
-            {/* 2. Selector de Fecha */}
-            <div
-              onClick={() => setCalendarOpen(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                padding: '14px 18px',
-                background: '#e9ecef',
-                borderRadius: 12,
-                cursor: 'pointer',
-                border: '1px solid #dee2e6',
-                userSelect: 'none'
-              }}
-            >
-              <div style={{ color: '#495057', display: 'grid', placeItems: 'center' }}>
-                <svg width="24" height="24" viewBox="0 0 24 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <rect x="1.5" y="1.5" width="21" height="13" rx="2.5" />
-                  <rect x="6" y="4.5" width="12" height="7" rx="1" />
-                </svg>
-              </div>
-
-              <div>
-                <small style={{ display: 'block', color: '#6c757d', fontSize: 11 }}>Seleccionar fecha del evento en calendario</small>
-                <strong style={{ display: 'block', color: '#212529', fontSize: 14, fontWeight: 700 }}>
-                  {selectedDateFormatted}
-                </strong>
-              </div>
             </div>
 
             {/* 3. Fila ESTÁTICO | DINÁMICO con Switch Toggle */}
