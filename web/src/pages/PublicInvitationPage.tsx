@@ -628,12 +628,48 @@ export function PublicInvitationPage() {
           const dupSnap = await getDocs(dupQuery)
           if (!dupSnap.empty) {
             const existingTickets = dupSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Ticket[]
-            setGeneratedTickets(existingTickets)
-            setIsExistingPass(true)
-            setActiveTicketIdx(0)
-            localStorage.setItem(`qr-pass-line.public-passes-${event.id}`, JSON.stringify(existingTickets))
-            setSubmitting(false)
-            return
+
+            // Si pidió ambos días, solo consideramos duplicado si YA TIENE emitidos los pases de ambos días
+            if (dateOption === 'ambos') {
+              const hasSat = existingTickets.some((t) => t.eventDate === weekend.satIso || t.items?.some((it) => it.couponName.includes('Sábado')))
+              const hasSun = existingTickets.some((t) => t.eventDate === weekend.sunIso || t.items?.some((it) => it.couponName.includes('Domingo')))
+
+              if (hasSat && hasSun) {
+                setGeneratedTickets(existingTickets.filter((t) => t.eventDate === weekend.satIso || t.eventDate === weekend.sunIso))
+                setIsExistingPass(true)
+                setActiveTicketIdx(0)
+                localStorage.setItem(`qr-pass-line.public-passes-${event.id}`, JSON.stringify(existingTickets))
+                setSubmitting(false)
+                return
+              }
+            } else if (dateOption === 'sabado') {
+              const satTicket = existingTickets.find((t) => t.eventDate === weekend.satIso || t.items?.some((it) => it.couponName.includes('Sábado')))
+              if (satTicket) {
+                setGeneratedTickets([satTicket])
+                setIsExistingPass(true)
+                setActiveTicketIdx(0)
+                setSubmitting(false)
+                return
+              }
+            } else if (dateOption === 'domingo') {
+              const sunTicket = existingTickets.find((t) => t.eventDate === weekend.sunIso || t.items?.some((it) => it.couponName.includes('Domingo')))
+              if (sunTicket) {
+                setGeneratedTickets([sunTicket])
+                setIsExistingPass(true)
+                setActiveTicketIdx(0)
+                setSubmitting(false)
+                return
+              }
+            } else if (dateOption === 'evento') {
+              const evTicket = existingTickets.find((t) => t.eventDate === eventDay.iso)
+              if (evTicket) {
+                setGeneratedTickets([evTicket])
+                setIsExistingPass(true)
+                setActiveTicketIdx(0)
+                setSubmitting(false)
+                return
+              }
+            }
           }
         } catch {}
       }
@@ -1007,11 +1043,34 @@ export function PublicInvitationPage() {
 
       // 2. Si el navegador/celular soporta compartir archivos directamente (Android / iOS con WhatsApp)
       if (navigator.canShare && navigator.canShare({ files })) {
-        await navigator.share({
-          title: `Pase de Ingreso - Cubano Bar`,
-          files,
-        })
-        return
+        try {
+          await navigator.share({
+            title: `Pases de Ingreso - Cubano Bar`,
+            files,
+          })
+          return
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') return
+        }
+      }
+
+      // Si falla compartir múltiples juntos (común en WhatsApp móvil), compartimos el pase que se está viendo
+      const currentBlob = await generateCouponPng(currentTicket)
+      if (currentBlob) {
+        const sanitizedName = currentTicket.holderName.replace(/[^a-zA-Z0-9]/g, '_')
+        const daySuffix = currentTicket.items?.[0]?.couponName.includes('Domingo') ? 'Domingo' : 'Sabado'
+        const singleFile = new File([currentBlob], `Pase-Cubano-${daySuffix}-${sanitizedName}.png`, { type: 'image/png' })
+        if (navigator.canShare && navigator.canShare({ files: [singleFile] })) {
+          try {
+            await navigator.share({
+              title: `Pase de Ingreso (${daySuffix}) - Cubano Bar`,
+              files: [singleFile],
+            })
+            return
+          } catch (e: any) {
+            if (e?.name === 'AbortError') return
+          }
+        }
       }
 
       // 3. Si es PC o navegador que no soporta enviar archivos directamente por Web Share API:
@@ -1081,8 +1140,31 @@ export function PublicInvitationPage() {
         {generatedTickets.length > 0 && currentTicket ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }}>
             {isExistingPass && (
-              <div style={{ width: 'min(360px, 100%)', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#93c5fd', textAlign: 'center' }}>
-                ℹ️ Ya tenías un pase generado con tu número. ¡Acá está tu QR!
+              <div style={{ width: 'min(360px, 100%)', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#93c5fd', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div>ℹ️ Ya tenías un pase generado con este número.</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeneratedTickets([])
+                    setIsExistingPass(false)
+                    if (event) {
+                      localStorage.removeItem(`qr-pass-line.public-passes-${event.id}`)
+                      localStorage.removeItem(`qr-pass-line.public-pass-${event.id}`)
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#93c5fd',
+                    textDecoration: 'underline',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    padding: 0
+                  }}
+                >
+                  ¿Querés generar un pase nuevo o para ambos días? Tocá acá
+                </button>
               </div>
             )}
 
@@ -1311,6 +1393,10 @@ export function PublicInvitationPage() {
                   setHolderName('')
                   setPhone('')
                   setQuantity(1)
+                  if (event) {
+                    localStorage.removeItem(`qr-pass-line.public-passes-${event.id}`)
+                    localStorage.removeItem(`qr-pass-line.public-pass-${event.id}`)
+                  }
                 }}
                 style={{
                   height: 40,
