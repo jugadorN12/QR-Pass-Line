@@ -59,10 +59,30 @@ function getWeekendDates(baseEvent?: ClubEvent | null) {
   return { satStr, sunStr, satIso, sunIso }
 }
 
+function formatEventDay(dateStr?: string) {
+  if (!dateStr) return { dayName: 'Día del Evento', formattedStr: 'Fecha confirmada', iso: new Date().toISOString().split('T')[0] }
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return { dayName: 'Día del Evento', formattedStr: dateStr, iso: new Date().toISOString().split('T')[0] }
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  const dayName = days[d.getDay()]
+  const formattedStr = `${dayName} ${d.getDate()} ${months[d.getMonth()]}`
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { dayName, formattedStr, iso }
+}
+
 export function PublicInvitationPage() {
   const { eventId: urlEventId } = useParams<{ eventId?: string }>()
   const [searchParams] = useSearchParams()
   const urlCouponId = searchParams.get('coupon') || searchParams.get('couponId') || searchParams.get('tipo')
+
+  // URL parameters for flexible configuration
+  const paramDateMode = searchParams.get('dias') === 'simple' ? 'simple' : 'doble'
+  const paramAllowBothDays = searchParams.get('ambos') !== '0'
+  const paramSingleDay = (searchParams.get('dia') || 'sabado') as 'sabado' | 'domingo' | 'evento'
+  const parsedMax = parseInt(searchParams.get('max') || '6', 10)
+  const maxAllowedPersons = isNaN(parsedMax) ? 6 : Math.max(1, Math.min(6, parsedMax))
+
   const appContext = useApp()
 
   const [loading, setLoading] = useState(true)
@@ -74,13 +94,23 @@ export function PublicInvitationPage() {
   const [limitation, setLimitation] = useState<Limitation | null>(null)
   const [availableQuota, setAvailableQuota] = useState<number>(2000)
 
-  // Form states: Full Name, Phone, Date Option ('sabado' | 'domingo' | 'ambos'), Quantity (1 to 6)
+  // Form states: Full Name, Phone, Date Option ('sabado' | 'domingo' | 'ambos' | 'evento'), Quantity
   const [holderName, setHolderName] = useState('')
   const [phone, setPhone] = useState('')
-  const [dateOption, setDateOption] = useState<'sabado' | 'domingo' | 'ambos'>('sabado')
+  const [dateOption, setDateOption] = useState<'sabado' | 'domingo' | 'ambos' | 'evento'>(() => {
+    if (paramDateMode === 'simple') return paramSingleDay
+    return 'sabado'
+  })
   const [quantity, setQuantity] = useState<number>(1)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+
+  // Sincronizar fecha si cambia el parámetro de URL
+  useEffect(() => {
+    if (paramDateMode === 'simple') {
+      setDateOption(paramSingleDay)
+    }
+  }, [paramDateMode, paramSingleDay])
 
   // Generated tickets list (supports 1 ticket for single day or 2 tickets for Ambos Días)
   const [generatedTickets, setGeneratedTickets] = useState<Ticket[]>([])
@@ -100,6 +130,7 @@ export function PublicInvitationPage() {
   const templateShadow = couponTemplate?.shadow ?? true
 
   const weekend = useMemo(() => getWeekendDates(event), [event])
+  const eventDay = useMemo(() => formatEventDay(event?.date), [event?.date])
 
   // Flyer background resolution
   const flyerBg = useMemo(() => {
@@ -465,11 +496,22 @@ export function PublicInvitationPage() {
           redeemedBy: null,
         })
       } else {
-        // Un solo día (Sábado o Domingo)
+        // Un solo día (Sábado, Domingo o Fecha de evento)
         const singleCode = ticketCode()
-        const isSat = dateOption === 'sabado'
-        const targetDateIso = isSat ? weekend.satIso : weekend.sunIso
-        const dayLabel = isSat ? 'Sábado' : 'Domingo'
+        let targetDateIso = weekend.satIso
+        let dayLabel = 'Sábado'
+
+        if (dateOption === 'domingo') {
+          targetDateIso = weekend.sunIso
+          dayLabel = 'Domingo'
+        } else if (dateOption === 'evento') {
+          targetDateIso = eventDay.iso
+          dayLabel = eventDay.dayName
+        } else {
+          targetDateIso = weekend.satIso
+          dayLabel = 'Sábado'
+        }
+
         const items: TicketItem[] = [
           {
             couponId: coupon?.id || 'cubano-gral',
@@ -1061,7 +1103,7 @@ export function PublicInvitationPage() {
                   <small style={{ fontSize: 11, color: '#94a3b8' }}>
                     {availableQuota <= 0
                       ? `El cupo de ${limitation ? limitation.quantity : 2000} QRs se ha completado`
-                      : `Cupo restante: ${availableQuota} de ${limitation ? limitation.quantity : 2000} QRs (hasta 6 personas por QR)`}
+                      : `Cupo restante: ${availableQuota} de ${limitation ? limitation.quantity : 2000} QRs (hasta ${maxAllowedPersons} ${maxAllowedPersons === 1 ? 'persona' : 'personas'} por QR)`}
                   </small>
                 </div>
               </div>
@@ -1091,171 +1133,221 @@ export function PublicInvitationPage() {
               </div>
             ) : (
               <form onSubmit={handleGenerateTicket} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* 1. SELECCIÓN DE FECHA: SÁBADO, DOMINGO O AMBOS DÍAS */}
+                {/* 1. SELECCIÓN DE FECHA */}
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#cbd5e1', marginBottom: 8 }}>
-                    Seleccioná para qué día querés tu pase:
+                    {paramDateMode === 'simple' ? 'Fecha del pase:' : 'Seleccioná para qué día querés tu pase:'}
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setDateOption('sabado')}
+
+                  {paramDateMode === 'simple' ? (
+                    <div
                       style={{
-                        padding: '12px 10px',
+                        background: 'rgba(255, 70, 6, 0.12)',
+                        border: '1.5px solid #ff4606',
                         borderRadius: 14,
-                        border: dateOption === 'sabado' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
-                        background: dateOption === 'sabado' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
-                        color: dateOption === 'sabado' ? '#ff6633' : '#cbd5e1',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.15s ease'
+                        padding: '12px 14px',
+                        textAlign: 'center'
                       }}
                     >
-                      <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Sábado</div>
-                      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.satStr}</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDateOption('domingo')}
-                      style={{
-                        padding: '12px 10px',
-                        borderRadius: 14,
-                        border: dateOption === 'domingo' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
-                        background: dateOption === 'domingo' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
-                        color: dateOption === 'domingo' ? '#ff6633' : '#cbd5e1',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Domingo</div>
-                      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.sunStr}</div>
-                    </button>
-                  </div>
-
-                  {/* Opción Ambos Días (Opción 1: Genera 2 QRs separados si hay al menos 2 QRs en cupo) */}
-                  <button
-                    type="button"
-                    disabled={availableQuota < 2}
-                    onClick={() => availableQuota >= 2 && setDateOption('ambos')}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      borderRadius: 14,
-                      border: dateOption === 'ambos' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
-                      background: availableQuota < 2 ? 'rgba(255,255,255,0.02)' : dateOption === 'ambos' ? 'rgba(255, 70, 6, 0.18)' : 'rgba(255,255,255,0.03)',
-                      color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#94a3b8',
-                      cursor: availableQuota < 2 ? 'not-allowed' : 'pointer',
-                      textAlign: 'center',
-                      fontWeight: 800,
-                      fontSize: 13,
-                      transition: 'all 0.15s ease',
-                      opacity: availableQuota < 2 ? 0.6 : 1
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14, fontWeight: 900, color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#cbd5e1' }}>
-                      <span>✨</span>
-                      <span>Válido para ambos días (Sábado y Domingo)</span>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#ff6633', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Fecha Confirmada
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 3 }}>
+                        📅 {dateOption === 'domingo' ? `Domingo (${weekend.sunStr})` : dateOption === 'evento' ? eventDay.formattedStr : `Sábado (${weekend.satStr})`}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-                      {availableQuota < 2
-                        ? '⚠️ Queda solo 1 QR disponible: podés sacarlo para Sábado o Domingo (hasta 6 personas)'
-                        : 'Te generará 2 QRs independientes: uno para ingresar el sábado y otro para el domingo'}
+                  ) : (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setDateOption('sabado')}
+                          style={{
+                            padding: '12px 10px',
+                            borderRadius: 14,
+                            border: dateOption === 'sabado' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
+                            background: dateOption === 'sabado' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
+                            color: dateOption === 'sabado' ? '#ff6633' : '#cbd5e1',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Sábado</div>
+                          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.satStr}</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDateOption('domingo')}
+                          style={{
+                            padding: '12px 10px',
+                            borderRadius: 14,
+                            border: dateOption === 'domingo' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
+                            background: dateOption === 'domingo' ? 'rgba(255, 70, 6, 0.15)' : 'rgba(255,255,255,0.04)',
+                            color: dateOption === 'domingo' ? '#ff6633' : '#cbd5e1',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ fontSize: 15, fontWeight: 900 }}>📅 Domingo</div>
+                          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{weekend.sunStr}</div>
+                        </button>
+                      </div>
+
+                      {/* Opción Ambos Días si está permitida */}
+                      {paramAllowBothDays && (
+                        <button
+                          type="button"
+                          disabled={availableQuota < 2}
+                          onClick={() => availableQuota >= 2 && setDateOption('ambos')}
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: 14,
+                            border: dateOption === 'ambos' ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.12)',
+                            background: availableQuota < 2 ? 'rgba(255,255,255,0.02)' : dateOption === 'ambos' ? 'rgba(255, 70, 6, 0.18)' : 'rgba(255,255,255,0.03)',
+                            color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#94a3b8',
+                            cursor: availableQuota < 2 ? 'not-allowed' : 'pointer',
+                            textAlign: 'center',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            transition: 'all 0.15s ease',
+                            opacity: availableQuota < 2 ? 0.6 : 1
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14, fontWeight: 900, color: availableQuota < 2 ? '#64748b' : dateOption === 'ambos' ? '#ff6633' : '#cbd5e1' }}>
+                            <span>✨</span>
+                            <span>Válido para ambos días (Sábado y Domingo)</span>
+                          </div>
+                          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+                            {availableQuota < 2
+                              ? `⚠️ Queda solo 1 QR disponible: podés sacarlo para Sábado o Domingo (hasta ${maxAllowedPersons} personas)`
+                              : 'Te generará 2 QRs independientes: uno para ingresar el sábado y otro para el domingo'}
+                          </div>
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  )}
                 </div>
 
-                {/* 2. CANTIDAD DE PERSONAS (MÁXIMO 6) */}
+                {/* 2. CANTIDAD DE PERSONAS */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <label style={{ fontSize: 13, fontWeight: 800, color: '#cbd5e1' }}>
                       Cantidad de personas <span style={{ color: '#ff4606' }}>*</span>
                     </label>
-                    <span style={{ fontSize: 11, color: '#ff6633', fontWeight: 700 }}>Máx. 6 por QR</span>
+                    <span style={{ fontSize: 11, color: '#ff6633', fontWeight: 700 }}>
+                      {maxAllowedPersons === 1 ? 'Pase Individual' : `Máx. ${maxAllowedPersons} por QR`}
+                    </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button
-                      type="button"
-                      disabled={quantity <= 1}
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 12,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        background: quantity <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                        color: quantity <= 1 ? '#475569' : '#fff',
-                        fontSize: 22,
-                        fontWeight: 900,
-                        cursor: quantity <= 1 ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      −
-                    </button>
-
+                  {maxAllowedPersons === 1 ? (
                     <div
                       style={{
-                        flex: 1,
-                        height: 46,
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: 14,
+                        padding: '12px 14px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(255, 70, 6, 0.12)',
-                        border: '1.5px solid rgba(255, 70, 6, 0.4)',
-                        borderRadius: 12,
-                        fontSize: 16,
-                        fontWeight: 900,
-                        color: '#ff6633'
+                        justifyContent: 'space-between'
                       }}
                     >
-                      {quantity} {quantity === 1 ? 'Persona beneficiada' : 'Personas beneficiadas'}
+                      <div>
+                        <strong style={{ fontSize: 14, color: '#fff', display: 'block' }}>👤 Pase Individual</strong>
+                        <small style={{ fontSize: 11, color: '#94a3b8' }}>Ingreso para 1 persona al momento de presentarse en puerta</small>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 900, color: '#22c55e', background: 'rgba(34, 197, 94, 0.15)', padding: '4px 10px', borderRadius: 8 }}>
+                        1 Persona
+                      </span>
                     </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                          type="button"
+                          disabled={quantity <= 1}
+                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                          style={{
+                            width: 46,
+                            height: 46,
+                            borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: quantity <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                            color: quantity <= 1 ? '#475569' : '#fff',
+                            fontSize: 22,
+                            fontWeight: 900,
+                            cursor: quantity <= 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          −
+                        </button>
 
-                    <button
-                      type="button"
-                      disabled={quantity >= 6}
-                      onClick={() => setQuantity((q) => Math.min(6, q + 1))}
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 12,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        background: quantity >= 6 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                        color: quantity >= 6 ? '#475569' : '#fff',
-                        fontSize: 22,
-                        fontWeight: 900,
-                        cursor: quantity >= 6 ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      +
-                    </button>
-                  </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            height: 46,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 70, 6, 0.12)',
+                            border: '1.5px solid rgba(255, 70, 6, 0.4)',
+                            borderRadius: 12,
+                            fontSize: 16,
+                            fontWeight: 900,
+                            color: '#ff6633'
+                          }}
+                        >
+                          {quantity} {quantity === 1 ? 'Persona beneficiada' : 'Personas beneficiadas'}
+                        </div>
 
-                  {/* Pills selectoras rápidas 1 al 6 */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginTop: 8 }}>
-                    {[1, 2, 3, 4, 5, 6].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setQuantity(num)}
-                        style={{
-                          height: 36,
-                          borderRadius: 10,
-                          border: quantity === num ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.1)',
-                          background: quantity === num ? '#ff4606' : 'rgba(255,255,255,0.04)',
-                          color: '#fff',
-                          fontWeight: 800,
-                          fontSize: 14,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
+                        <button
+                          type="button"
+                          disabled={quantity >= maxAllowedPersons}
+                          onClick={() => setQuantity((q) => Math.min(maxAllowedPersons, q + 1))}
+                          style={{
+                            width: 46,
+                            height: 46,
+                            borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: quantity >= maxAllowedPersons ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                            color: quantity >= maxAllowedPersons ? '#475569' : '#fff',
+                            fontSize: 22,
+                            fontWeight: 900,
+                            cursor: quantity >= maxAllowedPersons ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Pills selectoras rápidas */}
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${maxAllowedPersons}, 1fr)`, gap: 6, marginTop: 8 }}>
+                        {Array.from({ length: maxAllowedPersons }, (_, i) => i + 1).map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setQuantity(num)}
+                            style={{
+                              height: 36,
+                              borderRadius: 10,
+                              border: quantity === num ? '2px solid #ff4606' : '1px solid rgba(255,255,255,0.1)',
+                              background: quantity === num ? '#ff4606' : 'rgba(255,255,255,0.04)',
+                              color: '#fff',
+                              fontWeight: 800,
+                              fontSize: 14,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. NOMBRE Y APELLIDO */}

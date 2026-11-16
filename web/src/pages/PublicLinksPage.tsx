@@ -39,6 +39,49 @@ export function PublicLinksPage() {
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
 
+  // Opciones de configuración del link público
+  const [dateMode, setDateMode] = useState<'doble' | 'simple'>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved) return JSON.parse(saved).dateMode || 'doble'
+    } catch {}
+    return 'doble'
+  })
+
+  const [allowBothDays, setAllowBothDays] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved) return JSON.parse(saved).allowBothDays ?? true
+    } catch {}
+    return true
+  })
+
+  const [singleDay, setSingleDay] = useState<'sabado' | 'domingo' | 'evento'>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved) return JSON.parse(saved).singleDay || 'sabado'
+    } catch {}
+    return 'sabado'
+  })
+
+  const [maxPersons, setMaxPersons] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('qr-pass-line.public-links-config')
+      if (saved) return JSON.parse(saved).maxPersons || 6
+    } catch {}
+    return 6
+  })
+
+  // Guardar configuración en LocalStorage cuando cambia
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'qr-pass-line.public-links-config',
+        JSON.stringify({ dateMode, allowBothDays, singleDay, maxPersons })
+      )
+    } catch {}
+  }, [dateMode, allowBothDays, singleDay, maxPersons])
+
   // Sincronizar selección inicial
   useEffect(() => {
     if (!selectedCouponId && availableOptions.length > 0) {
@@ -56,10 +99,24 @@ export function PublicLinksPage() {
     return `${months[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`
   })
 
-  // URL del link público con el cupón / tipo de entrada seleccionado
+  // URL del link público con el cupón / tipo de entrada y parámetros seleccionados
   const baseUrl = window.location.origin
   const currentCouponId = selectedCouponId || availableOptions[0]?.couponId || ''
-  const publicLink = `${baseUrl}/invitacion/${activeEvent?.id || 'evento'}?coupon=${encodeURIComponent(currentCouponId)}&mode=${isDynamic ? 'dinamico' : 'estatico'}`
+
+  const params = new URLSearchParams()
+  if (currentCouponId) params.set('coupon', currentCouponId)
+  params.set('mode', isDynamic ? 'dinamico' : 'estatico')
+  params.set('dias', dateMode)
+  if (dateMode === 'doble') {
+    params.set('ambos', allowBothDays ? '1' : '0')
+  } else {
+    params.set('dia', singleDay)
+  }
+  if (maxPersons !== 6) {
+    params.set('max', String(maxPersons))
+  }
+
+  const publicLink = `${baseUrl}/invitacion/${activeEvent?.id || 'evento'}?${params.toString()}`
 
   const selectedOptionInfo = availableOptions.find((o) => o.couponId === currentCouponId) || availableOptions[0]
 
@@ -164,6 +221,183 @@ export function PublicLinksPage() {
               </select>
               <small style={{ display: 'block', color: '#64748b', fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
                 ℹ️ Los QRs que la gente genere desde este link se descontarán estrictamente de esta limitación de tu cuenta de RRPP.
+              </small>
+            </div>
+
+            {/* 2. Selector de Modalidad de Fechas */}
+            <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <label style={{ display: 'block', color: '#1e293b', fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
+                🗓️ Modalidad de Fechas a Mostrar en el Pase:
+              </label>
+
+              {/* Botones de Selección Doble vs Un Solo Día */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setDateMode('doble')}
+                  style={{
+                    padding: '12px 10px',
+                    borderRadius: 12,
+                    border: dateMode === 'doble' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                    background: dateMode === 'doble' ? '#eff6ff' : '#f8fafc',
+                    color: dateMode === 'doble' ? '#0860bd' : '#475569',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  ✨ Fin de semana (2 días)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDateMode('simple')}
+                  style={{
+                    padding: '12px 10px',
+                    borderRadius: 12,
+                    border: dateMode === 'simple' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                    background: dateMode === 'simple' ? '#eff6ff' : '#f8fafc',
+                    color: dateMode === 'simple' ? '#0860bd' : '#475569',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  📅 Un solo día
+                </button>
+              </div>
+
+              {/* Configuración específica según la modalidad */}
+              {dateMode === 'doble' ? (
+                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <strong style={{ fontSize: 13, color: '#1e293b', display: 'block' }}>
+                      Permitir opción "Válido para ambos días"
+                    </strong>
+                    <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 2 }}>
+                      {allowBothDays ? 'Genera 2 QRs separados (1 para sábado y 1 para domingo)' : 'Solo permite elegir uno de los dos días'}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={allowBothDays}
+                    onClick={() => setAllowBothDays(!allowBothDays)}
+                    style={{
+                      width: 48,
+                      height: 26,
+                      borderRadius: 9999,
+                      background: allowBothDays ? '#0860bd' : '#cbd5e1',
+                      border: 'none',
+                      padding: 3,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: allowBothDays ? 'flex-end' : 'flex-start',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', display: 'block' }} />
+                  </button>
+                </div>
+              ) : (
+                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+                    ¿Para qué día querés que sea el pase?
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSingleDay('sabado')}
+                      style={{
+                        padding: '8px',
+                        borderRadius: 8,
+                        border: singleDay === 'sabado' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                        background: singleDay === 'sabado' ? '#eff6ff' : '#ffffff',
+                        color: singleDay === 'sabado' ? '#0860bd' : '#475569',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Sábado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSingleDay('domingo')}
+                      style={{
+                        padding: '8px',
+                        borderRadius: 8,
+                        border: singleDay === 'domingo' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                        background: singleDay === 'domingo' ? '#eff6ff' : '#ffffff',
+                        color: singleDay === 'domingo' ? '#0860bd' : '#475569',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Domingo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSingleDay('evento')}
+                      style={{
+                        padding: '8px',
+                        borderRadius: 8,
+                        border: singleDay === 'evento' ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                        background: singleDay === 'evento' ? '#eff6ff' : '#ffffff',
+                        color: singleDay === 'evento' ? '#0860bd' : '#475569',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Fecha exacta
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Selector de Personas Máximas por QR */}
+            <div style={{ background: '#ffffff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <label style={{ color: '#1e293b', fontSize: 13, fontWeight: 800 }}>
+                  👥 Cantidad Máxima de Personas por Pase QR:
+                </label>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#0860bd', background: '#eff6ff', padding: '2px 8px', borderRadius: 8 }}>
+                  {maxPersons === 1 ? '1 persona (Individual)' : `Hasta ${maxPersons} personas`}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+                {[1, 2, 3, 4, 5, 6].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setMaxPersons(num)}
+                    style={{
+                      padding: '10px 0',
+                      borderRadius: 10,
+                      border: maxPersons === num ? '2px solid #0860bd' : '1px solid #cbd5e1',
+                      background: maxPersons === num ? '#0860bd' : '#f8fafc',
+                      color: maxPersons === num ? '#ffffff' : '#334155',
+                      fontSize: 14,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+              <small style={{ display: 'block', color: '#64748b', fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+                {maxPersons === 1
+                  ? '🔒 Modo individual: La persona solo podrá generar un QR para sí misma.'
+                  : `👥 Modo grupal: La persona podrá elegir desde 1 hasta ${maxPersons} personas por QR.`}
               </small>
             </div>
 
