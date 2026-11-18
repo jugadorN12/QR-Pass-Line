@@ -52,7 +52,9 @@ type AppContextValue = AppData & {
   createEvent: (input: Omit<ClubEvent, 'id' | 'createdAt' | 'createdBy' | 'status'> & { status?: EventStatus; venueId?: string }) => Promise<ClubEvent>
 
   updateEventStatus: (id: string, status: EventStatus) => Promise<void>
-  issueTicket: (input: { eventId: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string; items?: TicketItem[] }) => Promise<Ticket>
+  deleteEvent: (id: string) => Promise<void>
+  updateEvent: (id: string, updates: Partial<ClubEvent>) => Promise<void>
+  issueTicket: (input: { eventId?: string; couponId?: string; kind: TicketKind; holderName: string; dni?: string; quantity?: number; menQuantity?: number; womenQuantity?: number; venueId?: string; eventDate?: string; items?: TicketItem[] }) => Promise<Ticket>
 
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket;[key: string]: any } | { ok: false; message: string;[key: string]: any }>
   redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string;[key: string]: any }>
@@ -820,6 +822,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updateDoc(doc(db, 'events', id), { status })
       setData((prev) => ({ ...prev, events: prev.events.map((event) => event.id === id ? { ...event, status } : event) }))
     },
+    async deleteEvent(id) {
+      await deleteDoc(doc(db, 'events', id))
+      setData((prev) => ({
+        ...prev,
+        events: prev.events.filter((event) => event.id !== id),
+      }))
+    },
+    async updateEvent(id, updates) {
+      await updateDoc(doc(db, 'events', id), removeUndefined(updates))
+      setData((prev) => ({
+        ...prev,
+        events: prev.events.map((event) => event.id === id ? { ...event, ...updates } : event),
+      }))
+    },
     async saveQrItem(item) {
       const venueId = item.venueId || activeVenue?.id || currentUser?.venueId || ''
       const itemToSave = { ...item, venueId }
@@ -854,18 +870,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, menQuantity, womenQuantity, venueId: customVenueId, eventDate, items }) {
       if (!currentUser) throw new Error('Sesión vencida.')
-      const event = data.events.find((item) => item.id === eventId)
-      if (!event || event.status !== 'activo') throw new Error('La fecha no está activa.')
+      const event = eventId ? data.events.find((item) => item.id === eventId) : undefined
+      if (eventId && (!event || event.status !== 'activo')) throw new Error('La fecha no está activa.')
       if (currentUser.role === 'canjeador') throw new Error('El canjeador no emite accesos.')
       const computedQty = items && items.length > 0
         ? items.reduce((sum, it) => sum + (it.quantity || 0), 0)
         : (typeof quantity === 'number' && quantity > 0 ? quantity : 1)
       const ticketQty = computedQty > 0 ? computedQty : 1
-      const venueId = customVenueId || event.venueId || currentUser.venueId || ''
-      const computedEventDate = eventDate || (event?.date ? event.date.split('T')[0] : undefined)
+      const venueId = customVenueId || event?.venueId || currentUser.venueId || activeVenue?.id || ''
       const primaryCouponId = couponId || (items && items.length > 0 ? items[0].couponId : '')
+      const primaryCoupon = primaryCouponId ? data.qrCatalog.find((q) => q.id === primaryCouponId) : undefined
+      const baseDate = getCouponBaseDate(event, primaryCoupon)
+      const defaultDateIso = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`
+      const computedEventDate = eventDate || (event?.date ? event.date.split('T')[0] : defaultDateIso)
       const ticket: Omit<Ticket, 'id'> = {
-        eventId,
+        eventId: event?.id || '',
         venueId,
         couponId: primaryCouponId,
         kind,

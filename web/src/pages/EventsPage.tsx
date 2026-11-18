@@ -5,7 +5,7 @@ import { StaffHeader } from '../components/StaffHeader'
 import { formatDate } from '../lib/ids'
 
 export function EventsPage() {
-  const { events, tickets, createEvent, updateEventStatus, currentUser, activeVenue, venues } = useApp()
+  const { events, tickets, createEvent, updateEventStatus, deleteEvent, currentUser, activeVenue, venues } = useApp()
 
   const targetVenueId = activeVenue?.id || currentUser?.venueId
   const venueEvents = events.filter(e => isEntityForVenue(e.venueId, targetVenueId, venues))
@@ -39,6 +39,7 @@ export function EventsPage() {
         doorsOpen: doorsOpen.trim() || '23:59',
         notes: notes.trim(),
         status: 'activo',
+        venueId: targetVenueId,
       })
       setName('')
       setNotes('')
@@ -244,6 +245,30 @@ export function EventsPage() {
                           }}
                         >
                           {isClosed ? '↺' : '✕'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="doors-edit-btn"
+                          onClick={async () => {
+                            if (window.confirm(`¿Seguro que querés eliminar la fecha "${event.name}"?`)) {
+                              await deleteEvent(event.id)
+                            }
+                          }}
+                          title="Eliminar fecha"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            border: '1px solid #fee2e2',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            cursor: 'pointer',
+                            display: 'grid',
+                            placeItems: 'center'
+                          }}
+                        >
+                          🗑️
                         </button>
                       </div>
                     </div>

@@ -36,9 +36,9 @@ export function EstablishmentSettingsPage() {
       setBrandStrongColor(activeVenue.brandStrongColor || '')
       setBackgroundColor(activeVenue.backgroundColor || '')
     } else {
-      setName(localStorage.getItem('qr-pass-line.business-name') ?? 'Cubano')
-      setLogo(localStorage.getItem('qr-pass-line.establishment-logo') ?? '')
-      setQrBackground(localStorage.getItem('qr-pass-line.qr-background') ?? '')
+      setName('Cubano')
+      setLogo('')
+      setQrBackground('')
     }
   }, [activeVenue])
 
@@ -85,13 +85,6 @@ export function EstablishmentSettingsPage() {
     setIsSaving(true)
     const cleanName = name.trim() || activeVenue?.name || 'Mi Establecimiento'
     
-    // Save to local storage for quick cache fallback
-    localStorage.setItem('qr-pass-line.business-name', cleanName)
-    if (logo) localStorage.setItem('qr-pass-line.establishment-logo', logo)
-    else localStorage.removeItem('qr-pass-line.establishment-logo')
-    if (qrBackground) localStorage.setItem('qr-pass-line.qr-background', qrBackground)
-    else localStorage.removeItem('qr-pass-line.qr-background')
-
     try {
       if (targetVenueId) {
         await updateVenue(targetVenueId, {
