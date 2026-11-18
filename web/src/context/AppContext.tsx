@@ -488,10 +488,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         unsubscribeQrCatalog = onSnapshot(
           collection(db, 'qrCatalog'),
           (snap) => {
-            if (!snap.empty) {
-              const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
-              setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
-            }
+            const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+            setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
           },
           (err) => {
             console.warn('Aviso sincronización de catálogo de cupones en vivo:', err)

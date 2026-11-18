@@ -13,18 +13,21 @@ const updateSW = registerSW({
   },
   onRegisteredSW(_swUrl, registration) {
     if (registration) {
-      // Chequear actualizaciones cada 60 segundos
+      // Chequear actualizaciones del código cada 15 segundos para actualización ultra rápida
       setInterval(() => {
         registration.update().catch(() => {})
-      }, 60 * 1000)
+      }, 15 * 1000)
 
-      // Chequear actualizaciones cuando el usuario abre o vuelve a la app en su teléfono
+      // Chequear actualizaciones cuando el usuario abre o vuelve a la app en su teléfono o recupera internet
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           registration.update().catch(() => {})
         }
       })
       window.addEventListener('focus', () => {
+        registration.update().catch(() => {})
+      })
+      window.addEventListener('online', () => {
         registration.update().catch(() => {})
       })
     }

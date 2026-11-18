@@ -496,7 +496,7 @@ export function SellerEmitPage() {
           <strong style={{ fontSize: 18, color: '#1e3a8a', fontWeight: 800 }}>{businessName}</strong>
           <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
             <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', fontSize: 13 }}>ⓘ</span>
-            <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', fontSize: 13 }}>↺</span>
+            <button type="button" onClick={() => window.location.reload()} title="Recargar datos" style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', border: 'none', display: 'grid', placeItems: 'center', fontSize: 13, cursor: 'pointer', padding: 0 }}>↺</button>
             <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', fontSize: 13 }}>⌁</span>
             <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', fontSize: 13 }}>➦</span>
           </div>
