@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useApp, isEntityForVenue } from '../context/AppContext'
+import { useApp, isEntityForVenue, isMasterAdminEmail } from '../context/AppContext'
 import type { TicketItem } from '../types'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
 import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES, isLimitationExpired, isTicketForLimitation } from '../lib/dateUtils'
 
 export function SellerEmitPage() {
-  const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate, activeVenue, venues } = useApp()
+  const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate, activeVenue, venues, createEvent, saveQrItem } = useApp()
   const navigate = useNavigate()
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
@@ -38,11 +38,61 @@ export function SellerEmitPage() {
   // Filtrar estrictamente por las limitaciones asignadas a este usuario (sea vendedor o encargado)
   const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
 
-  // Solo el superadmin general (admin) sin limitaciones específicas mantiene acceso global
-  // El encargado (organizador) y los vendedores normales se rigen estrictamente por sus cupones y cupos asignados
-  const isMasterAdminOnly =
-    (currentUser?.role === 'admin' || Boolean(currentUser?.roles?.includes('admin'))) &&
-    userLimitations.length === 0
+  const isOwnerOrAdmin =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'organizador' ||
+    Boolean(currentUser?.roles?.includes('admin')) ||
+    Boolean(currentUser?.roles?.includes('organizador')) ||
+    isMasterAdminEmail(currentUser?.email)
+
+  // El superadmin general o encargado sin limitaciones específicas mantiene acceso global
+  const isMasterAdminOnly = isOwnerOrAdmin && userLimitations.length === 0
+
+  const [autoSettingUp, setAutoSettingUp] = useState(false)
+
+  // Auto-habilitar local nuevo si no tiene fechas ni cupones
+  useEffect(() => {
+    if (!targetVenueId || venueEvents.length > 0 || autoSettingUp || !isOwnerOrAdmin) return
+
+    const now = new Date()
+    const day = now.getDay()
+    const daysUntilSat = day === 6 ? 0 : (6 - day + 7) % 7
+    const sat = new Date(now)
+    sat.setDate(sat.getDate() + daysUntilSat)
+    const satIso = `${sat.getFullYear()}-${String(sat.getMonth() + 1).padStart(2, '0')}-${String(sat.getDate()).padStart(2, '0')}`
+
+    setAutoSettingUp(true)
+    void (async () => {
+      try {
+        await createEvent({
+          name: `Apertura - ${businessName}`,
+          venue: 'Salón Principal',
+          date: `${satIso}T23:59`,
+          doorsOpen: '23:59',
+          notes: 'Fecha inicial creada automáticamente',
+          status: 'activo',
+          venueId: targetVenueId,
+        })
+
+        if (venueQrCatalog.length === 0) {
+          await saveQrItem({
+            id: `qr-${targetVenueId}-gral`,
+            name: 'Ingreso General',
+            kind: 'consumible',
+            from: '23:59',
+            duration: '02:00',
+            scheduleMode: 'end',
+            venueId: targetVenueId,
+            description: 'Acceso general al local'
+          })
+        }
+      } catch (err) {
+        console.warn('Auto-configuración de local:', err)
+      } finally {
+        setAutoSettingUp(false)
+      }
+    })()
+  }, [targetVenueId, venueEvents.length, isOwnerOrAdmin, businessName, autoSettingUp])
 
   // Filtrar solo las limitaciones activas para este evento (que no hayan pasado las 06:00 AM del día siguiente al evento)
   const activeUserLimitations = userLimitations.filter((lim) => !isLimitationExpired(lim))
@@ -518,15 +568,73 @@ export function SellerEmitPage() {
           </div>
 
           {/* Coupon List or Empty State */}
-          {!activeEvent ? (
+          {autoSettingUp ? (
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: '#1e3a8a' }}>
+              <div style={{ fontSize: 38, marginBottom: 12 }}>⚡</div>
+              <strong style={{ fontSize: 16, color: '#1e293b', display: 'block', marginBottom: 8 }}>
+                Inicializando {businessName} automáticamente...
+              </strong>
+              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, color: '#64748b' }}>
+                Creando la fecha activa y el cupón de ingreso general para este local.
+              </p>
+            </div>
+          ) : !activeEvent ? (
             <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
               <div style={{ fontSize: 38, marginBottom: 12 }}>📅</div>
               <strong style={{ fontSize: 16, color: '#1e293b', display: 'block', marginBottom: 8 }}>
                 Sin fecha activa en {businessName}
               </strong>
-              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
-                Para emitir cupones en este local, primero debés crear y activar una fecha en el panel de <strong>Fechas</strong>.
+              <p style={{ fontSize: 13, lineHeight: 1.5, margin: '0 0 16px' }}>
+                Este local aún no tiene una fecha activa configurada.
               </p>
+              {isOwnerOrAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date()
+                    const day = now.getDay()
+                    const daysUntilSat = day === 6 ? 0 : (6 - day + 7) % 7
+                    const sat = new Date(now)
+                    sat.setDate(sat.getDate() + daysUntilSat)
+                    const satIso = `${sat.getFullYear()}-${String(sat.getMonth() + 1).padStart(2, '0')}-${String(sat.getDate()).padStart(2, '0')}`
+                    setAutoSettingUp(true)
+                    void Promise.all([
+                      createEvent({
+                        name: `Apertura - ${businessName}`,
+                        venue: 'Salón Principal',
+                        date: `${satIso}T23:59`,
+                        doorsOpen: '23:59',
+                        notes: 'Fecha inicial',
+                        status: 'activo',
+                        venueId: targetVenueId,
+                      }),
+                      venueQrCatalog.length === 0
+                        ? saveQrItem({
+                            id: `qr-${targetVenueId}-gral`,
+                            name: 'Ingreso General',
+                            kind: 'consumible',
+                            from: '23:59',
+                            duration: '02:00',
+                            scheduleMode: 'end',
+                            venueId: targetVenueId,
+                            description: 'Acceso general al local'
+                          })
+                        : Promise.resolve()
+                    ]).finally(() => setAutoSettingUp(false))
+                  }}
+                  style={{
+                    background: '#1e3a8a',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ⚡ Habilitar Fecha y Cupón con 1 Clic
+                </button>
+              )}
             </div>
           ) : couponsToDisplay.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
@@ -653,10 +761,10 @@ export function SellerEmitPage() {
               {issuing
                 ? 'GENERANDO CUPÓN...'
                 : totalSelectedCount <= 0
-                ? 'SELECCIONÁ CANTIDAD (+)'
-                : totalSelectedCount === 1
-                ? 'EMITIR CUPÓN (1 PERSONA)'
-                : `EMITIR CUPÓN (${totalSelectedCount} PERSONAS)`}
+                  ? 'SELECCIONÁ CANTIDAD (+)'
+                  : totalSelectedCount === 1
+                    ? 'EMITIR CUPÓN (1 PERSONA)'
+                    : `EMITIR CUPÓN (${totalSelectedCount} PERSONAS)`}
             </button>
           )}
         </div>

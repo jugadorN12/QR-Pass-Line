@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isMasterAdminEmail } from '../context/AppContext'
 
 export function StaffHeader() {
   const { currentUser, logout, updateName, updateUserPassword, updateUserAvatar, venues, activeVenue, setAdminActiveVenue } = useApp()
@@ -12,7 +12,7 @@ export function StaffHeader() {
   const navigate = useNavigate()
 
   const isMasterAdmin =
-    currentUser?.email?.toLowerCase() === 'simplemente_anibal@hotmail.com' ||
+    isMasterAdminEmail(currentUser?.email) ||
     currentUser?.role === 'admin' ||
     Boolean(currentUser?.roles?.includes('admin'))
 

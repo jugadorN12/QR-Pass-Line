@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useNavigate } from 'react-router-dom'
+import { useApp, isMasterAdminEmail } from '../context/AppContext'
 import type { Role } from '../types'
 import { UserAvatar } from '../components/UserAvatar'
 
@@ -50,11 +50,6 @@ export function RoleSelectionPage() {
 
   if (!currentUser) return null
 
-  // Redirección directa para Admins
-  if ((currentUser.role as string) === 'admin') {
-    return <Navigate to="/admin" replace />
-  }
-
   const getUserRoles = (user: typeof currentUser) => {
     if (!user) return []
     const set = new Set<string>()
@@ -67,7 +62,7 @@ export function RoleSelectionPage() {
 
   const canUse = (role: RoleOption['key']) => {
     const roles = getUserRoles(currentUser)
-    const isMasterAdmin = currentUser.email?.toLowerCase() === 'simplemente_anibal@hotmail.com' || roles.includes('admin') || currentUser.role === 'admin'
+    const isMasterAdmin = isMasterAdminEmail(currentUser.email) || roles.includes('admin') || currentUser.role === 'admin'
     const isManager = isMasterAdmin || roles.includes('organizador') || currentUser.role === 'organizador'
     if (role === 'encargado' || role === 'organizador') {
       return isManager
@@ -84,9 +79,9 @@ export function RoleSelectionPage() {
     navigate(role === 'encargado' ? '/encargado' : '/resumen')
   }
 
-
   const extendedRoleOptions = [...roleOptions]
-  if ((currentUser.role as string) === 'admin') {
+  const isMaster = isMasterAdminEmail(currentUser.email) || (currentUser.role as string) === 'admin' || Boolean(currentUser.roles?.includes('admin'))
+  if (isMaster) {
     extendedRoleOptions.push({
       key: 'admin' as any,
       label: 'ADMIN GENERAL',

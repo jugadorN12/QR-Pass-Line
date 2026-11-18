@@ -76,7 +76,12 @@ type AppContextValue = AppData & {
 const AppContext = createContext<AppContextValue | null>(null)
 const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], limitations: [], venues: [], couponTemplate: defaultCouponTemplate, session: null }
 
-const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
+const ADMIN_EMAILS = ['simplemente_anibal@hotmail.com', 'gncesso@gmail.com', 'gncasso@gmail.com']
+
+export function isMasterAdminEmail(email?: string | null): boolean {
+  if (!email) return false
+  return ADMIN_EMAILS.includes(email.toLowerCase().trim())
+}
 
 function removeUndefined<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj
@@ -100,7 +105,7 @@ function asUser(id: string, value: Record<string, unknown>): User {
   if (role === ('validador' as any)) {
     role = 'canjeador'
   }
-  if (String(value.email).toLowerCase() === ADMIN_EMAIL) {
+  if (isMasterAdminEmail(String(value.email))) {
     role = 'admin'
   }
   const email = String(value.email ?? '')
@@ -249,7 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || existingData.name || (email ? email.split('@')[0] : 'Usuario'),
               email,
-              role: existingData.role || ((email === ADMIN_EMAIL) ? 'admin' : 'pendiente'),
+              role: existingData.role || (isMasterAdminEmail(email) ? 'admin' : 'pendiente'),
               roles: existingData.roles || (existingData.role ? [existingData.role] : []),
               venueId: existingData.venueId || '',
               avatar: existingData.avatar || '',
@@ -262,7 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } else {
             const usersSnap = await getDocs(collection(db, 'users'))
             const isFirst = usersSnap.empty
-            const assignedRole: Role = (isFirst || email === ADMIN_EMAIL) ? 'admin' : 'pendiente'
+            const assignedRole: Role = (isFirst || isMasterAdminEmail(email)) ? 'admin' : 'pendiente'
             currentUserObj = {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
@@ -276,7 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           currentUserObj = asUser(firebaseUser.uid, profile.data())
           // Forzar admin si es el mail configurado aunque el doc diga otra cosa
-          if (currentUserObj.email.toLowerCase() === ADMIN_EMAIL && currentUserObj.role !== 'admin') {
+          if (isMasterAdminEmail(currentUserObj.email) && currentUserObj.role !== 'admin') {
             currentUserObj.role = 'admin'
             await updateDoc(userDocRef, { role: 'admin' })
           }
@@ -288,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Privacidad y rendimiento: organizadores y canjeadores sincronizan tickets globales (45 días);
         // vendedores puros solo sincronizan sus propios tickets (where issuedBy == currentUser.id)
         const hasGlobalTicketAccess =
-          currentUserObj.email.toLowerCase() === ADMIN_EMAIL ||
+          isMasterAdminEmail(currentUserObj.email) ||
           currentUserObj.role === 'admin' ||
           currentUserObj.role === 'organizador' ||
           currentUserObj.role === 'supervisor' ||
@@ -332,7 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const allUsers = Array.from(userMap.values())
 
         // Limpieza de seguridad: convertir contraseñas provisorias en permanentes y eliminar texto plano de Firestore
-        const isMasterAdmin = currentUserObj.email.toLowerCase() === ADMIN_EMAIL || currentUserObj.role === 'admin' || currentUserObj.roles?.includes('admin')
+        const isMasterAdmin = isMasterAdminEmail(currentUserObj.email) || currentUserObj.role === 'admin' || currentUserObj.roles?.includes('admin')
         if (isMasterAdmin) {
           for (const docSnap of usersSnapshot.docs) {
             const uData = docSnap.data()
@@ -537,7 +542,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [data.users, data.session],
   )
 
-  const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+  const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
 
   const [adminSelectedVenueId, setAdminSelectedVenueId] = useState<string>(() => {
     return localStorage.getItem('qr-pass-line.admin-active-venue') || ''
@@ -614,7 +619,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const credentials = await createUserWithEmailAndPassword(auth, cleanEmail, password)
       await updateProfile(credentials.user, { displayName: cleanName })
 
-      const assignedRole: Role = cleanEmail === ADMIN_EMAIL ? 'admin' : 'pendiente'
+      const assignedRole: Role = isMasterAdminEmail(cleanEmail) ? 'admin' : 'pendiente'
 
       const profile: User = {
         id: credentials.user.uid,
@@ -666,7 +671,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async addMember({ name, email, password, role, roles, venueId: customVenueId }) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) {
         throw new Error('Sin permisos para registrar personal.')
@@ -1261,7 +1266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
 
     async updateUserRole(userId, role, venueId, roles) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Sin permisos para asignar roles.')
       const updates: any = {}
@@ -1285,11 +1290,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async deleteUser(userId) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Solo el superusuario o encargado puede eliminar usuarios.')
       const targetUser = data.users.find((u) => u.id === userId)
-      if (targetUser && targetUser.email.toLowerCase() === ADMIN_EMAIL) {
+      if (targetUser && isMasterAdminEmail(targetUser.email)) {
         throw new Error('No se puede eliminar la cuenta del administrador principal.')
       }
       await deleteDoc(doc(db, 'users', userId))
@@ -1306,12 +1311,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async resetUserPasswordByEmail(email) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       if (!isMasterAdmin) throw new Error('Solo el superusuario puede blanquear contraseñas.')
       await sendPasswordResetEmail(auth, email.trim().toLowerCase())
     },
     async adminResetPassword(userId, newPassword) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Sin permisos para resetear contraseñas.')
       if (newPassword.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
@@ -1352,7 +1357,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async createVenue(input) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Solo administradores pueden registrar locales.')
       const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
@@ -1362,7 +1367,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result
     },
     async updateVenue(id, updates) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOfVenue = (currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')) && (currentUser?.venueId === id || !currentUser?.venueId)
       if (!isMasterAdmin && !isOrgOfVenue) {
         throw new Error('Sin permisos para editar este establecimiento.')
@@ -1374,7 +1379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async deleteVenue(id) {
-      const isMasterAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
       if (!isOrgOrAdmin) throw new Error('Solo administradores pueden eliminar locales.')
       await deleteDoc(doc(db, 'venues', id))

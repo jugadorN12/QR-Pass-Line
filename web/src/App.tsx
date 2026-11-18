@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
-import { useApp } from './context/AppContext'
+import { useApp, isMasterAdminEmail } from './context/AppContext'
 import { Shell } from './components/Shell'
 import { ForceChangePasswordModal } from './components/ForceChangePasswordModal'
 
@@ -85,7 +85,8 @@ function AdminGate({ children }: { children: ReactNode }) {
   const { currentUser, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
-  if (currentUser.role !== 'admin') return <Navigate to="/seleccionar-rol" replace />
+  const isAdm = currentUser.role === 'admin' || Boolean(currentUser.roles?.includes('admin')) || isMasterAdminEmail(currentUser.email)
+  if (!isAdm) return <Navigate to="/seleccionar-rol" replace />
   return <>{children}</>
 }
 
