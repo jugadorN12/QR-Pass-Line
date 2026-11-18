@@ -76,11 +76,11 @@ type AppContextValue = AppData & {
 const AppContext = createContext<AppContextValue | null>(null)
 const emptyData: AppData = { users: [], events: [], tickets: [], qrCatalog: [], limitations: [], venues: [], couponTemplate: defaultCouponTemplate, session: null }
 
-const ADMIN_EMAILS = ['simplemente_anibal@hotmail.com', 'gncesso@gmail.com', 'gncasso@gmail.com']
+const ADMIN_EMAIL = 'simplemente_anibal@hotmail.com'
 
 export function isMasterAdminEmail(email?: string | null): boolean {
   if (!email) return false
-  return ADMIN_EMAILS.includes(email.toLowerCase().trim())
+  return email.toLowerCase().trim() === ADMIN_EMAIL
 }
 
 function removeUndefined<T>(obj: T): T {
@@ -104,6 +104,9 @@ function asUser(id: string, value: Record<string, unknown>): User {
   let role = (value.role as Role) ?? 'pendiente'
   if (role === ('validador' as any)) {
     role = 'canjeador'
+  }
+  if (String(value.email).toLowerCase() === 'gncesso@gmail.com' && role === 'admin') {
+    role = 'organizador'
   }
   if (isMasterAdminEmail(String(value.email))) {
     role = 'admin'
@@ -280,6 +283,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         } else {
           currentUserObj = asUser(firebaseUser.uid, profile.data())
+          if (currentUserObj.email.toLowerCase() === 'gncesso@gmail.com' && currentUserObj.role === 'admin') {
+            currentUserObj.role = 'organizador'
+            const existingRoles = Array.isArray(currentUserObj.roles) ? currentUserObj.roles.filter(r => r !== 'admin') : []
+            currentUserObj.roles = existingRoles.length ? existingRoles : ['organizador', 'vendedor', 'canjeador']
+            await updateDoc(userDocRef, { role: 'organizador', roles: currentUserObj.roles }).catch(() => {})
+          }
           // Forzar admin si es el mail configurado aunque el doc diga otra cosa
           if (isMasterAdminEmail(currentUserObj.email) && currentUserObj.role !== 'admin') {
             currentUserObj.role = 'admin'

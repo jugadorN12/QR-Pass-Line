@@ -38,15 +38,18 @@ export function SellerEmitPage() {
   // Filtrar estrictamente por las limitaciones asignadas a este usuario (sea vendedor o encargado)
   const userLimitations = limitations.filter((l) => l.personId === currentUser?.id)
 
-  const isOwnerOrAdmin =
+  const isMasterAdmin =
+    isMasterAdminEmail(currentUser?.email) ||
     currentUser?.role === 'admin' ||
-    currentUser?.role === 'organizador' ||
-    Boolean(currentUser?.roles?.includes('admin')) ||
-    Boolean(currentUser?.roles?.includes('organizador')) ||
-    isMasterAdminEmail(currentUser?.email)
+    Boolean(currentUser?.roles?.includes('admin'))
 
-  // El superadmin general o encargado sin limitaciones específicas mantiene acceso global
-  const isMasterAdminOnly = isOwnerOrAdmin && userLimitations.length === 0
+  // Solo el superadmin general sin limitaciones específicas mantiene acceso global libre
+  const isMasterAdminOnly = isMasterAdmin && userLimitations.length === 0
+
+  const isOwnerOrAdmin =
+    isMasterAdmin ||
+    currentUser?.role === 'organizador' ||
+    Boolean(currentUser?.roles?.includes('organizador'))
 
   const [autoSettingUp, setAutoSettingUp] = useState(false)
 
