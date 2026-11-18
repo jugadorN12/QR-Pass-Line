@@ -51,6 +51,7 @@ export function AdminDashboardPage() {
   const [venueManagerPassword, setVenueManagerPassword] = useState('')
 
   const [isSubmittingUser, setIsSubmittingUser] = useState(false)
+  const [isSubmittingVenue, setIsSubmittingVenue] = useState(false)
   const [message, setMessage] = useState('')
   const [isGeocoding, setIsGeocoding] = useState(false)
   const navigate = useNavigate()
@@ -132,10 +133,15 @@ export function AdminDashboardPage() {
 
   async function handleCreateVenue(e: React.FormEvent) {
     e.preventDefault()
-    if (!venueName.trim()) return
+    if (isSubmittingVenue) return
+    const cleanVenueName = venueName.trim()
+    if (!cleanVenueName) return
+
+    setIsSubmittingVenue(true)
+    setMessage('Registrando establecimiento...')
     try {
       const createdVenue = await createVenue({
-        name: venueName.trim(),
+        name: cleanVenueName,
         address: venueAddress.trim(),
         latitude: Number(lat) || 0,
         longitude: Number(lng) || 0,
@@ -167,9 +173,11 @@ export function AdminDashboardPage() {
       setVenueManagerEmail('')
       setVenueManagerPassword('')
       setShowVenueForm(false)
-      setMessage(`✓ Establecimiento "${venueName}" registrado${managerMsg}`)
+      setMessage(`✓ Establecimiento "${cleanVenueName}" registrado${managerMsg}`)
     } catch (err: any) {
       setMessage(`Error al crear establecimiento: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsSubmittingVenue(false)
     }
   }
 
@@ -698,9 +706,10 @@ export function AdminDashboardPage() {
                   </div>
                   <button
                     className="admin-btn-action-primary"
-                    style={{ marginTop: 16, width: '100%' }}
+                    style={{ marginTop: 16, width: '100%', opacity: isSubmittingVenue ? 0.7 : 1 }}
+                    disabled={isSubmittingVenue}
                   >
-                    GUARDAR LOCAL Y CREAR ENCARGADO
+                    {isSubmittingVenue ? 'Guardando local...' : 'GUARDAR LOCAL Y CREAR ENCARGADO'}
                   </button>
                 </form>
               </section>
@@ -726,7 +735,7 @@ export function AdminDashboardPage() {
                             <span className="admin-venue-tag">🌐 GPS Configurado</span>
                           )}
                           {activeVenue?.id === v.id && (
-                            <span className="admin-venue-tag" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>✓ ACTIVO AHORA</span>
+                            <span className="admin-venue-tag" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>✓ SELECCIONADO EN TU PANTALLA</span>
                           )}
                         </div>
                       </div>
