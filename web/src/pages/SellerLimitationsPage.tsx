@@ -212,6 +212,7 @@ export function NewSellerLimitationPage() {
       id: `limit-${crypto.randomUUID().slice(0, 8)}`,
       personId: sellerId,
       couponId: selectedCouponId,
+      venueId: targetVenueId || activeVenue?.id || '',
       quantity: Math.max(1, Number(quantity) || 1),
       period: isUnlimited ? 'Ilimitado' : period,
       days: days.length ? days : ['S'],
@@ -398,6 +399,7 @@ export function EditSellerLimitationPage() {
 
     await saveLimitation({
       ...limitation,
+      venueId: limitation.venueId || targetVenueId || activeVenue?.id || '',
       couponId: selectedCouponId,
       quantity: Math.max(1, Number(quantity) || 1),
       period: isUnlimited ? 'Ilimitado' : period,

@@ -807,7 +807,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setData((prev) => ({ ...prev, events: prev.events.map((event) => event.id === id ? { ...event, status } : event) }))
     },
     async saveQrItem(item) {
-      const venueId = item.venueId || currentUser?.venueId || ''
+      const venueId = item.venueId || activeVenue?.id || currentUser?.venueId || ''
       const itemToSave = { ...item, venueId }
       await setDoc(doc(db, 'qrCatalog', item.id), itemToSave)
       setData((prev) => ({
@@ -823,7 +823,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async saveLimitation(limitation) {
-      const venueId = limitation.venueId || currentUser?.venueId || ''
+      const venueId = limitation.venueId || activeVenue?.id || currentUser?.venueId || ''
       const limToSave = { ...limitation, venueId }
       await setDoc(doc(db, 'limitations', limitation.id), limToSave)
       setData((prev) => ({

@@ -222,7 +222,11 @@ export function SellerEmitPage() {
   }
 
   async function handleDirectEmit() {
-    if (!activeEvent || issuing) return
+    if (!activeEvent) {
+      alert(`Para emitir cupones en ${businessName}, primero debés crear y activar una Fecha en el menú "Fechas".`)
+      return
+    }
+    if (issuing) return
 
     const selectedItems = couponsToDisplay.filter((c) => (counts[c.id] || 0) > 0)
     if (selectedItems.length === 0) {
@@ -514,14 +518,24 @@ export function SellerEmitPage() {
           </div>
 
           {/* Coupon List or Empty State */}
-          {couponsToDisplay.length === 0 ? (
+          {!activeEvent ? (
+            <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+              <div style={{ fontSize: 38, marginBottom: 12 }}>📅</div>
+              <strong style={{ fontSize: 16, color: '#1e293b', display: 'block', marginBottom: 8 }}>
+                Sin fecha activa en {businessName}
+              </strong>
+              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+                Para emitir cupones en este local, primero debés crear y activar una fecha en el panel de <strong>Fechas</strong>.
+              </p>
+            </div>
+          ) : couponsToDisplay.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
               <div style={{ fontSize: 38, marginBottom: 12 }}>🔒</div>
               <strong style={{ fontSize: 16, color: '#1e293b', display: 'block', marginBottom: 8 }}>
                 Sin cupones asignados
               </strong>
               <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
-                No tenés limitaciones o cupones habilitados para emitir en este momento. Solicitá al encargado que te asigne límites de emisión.
+                No tenés limitaciones o cupones habilitados para emitir en este momento. Solicitá al encargado que te asigne límites de emisión en el menú Vendedores.
               </p>
             </div>
           ) : (
