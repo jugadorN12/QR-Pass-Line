@@ -73,6 +73,7 @@ export type Ticket = {
   dni: string
   phone?: string
   sellerName?: string
+  schedule?: string
   quantity?: number
   menQuantity?: number
   womenQuantity?: number
@@ -107,6 +108,7 @@ export type QrCatalogItem = {
   active?: boolean
   days?: string[]
   scheduleMode?: 'full' | 'end' | 'hidden'
+  schedule?: string
   backgroundImage?: string
   hasGenderSchedules?: boolean
   menDuration?: string

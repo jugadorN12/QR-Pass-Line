@@ -380,14 +380,27 @@ export function CouponTemplateEditor() {
 
           {/* Bottom Details */}
           <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.4)', padding: '8px 0', margin: '0 auto 10px', width: '92%' }}>
+            <div style={{
+              background: 'rgba(10, 8, 16, 0.72)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderRadius: 12,
+              borderTop: '1px solid rgba(255,255,255,0.4)',
+              borderBottom: '1px solid rgba(255,255,255,0.4)',
+              padding: '8px 12px',
+              margin: '0 auto 10px',
+              width: '92%'
+            }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
                 <span>Cupón</span>
                 <span>Cant.</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}>
                 <span>INGRESO GENERAL 2AM</span>
                 <span style={{ color: '#ff4d4d' }}>1</span>
+              </div>
+              <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                🕒 Entrada: 23:59 hs · Límite: 02:00 hs
               </div>
             </div>
 

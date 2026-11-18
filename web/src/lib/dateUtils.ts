@@ -307,6 +307,70 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
   return `Del ${startDateStr} ${cleanFrom} al ${endDateStr} ${cleanDuration}`
 }
 
+/**
+ * Retorna una línea limpia y elegante con los horarios del cupón para mostrar
+ * directamente debajo de su nombre en el afiche/pase digital:
+ * Ejemplos:
+ * - "Entrada: 23:59 hs · Límite: 02:00 hs"
+ * - "Caballeros hasta 01:30 hs · Damas hasta 02:00 hs"
+ * - "Límite: 02:00 hs" (si el modo es sólo hora límite)
+ * - "Sin restricción horaria" (si el horario está oculto)
+ */
+export function formatCouponTimeBadge(coupon?: any): string {
+  if (!coupon) return ''
+  if (coupon.scheduleMode === 'hidden') return 'Sin restricción horaria'
+
+  // Doble horario diferenciado por género (Caballeros y Damas)
+  if (coupon.hasGenderSchedules || (coupon.menDuration && coupon.womenDuration)) {
+    const rawMen = String(coupon.menDuration || '01:30').trim()
+    const menMatch = rawMen.match(/(\d{1,2}:\d{2})/)
+    const cleanMen = menMatch ? menMatch[1] : '01:30'
+
+    const rawWomen = String(coupon.womenDuration || '02:00').trim()
+    const womenMatch = rawWomen.match(/(\d{1,2}:\d{2})/)
+    const cleanWomen = womenMatch ? womenMatch[1] : '02:00'
+
+    return `Caballeros hasta ${cleanMen} hs · Damas hasta ${cleanWomen} hs`
+  }
+
+  // Horario explícito (from y/o duration)
+  if (coupon.from || coupon.duration) {
+    const rawFrom = String(coupon.from || '23:59').trim()
+    const fromMatch = rawFrom.match(/(\d{1,2}:\d{2})/)
+    const cleanFrom = fromMatch ? fromMatch[1] : '23:59'
+
+    const rawDuration = String(coupon.duration || '02:00').trim()
+    const durMatch = rawDuration.match(/(\d{1,2}:\d{2})/)
+    const cleanDuration = durMatch ? durMatch[1] : '02:00'
+
+    if (coupon.scheduleMode === 'end') {
+      return `Límite: ${cleanDuration} hs`
+    }
+    return `Entrada: ${cleanFrom} hs · Límite: ${cleanDuration} hs`
+  }
+
+  // Si proviene de un ticket con schedule preformateado (ej: "Del 21/11 23:59 al 22/11 01:00")
+  if (coupon.schedule && typeof coupon.schedule === 'string') {
+    const sch = coupon.schedule.trim()
+    if (sch.includes('Caballeros') || sch.includes('Damas')) {
+      return sch
+    }
+    const delAlMatch = sch.match(/(\d{1,2}:\d{2}).*?al.*?\s+(\d{1,2}:\d{2})/)
+    if (delAlMatch) {
+      return `Entrada: ${delAlMatch[1]} hs · Límite: ${delAlMatch[2]} hs`
+    }
+    const hastaMatch = sch.match(/hasta\s+(?:las\s+)?(\d{1,2}:\d{2})/i)
+    if (hastaMatch) {
+      return `Entrada: 23:59 hs · Límite: ${hastaMatch[1]} hs`
+    }
+    if (sch.length > 0 && sch !== 'Válido para el evento') {
+      return sch
+    }
+  }
+
+  return 'Entrada: 23:59 hs · Límite: 02:00 hs'
+}
+
 export type ScheduleValidityResult =
   | {
       ok: true

@@ -13,6 +13,7 @@ import { signInAnonymously } from 'firebase/auth'
 import { auth, db } from '../lib/firebase'
 import { useApp } from '../context/AppContext'
 import { ticketCode } from '../lib/ids'
+import { formatCouponTimeBadge } from '../lib/dateUtils'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
 import type { ClubEvent, Ticket, TicketItem, Limitation, QrCatalogItem, User, Venue } from '../types'
 
@@ -686,7 +687,18 @@ export function PublicInvitationPage() {
         const satTitle = satCouponObj?.name || 'Ingreso General'
         const satCode = ticketCode()
         const satItems: TicketItem[] = [
-          { couponId: satCouponObj?.id || 'cubano-sab', couponName: `${satTitle} (Sábado)`, quantity }
+          {
+            couponId: satCouponObj?.id || 'cubano-sab',
+            couponName: `${satTitle} (Sábado)`,
+            quantity,
+            schedule: satCouponObj?.schedule,
+            from: satCouponObj?.from,
+            duration: satCouponObj?.duration,
+            scheduleMode: satCouponObj?.scheduleMode,
+            hasGenderSchedules: satCouponObj?.hasGenderSchedules,
+            menDuration: satCouponObj?.menDuration,
+            womenDuration: satCouponObj?.womenDuration,
+          }
         ]
         ticketsToCreate.push({
           eventId: event?.id || 'cubano-evento',
@@ -712,7 +724,18 @@ export function PublicInvitationPage() {
         const sunTitle = sunCouponObj?.name || 'Ingreso General'
         const sunCode = ticketCode()
         const sunItems: TicketItem[] = [
-          { couponId: sunCouponObj?.id || 'cubano-dom', couponName: `${sunTitle} (Domingo)`, quantity }
+          {
+            couponId: sunCouponObj?.id || 'cubano-dom',
+            couponName: `${sunTitle} (Domingo)`,
+            quantity,
+            schedule: sunCouponObj?.schedule,
+            from: sunCouponObj?.from,
+            duration: sunCouponObj?.duration,
+            scheduleMode: sunCouponObj?.scheduleMode,
+            hasGenderSchedules: sunCouponObj?.hasGenderSchedules,
+            menDuration: sunCouponObj?.menDuration,
+            womenDuration: sunCouponObj?.womenDuration,
+          }
         ]
         ticketsToCreate.push({
           eventId: event?.id || 'cubano-evento',
@@ -758,6 +781,13 @@ export function PublicInvitationPage() {
             couponId: targetCouponObj?.id || 'cubano-gral',
             couponName: `${cTitle} (${dayLabel})`,
             quantity,
+            schedule: targetCouponObj?.schedule,
+            from: targetCouponObj?.from,
+            duration: targetCouponObj?.duration,
+            scheduleMode: targetCouponObj?.scheduleMode,
+            hasGenderSchedules: targetCouponObj?.hasGenderSchedules,
+            menDuration: targetCouponObj?.menDuration,
+            womenDuration: targetCouponObj?.womenDuration,
           }
         ]
         ticketsToCreate.push({
@@ -917,12 +947,12 @@ export function PublicInvitationPage() {
     }
 
     // 4. Tabla de items y cantidad (alineada al fondo para coincidir con la vista previa y no tapar afiches)
-    const itemsToDraw: { couponName: string; quantity: number }[] =
+    const itemsToDraw: (TicketItem | { couponName: string; quantity: number; schedule?: string })[] =
       ticket.items && ticket.items.length > 0
-        ? ticket.items.map((it) => ({ couponName: it.couponName, quantity: it.quantity }))
-        : [{ couponName: 'Ingreso General', quantity: ticket.quantity || 1 }]
+        ? ticket.items
+        : [{ couponName: 'Ingreso General', quantity: ticket.quantity || 1, schedule: ticket.schedule }]
 
-    const rowHeight = 36
+    const rowHeight = 52
     const tableHeight = 40 + itemsToDraw.length * rowHeight
     // En el canvas de 1040px con titular y RR.PP, la tabla termina en Y=890
     const tableBottomY = 890
@@ -951,7 +981,7 @@ export function PublicInvitationPage() {
     ctx.fillText('Cant.', 620, tableY + 28)
 
     itemsToDraw.forEach((it, idx) => {
-      const rowY = tableY + 40 + idx * rowHeight + 26
+      const rowY = tableY + 40 + idx * rowHeight + 24
       ctx.font = '900 24px sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'left'
@@ -960,6 +990,14 @@ export function PublicInvitationPage() {
       ctx.fillStyle = '#ff4d4d'
       ctx.textAlign = 'right'
       ctx.fillText(String(it.quantity), 620, rowY)
+
+      const timeBadge = formatCouponTimeBadge(it)
+      if (timeBadge) {
+        ctx.font = '600 16px sans-serif'
+        ctx.fillStyle = '#cbd5e1'
+        ctx.textAlign = 'left'
+        ctx.fillText(`🕒 ${timeBadge}`, 100, rowY + 20)
+      }
     })
 
     ctx.beginPath()
@@ -1312,16 +1350,33 @@ export function PublicInvitationPage() {
                     <span>Cant.</span>
                   </div>
                   {currentTicket.items && currentTicket.items.length > 0 ? (
-                    currentTicket.items.map((it, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginBottom: 2 }}>
-                        <span>{it.couponName}</span>
-                        <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
-                      </div>
-                    ))
+                    currentTicket.items.map((it, idx) => {
+                      const timeBadge = formatCouponTimeBadge(it)
+                      return (
+                        <div key={idx} style={{ marginBottom: idx < currentTicket.items!.length - 1 ? 6 : 2 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}>
+                            <span>{it.couponName}</span>
+                            <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
+                          </div>
+                          {timeBadge && (
+                            <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                              🕒 {timeBadge}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
                   ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
-                      <span>Ingreso General</span>
-                      <span style={{ color: '#ff4d4d' }}>{currentTicket.quantity || 1}</span>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                        <span>Ingreso General</span>
+                        <span style={{ color: '#ff4d4d' }}>{currentTicket.quantity || 1}</span>
+                      </div>
+                      {formatCouponTimeBadge(currentTicket) && (
+                        <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                          🕒 {formatCouponTimeBadge(currentTicket)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

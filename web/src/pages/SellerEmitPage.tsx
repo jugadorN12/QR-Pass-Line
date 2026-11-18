@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp, isEntityForVenue, isMasterAdminEmail } from '../context/AppContext'
 import type { TicketItem } from '../types'
 import { DottedQrImage, drawDottedQr } from '../components/DottedQrImage'
-import { formatCouponSchedule, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES, isLimitationExpired, isTicketForLimitation } from '../lib/dateUtils'
+import { formatCouponSchedule, formatCouponTimeBadge, getCouponBaseDate, parseDMY, SPANISH_DAY_NAMES, isLimitationExpired, isTicketForLimitation } from '../lib/dateUtils'
 
 export function SellerEmitPage() {
   const { currentUser, events, qrCatalog, limitations, tickets, issueTicket, couponTemplate, activeVenue, venues } = useApp()
@@ -400,7 +400,7 @@ export function SellerEmitPage() {
       ? previewTicket.items
       : [{ couponName: previewTicket.couponName, quantity: previewTicket.quantity, schedule: previewTicket.schedule }]
 
-    const rowHeight = 36
+    const rowHeight = 52
     const tableHeight = 40 + (itemsToDraw.length * rowHeight)
     // En el canvas de 1040px, el RR.PP está en Y=970, por lo que la tabla termina en Y=920
     const tableBottomY = 920
@@ -429,7 +429,7 @@ export function SellerEmitPage() {
     ctx.fillText('Cant.', 620, tableY + 28)
 
     itemsToDraw.forEach((it, idx) => {
-      const rowY = tableY + 40 + (idx * rowHeight) + 26
+      const rowY = tableY + 40 + (idx * rowHeight) + 24
       ctx.font = '900 24px sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'left'
@@ -438,6 +438,14 @@ export function SellerEmitPage() {
       ctx.fillStyle = '#ff4d4d'
       ctx.textAlign = 'right'
       ctx.fillText(String(it.quantity), 620, rowY)
+
+      const timeBadge = formatCouponTimeBadge(it)
+      if (timeBadge) {
+        ctx.font = '600 16px sans-serif'
+        ctx.fillStyle = '#cbd5e1'
+        ctx.textAlign = 'left'
+        ctx.fillText(`🕒 ${timeBadge}`, 100, rowY + 20)
+      }
     })
 
     ctx.beginPath()
@@ -765,16 +773,33 @@ export function SellerEmitPage() {
                     <span>Cant.</span>
                   </div>
                   {previewTicket.items && previewTicket.items.length > 0 ? (
-                    previewTicket.items.map((it, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginBottom: 2 }}>
-                        <span>{it.couponName}</span>
-                        <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
-                      </div>
-                    ))
+                    previewTicket.items.map((it, idx) => {
+                      const timeBadge = formatCouponTimeBadge(it)
+                      return (
+                        <div key={idx} style={{ marginBottom: idx < previewTicket.items!.length - 1 ? 6 : 2 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}>
+                            <span>{it.couponName}</span>
+                            <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
+                          </div>
+                          {timeBadge && (
+                            <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                              🕒 {timeBadge}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
                   ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
-                      <span>{previewTicket.couponName}</span>
-                      <span style={{ color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                        <span>{previewTicket.couponName}</span>
+                        <span style={{ color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                      </div>
+                      {formatCouponTimeBadge(previewTicket) && (
+                        <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                          🕒 {formatCouponTimeBadge(previewTicket)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
