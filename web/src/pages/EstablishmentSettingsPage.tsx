@@ -7,7 +7,7 @@ import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 type SectionProps = { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }
 
 export function EstablishmentSettingsPage() {
-  const { users, activeVenue, venues, updateVenue } = useApp()
+  const { users, activeVenue, venues, updateVenue, tickets, resetVenueTickets } = useApp()
   const [activeTab, setActiveTab] = useState<'general' | 'template'>('general')
   const [open, setOpen] = useState('establishment')
 
@@ -22,6 +22,9 @@ export function EstablishmentSettingsPage() {
   const [backgroundColor, setBackgroundColor] = useState('')
   const [saved, setSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  const [isResetting, setIsResetting] = useState(false)
+  const [resetFeedback, setResetFeedback] = useState('')
 
   // Sync state when active venue loads
   useEffect(() => {
@@ -43,6 +46,29 @@ export function EstablishmentSettingsPage() {
   }, [activeVenue])
 
   const targetVenueId = activeVenue?.id
+  const venueTicketsCount = tickets.filter((t) => t.venueId === targetVenueId).length
+
+  async function handleResetVenueTickets() {
+    if (!targetVenueId || !activeVenue) return
+    const count = venueTicketsCount
+    const confirmMsg = `¿Confirmás reiniciar a 0 el contador de QRs emitidos de "${activeVenue.name}"?\n\n` +
+      `• Se borrarán únicamente los ${count} QRs emitidos de prueba de este local.\n` +
+      `• Tus cupones, limitaciones de vendedores y demás configuraciones permanecerán intactas.\n` +
+      `• Cubano y otros locales NO se modificarán.`
+    if (!window.confirm(confirmMsg)) return
+
+    setIsResetting(true)
+    setResetFeedback('')
+    try {
+      const deletedCount = await resetVenueTickets(targetVenueId)
+      setResetFeedback(`✓ Se reinició el contador con éxito (${deletedCount} QRs de prueba eliminados). Las configuraciones y limitaciones siguen intactas.`)
+      setTimeout(() => setResetFeedback(''), 6000)
+    } catch (err) {
+      setResetFeedback(err instanceof Error ? `Error: ${err.message}` : 'Error al reiniciar QRs.')
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   const organizers = users.filter((u) =>
     (u.role === 'organizador' || u.role === 'admin' || (u.roles && (u.roles.includes('organizador') || u.roles.includes('admin')))) &&
@@ -398,6 +424,61 @@ export function EstablishmentSettingsPage() {
                   >
                     ⚙️ Abrir Editor de Cupón de este Local
                   </button>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection
+                title="Zona de Pruebas (Reiniciar QRs Emitidos a 0)"
+                open={open === 'maintenance'}
+                onToggle={() => setOpen(open === 'maintenance' ? '' : 'maintenance')}
+              >
+                <div style={{ padding: '8px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, marginBottom: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 14, color: '#1e293b', display: 'block' }}>QRs emitidos en {activeVenue?.name || 'este local'}:</strong>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>
+                        Solo borra los pases/QRs emitidos de prueba. No toca cupones, limitaciones de vendedores ni configuraciones.
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right', minWidth: 90 }}>
+                      <span style={{ fontSize: 24, fontWeight: 800, color: venueTicketsCount > 0 ? '#ea580c' : '#16a34a' }}>
+                        {venueTicketsCount}
+                      </span>
+                      <small style={{ display: 'block', fontSize: 11, color: '#94a3b8' }}>emitidos</small>
+                    </div>
+                  </div>
+
+                  {resetFeedback && (
+                    <div style={{ padding: '10px 14px', borderRadius: 8, background: resetFeedback.startsWith('✓') ? '#f0fdf4' : '#fef2f2', border: `1px solid ${resetFeedback.startsWith('✓') ? '#bbf7d0' : '#fecaca'}`, color: resetFeedback.startsWith('✓') ? '#166534' : '#991b1b', fontSize: 13, marginBottom: 12 }}>
+                      {resetFeedback}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleResetVenueTickets}
+                    disabled={isResetting || venueTicketsCount === 0}
+                    style={{
+                      background: venueTicketsCount > 0 ? '#ea580c' : '#94a3b8',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px 20px',
+                      borderRadius: 10,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: (isResetting || venueTicketsCount === 0) ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      opacity: isResetting ? 0.7 : 1,
+                    }}
+                  >
+                    <span>🔄</span>
+                    <span>{isResetting ? 'Reiniciando contador...' : `Reiniciar Contador de QRs de ${activeVenue?.name || 'este local'} a 0`}</span>
+                  </button>
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, margin: '10px 0 0' }}>
+                    🔒 Seguridad: Esta acción solo limpia los tickets emitidos para {activeVenue?.name || 'este local'}. Cubano y los demás locales permanecen 100% intactos.
+                  </p>
                 </div>
               </SettingsSection>
 

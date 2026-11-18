@@ -59,6 +59,7 @@ type AppContextValue = AppData & {
   redeemTicket: (code: string) => Promise<{ ok: true; ticket: Ticket;[key: string]: any } | { ok: false; message: string;[key: string]: any }>
   redeemTicketWithException: (code: string, customQuantity?: number, asException?: boolean) => Promise<{ ok: boolean; ticket?: Ticket; message?: string;[key: string]: any }>
   updateTicketQuantity: (ticketId: string, newQuantity: number) => Promise<{ ok: boolean; ticket?: Ticket; error?: string }>
+  resetVenueTickets: (venueId: string) => Promise<number>
 
   saveQrItem: (item: QrCatalogItem) => Promise<void>
   deleteQrItem: (id: string) => Promise<void>
@@ -905,6 +906,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const result = { id: created.id, ...ticket }
       setData((prev) => ({ ...prev, tickets: [result, ...prev.tickets] }))
       return result
+    },
+    async resetVenueTickets(venueId: string) {
+      if (!venueId || venueId.trim() === '') {
+        throw new Error('ID de local inválido.')
+      }
+      const targetVenue = data.venues.find((v) => v.id === venueId)
+      if (!targetVenue) {
+        throw new Error('Local no encontrado.')
+      }
+      // ONLY delete tickets strictly matching this venueId. Never touch Cubano!
+      const ticketsToDelete = data.tickets.filter((t) => t.venueId === venueId)
+      if (ticketsToDelete.length === 0) {
+        return 0
+      }
+      const chunkSize = 50
+      for (let i = 0; i < ticketsToDelete.length; i += chunkSize) {
+        const chunk = ticketsToDelete.slice(i, i + chunkSize)
+        await Promise.all(chunk.map((t) => deleteDoc(doc(db, 'tickets', t.id))))
+      }
+      setData((prev) => ({
+        ...prev,
+        tickets: prev.tickets.filter((t) => t.venueId !== venueId),
+      }))
+      return ticketsToDelete.length
     },
     async redeemTicket(code) {
       const normalizedCode = code.trim().toUpperCase()
