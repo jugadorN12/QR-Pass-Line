@@ -254,7 +254,7 @@ export function SellerEmitPage() {
 
   const savedTemplate = JSON.parse(localStorage.getItem('qr-pass-line.coupon-template') || '{}')
   const template = couponTemplate || (savedTemplate.qrY ? savedTemplate : null)
-  const templateQrY = template?.qrY ?? 180
+  const templateQrY = template?.qrY && template.qrY !== 180 ? template.qrY : 155
   const templateQrSize = template?.qrSize ?? 180
   const templateQrRadius = template?.qrRadius ?? 24
   const templateBrightness = template?.brightness ?? 1

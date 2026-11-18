@@ -136,7 +136,7 @@ export type CouponTemplateConfig = {
 }
 
 export const defaultCouponTemplate: CouponTemplateConfig = {
-  qrY: 180,
+  qrY: 155,
   qrSize: 180,
   qrRadius: 24,
   brightness: 1,

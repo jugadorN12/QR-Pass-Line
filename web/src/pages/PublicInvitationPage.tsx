@@ -144,7 +144,7 @@ export function PublicInvitationPage() {
 
   // Configuration of coupon template (matching SellerEmitPage)
   const couponTemplate = appContext?.couponTemplate || venue?.couponTemplate
-  const templateQrY = couponTemplate?.qrY ?? 180
+  const templateQrY = couponTemplate?.qrY && couponTemplate.qrY !== 180 ? couponTemplate.qrY : 155
   const templateQrSize = couponTemplate?.qrSize ?? 180
   const templateQrRadius = couponTemplate?.qrRadius ?? 24
   const templateBrightness = couponTemplate?.brightness ?? 0.75
