@@ -168,7 +168,7 @@ export function NewQrPage() {
         days,
         scheduleMode,
         backgroundImage,
-        venueId: existingQr?.venueId || currentUser?.venueId || activeVenue?.id || '',
+        venueId: existingQr?.venueId || activeVenue?.id || currentUser?.venueId || '',
       }
 
       await saveQrItem(item)

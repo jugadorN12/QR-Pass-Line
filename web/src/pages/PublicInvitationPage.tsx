@@ -89,6 +89,7 @@ function formatEventDay(dateStr?: string) {
 export function PublicInvitationPage() {
   const { eventId: urlEventId } = useParams<{ eventId?: string }>()
   const [searchParams] = useSearchParams()
+  const urlVenueId = searchParams.get('venue') || searchParams.get('venueId')
   const urlCouponId = searchParams.get('coupon') || searchParams.get('couponId') || searchParams.get('tipo')
   const urlCouponSatId = searchParams.get('couponSat') || urlCouponId
   const urlCouponSunId = searchParams.get('couponSun') || urlCouponId
@@ -242,6 +243,7 @@ export function PublicInvitationPage() {
           if (matchedEv && isMounted) {
             setEvent(matchedEv)
             const matchedVenue =
+              (urlVenueId ? appContext.venues.find((v) => v.id === urlVenueId) : null) ||
               appContext.venues.find((v) => v.id === matchedEv.venueId) ||
               appContext.venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) ||
               appContext.activeVenue ||
@@ -403,6 +405,7 @@ export function PublicInvitationPage() {
               const vSnap = await getDocs(collection(db, 'venues'))
               const venues = vSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Venue[]
               const matchedVenue =
+                (urlVenueId ? venues.find((v) => v.id === urlVenueId) : null) ||
                 venues.find((v) => v.id === targetEvent!.venueId) ||
                 venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) ||
                 venues[0] ||

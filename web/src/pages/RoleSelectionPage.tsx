@@ -41,9 +41,16 @@ export function RoleSelectionPage() {
   const [profileError, setProfileError] = useState('')
   const navigate = useNavigate()
 
-  const userVenue = currentUser?.venueId
-    ? venues.find(v => v.id === currentUser.venueId) || null
-    : (activeVenue || venues.find(v => (v.name || '').toLowerCase().includes('cubano')) || venues[0] || null)
+  const isMasterAdmin =
+    isMasterAdminEmail(currentUser?.email) ||
+    currentUser?.role === 'admin' ||
+    Boolean(currentUser?.roles?.includes('admin'))
+
+  const userVenue = (isMasterAdmin && activeVenue)
+    ? activeVenue
+    : (currentUser?.venueId
+        ? venues.find(v => v.id === currentUser.venueId) || null
+        : (activeVenue || venues.find(v => (v.name || '').toLowerCase().includes('cubano')) || venues[0] || null))
 
   const businessName = userVenue?.name || 'QR Pass Line'
   const businessLogo = userVenue?.logo || localStorage.getItem('qr-pass-line.logo') || '/app-icon.png'

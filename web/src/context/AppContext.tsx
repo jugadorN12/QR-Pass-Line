@@ -687,7 +687,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!isOrgOrAdmin) {
         throw new Error('Sin permisos para registrar personal.')
       }
-      const venueId = customVenueId || currentUser?.venueId || ''
+      const venueId = customVenueId || activeVenue?.id || currentUser?.venueId || ''
       const cleanEmail = email.trim().toLowerCase()
       const cleanName = name.trim() || cleanEmail.split('@')[0]
       const cleanPassword = password || 'Password123!'
@@ -802,7 +802,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     async createEvent(input) {
       if (!currentUser) throw new Error('Sesión vencida.')
-      const venueId = input.venueId || currentUser.venueId || activeVenue?.id || ''
+      const venueId = input.venueId || activeVenue?.id || currentUser.venueId || ''
       const event: Omit<ClubEvent, 'id'> = {
         ...input,
         venueId,
@@ -877,7 +877,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ? items.reduce((sum, it) => sum + (it.quantity || 0), 0)
         : (typeof quantity === 'number' && quantity > 0 ? quantity : 1)
       const ticketQty = computedQty > 0 ? computedQty : 1
-      const venueId = customVenueId || event?.venueId || currentUser.venueId || activeVenue?.id || ''
+      const venueId = customVenueId || event?.venueId || activeVenue?.id || currentUser.venueId || ''
       const primaryCouponId = couponId || (items && items.length > 0 ? items[0].couponId : '')
       const primaryCoupon = primaryCouponId ? data.qrCatalog.find((q) => q.id === primaryCouponId) : undefined
       const baseDate = getCouponBaseDate(event, primaryCoupon)

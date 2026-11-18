@@ -1,16 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp, isEntityForVenue } from '../context/AppContext'
 import { StaffHeader } from '../components/StaffHeader'
 import { DoorsDateRangePicker } from '../components/DoorsDateRangePicker'
 
 export function PublicLinksPage() {
-  const { events, qrCatalog, limitations, currentUser } = useApp()
+  const { events, qrCatalog, limitations, currentUser, activeVenue, venues } = useApp()
   const [isDynamic, setIsDynamic] = useState(true)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const activeEvent = events.find((e) => e.status === 'activo') || events[0]
+  const targetVenueId = activeVenue?.id || currentUser?.venueId
+  const venueEvents = events.filter((e) => isEntityForVenue(e.venueId, targetVenueId, venues))
+  const venueQrCatalog = qrCatalog.filter((q) => isEntityForVenue(q.venueId, targetVenueId, venues))
+  const activeEvent = venueEvents.find((e) => e.status === 'activo') || venueEvents[0]
+  const businessName = activeVenue?.name || 'Local'
 
   // Limitations assigned to the current user (Anibal / Encargado)
   const targetUserId = currentUser?.id
@@ -20,7 +24,7 @@ export function PublicLinksPage() {
   const availableOptions = useMemo(() => {
     if (userLimitations.length > 0) {
       return userLimitations.map((lim) => {
-        const catItem = qrCatalog.find((q) => q.id === lim.couponId)
+        const catItem = venueQrCatalog.find((q) => q.id === lim.couponId)
         return {
           couponId: lim.couponId,
           name: catItem?.name || 'Entrada',
@@ -29,13 +33,13 @@ export function PublicLinksPage() {
       })
     }
 
-    // Si no tiene limitaciones específicas, mostrar el catálogo general
-    return qrCatalog.map((item) => ({
+    // Si no tiene limitaciones específicas, mostrar el catálogo general del local
+    return venueQrCatalog.map((item) => ({
       couponId: item.id,
       name: item.name || 'Entrada General',
       quantity: 2000,
     }))
-  }, [userLimitations, qrCatalog])
+  }, [userLimitations, venueQrCatalog])
 
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
 
@@ -211,6 +215,9 @@ export function PublicLinksPage() {
   if (maxPersons !== 6) {
     params.set('max', String(maxPersons))
   }
+  if (targetVenueId) {
+    params.set('venue', targetVenueId)
+  }
 
   const publicLink = `${baseUrl}/invitacion/${activeEvent?.id || 'evento'}?${params.toString()}`
 
@@ -220,7 +227,7 @@ export function PublicLinksPage() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Link Público de Acceso - Cubano Bar`,
+          title: `Link Público de Acceso - ${businessName}`,
           text: `Generá tu pase QR para ${selectedOptionInfo?.name || 'Ingreso'} (${selectedDateFormatted}):`,
           url: publicLink,
         })
