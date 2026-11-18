@@ -48,7 +48,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved && JSON.parse(saved).selectedCouponSatId) return JSON.parse(saved).selectedCouponSatId
-    } catch {}
+    } catch { }
     return ''
   })
 
@@ -56,7 +56,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved && JSON.parse(saved).selectedCouponSunId) return JSON.parse(saved).selectedCouponSunId
-    } catch {}
+    } catch { }
     return ''
   })
 
@@ -65,7 +65,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved) return JSON.parse(saved).dateMode || 'doble'
-    } catch {}
+    } catch { }
     return 'doble'
   })
 
@@ -73,7 +73,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved) return JSON.parse(saved).allowBothDays ?? true
-    } catch {}
+    } catch { }
     return true
   })
 
@@ -81,7 +81,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved) return JSON.parse(saved).singleDay || 'sabado'
-    } catch {}
+    } catch { }
     return 'sabado'
   })
 
@@ -89,7 +89,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved) return JSON.parse(saved).maxPersons || 6
-    } catch {}
+    } catch { }
     return 6
   })
 
@@ -98,7 +98,7 @@ export function PublicLinksPage() {
     try {
       const saved = localStorage.getItem('qr-pass-line.public-links-config')
       if (saved && JSON.parse(saved).selectedDateIso) return JSON.parse(saved).selectedDateIso
-    } catch {}
+    } catch { }
     if (activeEvent?.date) return activeEvent.date.split('T')[0]
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -129,7 +129,7 @@ export function PublicLinksPage() {
           selectedCouponSunId
         })
       )
-    } catch {}
+    } catch { }
   }, [dateMode, allowBothDays, singleDay, maxPersons, selectedDateIso, selectedCouponId, selectedCouponSatId, selectedCouponSunId])
 
   // Cálculo de las fechas del fin de semana (Sábado y Domingo) basado en la fecha seleccionada

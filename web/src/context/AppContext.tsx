@@ -1044,11 +1044,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : ((numBenefited === 1 ? '1 persona beneficiada' : `${numBenefited} personas beneficiadas`) + genderDetail)
 
       // 1. Check Establishment / Venue Match (only if staff has a specific venueId assigned)
-      const currentVenueName = currentUser?.venueId
-        ? (data.venues.find((v) => v.id === currentUser.venueId)?.name || '')
+      const isMasterAdminUser = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || Boolean(currentUser?.roles?.includes('admin'))
+      const targetStaffVenueId = currentUser?.venueId || (isMasterAdminUser ? activeVenue?.id : undefined)
+      const currentVenueName = targetStaffVenueId
+        ? (data.venues.find((v) => v.id === targetStaffVenueId)?.name || '')
         : ''
 
-      if (ticket.venueId && currentUser?.venueId && ticket.venueId !== currentUser.venueId) {
+      if (targetStaffVenueId && !isEntityForVenue(ticket.venueId, targetStaffVenueId, data.venues)) {
         return {
           ok: false,
           reason: 'invalid_venue',
