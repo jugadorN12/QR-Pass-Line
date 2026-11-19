@@ -312,7 +312,7 @@ export function formatCouponSchedule(event?: ClubEvent, coupon?: any): string {
  * directamente debajo de su nombre en el afiche/pase digital:
  * Ejemplos:
  * - "Entrada: 23:59 hs · Límite: 02:00 hs"
- * - "Caballeros hasta 01:30 hs · Damas hasta 02:00 hs"
+ * - "Caballeros hasta 01:30 hs · Damas hasta 02:00 hs" (solo si está expresamente habilitado)
  * - "Límite: 02:00 hs" (si el modo es sólo hora límite)
  * - "Sin restricción horaria" (si el horario está oculto)
  */
@@ -320,8 +320,8 @@ export function formatCouponTimeBadge(coupon?: any): string {
   if (!coupon) return ''
   if (coupon.scheduleMode === 'hidden') return 'Sin restricción horaria'
 
-  // Doble horario diferenciado por género (Caballeros y Damas)
-  if (coupon.hasGenderSchedules || (coupon.menDuration && coupon.womenDuration)) {
+  // Doble horario diferenciado por género ÚNICAMENTE si está expresamente activado en el cupón
+  if (coupon.hasGenderSchedules === true) {
     const rawMen = String(coupon.menDuration || '01:30').trim()
     const menMatch = rawMen.match(/(\d{1,2}:\d{2})/)
     const cleanMen = menMatch ? menMatch[1] : '01:30'
@@ -333,7 +333,7 @@ export function formatCouponTimeBadge(coupon?: any): string {
     return `Caballeros hasta ${cleanMen} hs · Damas hasta ${cleanWomen} hs`
   }
 
-  // Horario explícito (from y/o duration)
+  // Horario explícito (from y/o duration) del cupón específico
   if (coupon.from || coupon.duration) {
     const rawFrom = String(coupon.from || '23:59').trim()
     const fromMatch = rawFrom.match(/(\d{1,2}:\d{2})/)

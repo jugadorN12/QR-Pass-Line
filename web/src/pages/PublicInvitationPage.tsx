@@ -952,37 +952,37 @@ export function PublicInvitationPage() {
         ? ticket.items
         : [{ couponName: 'Ingreso General', quantity: ticket.quantity || 1, schedule: ticket.schedule }]
 
-    const rowHeight = 52
-    const tableHeight = 40 + itemsToDraw.length * rowHeight
-    // En el canvas de 1040px con titular y RR.PP, la tabla termina en Y=890
-    const tableBottomY = 890
+    const rowHeight = 44
+    const tableHeight = 34 + itemsToDraw.length * rowHeight
+    // En el canvas de 1040px con titular y RR.PP, la tabla termina en Y=905
+    const tableBottomY = 905
     const tableY = tableBottomY - tableHeight
 
     // Fondo oscuro translúcido para garantizar legibilidad perfecta sobre cualquier afiche
     ctx.fillStyle = 'rgba(10, 8, 16, 0.72)'
     ctx.beginPath()
-    ctx.roundRect(70, tableY - 4, 580, tableHeight + 8, 14)
+    ctx.roundRect(70, tableY - 4, 580, tableHeight + 8, 12)
     ctx.fill()
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+    ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.moveTo(80, tableY)
     ctx.lineTo(640, tableY)
-    ctx.moveTo(80, tableY + 40)
-    ctx.lineTo(640, tableY + 40)
+    ctx.moveTo(80, tableY + 34)
+    ctx.lineTo(640, tableY + 34)
     ctx.stroke()
 
-    ctx.font = '22px sans-serif'
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.font = '20px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
     ctx.textAlign = 'left'
-    ctx.fillText('Cupón', 100, tableY + 28)
+    ctx.fillText('Cupón', 100, tableY + 24)
     ctx.textAlign = 'right'
-    ctx.fillText('Cant.', 620, tableY + 28)
+    ctx.fillText('Cant.', 620, tableY + 24)
 
     itemsToDraw.forEach((it, idx) => {
-      const rowY = tableY + 40 + idx * rowHeight + 24
-      ctx.font = '900 24px sans-serif'
+      const rowY = tableY + 34 + idx * rowHeight + 20
+      ctx.font = '900 22px sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'left'
       ctx.fillText(it.couponName, 100, rowY)
@@ -993,10 +993,10 @@ export function PublicInvitationPage() {
 
       const timeBadge = formatCouponTimeBadge(it)
       if (timeBadge) {
-        ctx.font = '600 16px sans-serif'
+        ctx.font = '600 15px sans-serif'
         ctx.fillStyle = '#cbd5e1'
         ctx.textAlign = 'left'
-        ctx.fillText(`🕒 ${timeBadge}`, 100, rowY + 20)
+        ctx.fillText(`🕒 ${timeBadge}`, 100, rowY + 18)
       }
     })
 
@@ -1333,19 +1333,19 @@ export function PublicInvitationPage() {
               </div>
 
               {/* Detalle Inferior del Cupón (Tabla con Cupón y Cantidad) */}
-              <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
+              <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, padding: '0 16px', zIndex: 2, textAlign: 'center' }}>
                 <div style={{
                   background: 'rgba(10, 8, 16, 0.72)',
                   backdropFilter: 'blur(8px)',
                   WebkitBackdropFilter: 'blur(8px)',
-                  borderRadius: 12,
-                  borderTop: '1px solid rgba(255,255,255,0.4)',
-                  borderBottom: '1px solid rgba(255,255,255,0.4)',
-                  padding: '8px 12px',
-                  margin: '0 auto 10px',
+                  borderRadius: 10,
+                  borderTop: '1px solid rgba(255,255,255,0.35)',
+                  borderBottom: '1px solid rgba(255,255,255,0.35)',
+                  padding: '5px 10px',
+                  margin: '0 auto 5px',
                   width: '92%'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
                     <span>Cupón</span>
                     <span>Cant.</span>
                   </div>
@@ -1353,13 +1353,13 @@ export function PublicInvitationPage() {
                     currentTicket.items.map((it, idx) => {
                       const timeBadge = formatCouponTimeBadge(it)
                       return (
-                        <div key={idx} style={{ marginBottom: idx < currentTicket.items!.length - 1 ? 6 : 2 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}>
+                        <div key={idx} style={{ marginBottom: idx < currentTicket.items!.length - 1 ? 4 : 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
                             <span>{it.couponName}</span>
                             <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
                           </div>
                           {timeBadge && (
-                            <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                            <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               🕒 {timeBadge}
                             </div>
                           )}
@@ -1368,12 +1368,12 @@ export function PublicInvitationPage() {
                     })
                   ) : (
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
                         <span>Ingreso General</span>
                         <span style={{ color: '#ff4d4d' }}>{currentTicket.quantity || 1}</span>
                       </div>
                       {formatCouponTimeBadge(currentTicket) && (
-                        <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+                        <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           🕒 {formatCouponTimeBadge(currentTicket)}
                         </div>
                       )}
@@ -1381,11 +1381,11 @@ export function PublicInvitationPage() {
                   )}
                 </div>
 
-                <div style={{ fontSize: 11, color: '#e2e8f0', marginBottom: 4 }}>
+                <div style={{ fontSize: 10.5, color: '#e2e8f0', marginBottom: 2 }}>
                   Titular: <strong>{currentTicket.holderName}</strong>
                 </div>
 
-                <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
+                <strong style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
                   RR.PP: RR.PP ANIBAL
                 </strong>
               </div>

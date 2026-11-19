@@ -379,32 +379,32 @@ export function CouponTemplateEditor() {
           </div>
 
           {/* Bottom Details */}
-          <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, padding: '0 20px', zIndex: 2, textAlign: 'center' }}>
+          <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, padding: '0 16px', zIndex: 2, textAlign: 'center' }}>
             <div style={{
               background: 'rgba(10, 8, 16, 0.72)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              borderRadius: 12,
-              borderTop: '1px solid rgba(255,255,255,0.4)',
-              borderBottom: '1px solid rgba(255,255,255,0.4)',
-              padding: '8px 12px',
-              margin: '0 auto 10px',
+              borderRadius: 10,
+              borderTop: '1px solid rgba(255,255,255,0.35)',
+              borderBottom: '1px solid rgba(255,255,255,0.35)',
+              padding: '5px 10px',
+              margin: '0 auto 5px',
               width: '92%'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.9)', marginBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
                 <span>Cupón</span>
                 <span>Cant.</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
                 <span>INGRESO GENERAL 2AM</span>
                 <span style={{ color: '#ff4d4d' }}>1</span>
               </div>
-              <div style={{ textAlign: 'left', fontSize: 11, color: '#cbd5e1', fontWeight: 600, marginTop: 1 }}>
+              <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap' }}>
                 🕒 Entrada: 23:59 hs · Límite: 02:00 hs
               </div>
             </div>
 
-            <strong style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
+            <strong style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
               RR.PP: JOSE
             </strong>
           </div>
