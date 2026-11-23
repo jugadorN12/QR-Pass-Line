@@ -17,6 +17,32 @@ export type User = {
   createdAt: string
 }
 
+export type VenueVisibleButtons = {
+  staff?: boolean
+  staffVendedores?: boolean
+  staffCanjeadores?: boolean
+  staffSupervisores?: boolean
+  accesos?: boolean
+  informes?: boolean
+  fechas?: boolean
+  linksPublicos?: boolean
+  baneos?: boolean
+  soporte?: boolean
+}
+
+export const defaultVenueVisibleButtons: Required<VenueVisibleButtons> = {
+  staff: true,
+  staffVendedores: true,
+  staffCanjeadores: true,
+  staffSupervisores: true,
+  accesos: true,
+  informes: true,
+  fechas: true,
+  linksPublicos: true,
+  baneos: true,
+  soporte: true,
+}
+
 export type Venue = {
   id: string
   name: string
@@ -30,6 +56,7 @@ export type Venue = {
   minAgeWomen?: string
   visibleDays?: string
   couponTemplate?: CouponTemplateConfig
+  visibleButtons?: VenueVisibleButtons
   primaryColor?: string
   brandStrongColor?: string
   backgroundColor?: string

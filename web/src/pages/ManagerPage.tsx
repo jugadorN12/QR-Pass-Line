@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp, isEntityForVenue } from '../context/AppContext'
 import { UserAvatar } from '../components/UserAvatar'
+import type { VenueVisibleButtons } from '../types'
 import {
   getTodayDateString,
   formatDateLabel,
@@ -9,6 +10,7 @@ import {
 } from '../lib/dateUtils'
 
 type ManagerTile = {
+  key: keyof VenueVisibleButtons
   label: string
   icon: string
   to: string
@@ -16,13 +18,13 @@ type ManagerTile = {
 }
 
 const tiles: ManagerTile[] = [
-  { label: 'STAFF', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-opacity="0.5"/></svg>', to: '/equipo' },
-  { label: 'ACCESOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>', to: '/accesos' },
-  { label: 'INFORMES', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', to: '/informes' },
-  { label: 'FECHAS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>', to: '/fechas' },
-  { label: 'LINK PUBLICOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>', to: '/links-publicos' },
-  { label: 'BANEOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>', to: '/baneos' },
-  { label: 'SOPORTE', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2z"/><circle cx="12" cy="14" r="2"/></svg>', to: 'https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', external: true },
+  { key: 'staff', label: 'STAFF', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-opacity="0.5"/></svg>', to: '/equipo' },
+  { key: 'accesos', label: 'ACCESOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>', to: '/accesos' },
+  { key: 'informes', label: 'INFORMES', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', to: '/informes' },
+  { key: 'fechas', label: 'FECHAS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>', to: '/fechas' },
+  { key: 'linksPublicos', label: 'LINK PUBLICOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>', to: '/links-publicos' },
+  { key: 'baneos', label: 'BANEOS', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>', to: '/baneos' },
+  { key: 'soporte', label: 'SOPORTE', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2z"/><circle cx="12" cy="14" r="2"/></svg>', to: 'https://api.whatsapp.com/send?phone=5491131245112&text=Hola%2C%20necesito%20soporte%20con%20QR%20Pass%20Line', external: true },
 ]
 
 export function ManagerPage() {
@@ -64,6 +66,22 @@ export function ManagerPage() {
   }, [venueTickets, selectedDate, events, qrCatalog])
 
   const dateLabel = formatDateLabel(selectedDate)
+
+  // Permisos de botones del establecimiento activo (si no está definido, se muestran todos por defecto)
+  const buttonsConfig: Required<VenueVisibleButtons> = useMemo(() => {
+    return {
+      staff: activeVenue?.visibleButtons?.staff ?? true,
+      staffVendedores: activeVenue?.visibleButtons?.staffVendedores ?? true,
+      staffCanjeadores: activeVenue?.visibleButtons?.staffCanjeadores ?? true,
+      staffSupervisores: activeVenue?.visibleButtons?.staffSupervisores ?? true,
+      accesos: activeVenue?.visibleButtons?.accesos ?? true,
+      informes: activeVenue?.visibleButtons?.informes ?? true,
+      fechas: activeVenue?.visibleButtons?.fechas ?? true,
+      linksPublicos: activeVenue?.visibleButtons?.linksPublicos ?? true,
+      baneos: activeVenue?.visibleButtons?.baneos ?? true,
+      soporte: activeVenue?.visibleButtons?.soporte ?? true,
+    }
+  }, [activeVenue?.visibleButtons])
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -171,33 +189,40 @@ export function ManagerPage() {
 
       <p className="manager-section-label">Accesos Principales</p>
       <section className={`manager-tiles ${staffOpen ? 'staff-is-open' : ''}`}>
-        {staffOpen ? (
-          <div className="staff-subtiles">
-            <Link className="staff-subtile" to="/vendedores"><span>♙</span><strong>VENDEDORES</strong></Link>
-            <Link className="staff-subtile" to="/canjeadores"><span>⌗</span><strong>CANJEADORES</strong></Link>
-            <Link className="staff-subtile" to="/supervisores"><span>▣</span><strong>SUPERVISORES</strong></Link>
-          </div>
-
-
-
-        ) : (
-          <button className="manager-tile manager-tile-button" type="button" onClick={() => setStaffOpen(true)}>
-            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[0].icon }} />
-            <strong>STAFF</strong>
-          </button>
+        {buttonsConfig.staff && (
+          staffOpen ? (
+            <div className="staff-subtiles">
+              {buttonsConfig.staffVendedores && (
+                <Link className="staff-subtile" to="/vendedores"><span>♙</span><strong>VENDEDORES</strong></Link>
+              )}
+              {buttonsConfig.staffCanjeadores && (
+                <Link className="staff-subtile" to="/canjeadores"><span>⌗</span><strong>CANJEADORES</strong></Link>
+              )}
+              {buttonsConfig.staffSupervisores && (
+                <Link className="staff-subtile" to="/supervisores"><span>▣</span><strong>SUPERVISORES</strong></Link>
+              )}
+            </div>
+          ) : (
+            <button className="manager-tile manager-tile-button" type="button" onClick={() => setStaffOpen(true)}>
+              <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[0].icon }} />
+              <strong>STAFF</strong>
+            </button>
+          )
         )}
-        {accessOpen ? (
-          <button className="manager-tile manager-tile-button" type="button" onClick={() => navigate('/qr')}>
-            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
-            <strong>QR</strong>
-          </button>
-        ) : (
-          <button className="manager-tile manager-tile-button" type="button" onClick={() => setAccessOpen(true)}>
-            <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
-            <strong>ACCESOS</strong>
-          </button>
+        {buttonsConfig.accesos && (
+          accessOpen ? (
+            <button className="manager-tile manager-tile-button" type="button" onClick={() => navigate('/qr')}>
+              <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
+              <strong>QR</strong>
+            </button>
+          ) : (
+            <button className="manager-tile manager-tile-button" type="button" onClick={() => setAccessOpen(true)}>
+              <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tiles[1].icon }} />
+              <strong>ACCESOS</strong>
+            </button>
+          )
         )}
-        {tiles.slice(2).map((tile) => (
+        {tiles.slice(2).filter((tile) => buttonsConfig[tile.key]).map((tile) => (
           tile.external ? (
             <a className="manager-tile" href={tile.to} target="_blank" rel="noopener noreferrer" key={tile.label}>
               <span className="manager-tile-icon" dangerouslySetInnerHTML={{ __html: tile.icon }} />

@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import type { Role, User } from '../types'
+import type { Role, User, Venue, VenueVisibleButtons } from '../types'
+import { defaultVenueVisibleButtons } from '../types'
 import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 import { UserAvatar } from '../components/UserAvatar'
 import './AdminDashboard.css'
@@ -14,8 +15,172 @@ const AVAILABLE_ROLES: { key: Role; label: string; icon: string }[] = [
   { key: 'admin', label: 'Admin', icon: '👑' },
 ]
 
+function renderButtonsSelector(
+  state: Required<VenueVisibleButtons>,
+  setState: React.Dispatch<React.SetStateAction<Required<VenueVisibleButtons>>>
+) {
+  function toggle(key: keyof VenueVisibleButtons) {
+    setState(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function setAll(val: boolean) {
+    setState({
+      staff: val,
+      staffVendedores: val,
+      staffCanjeadores: val,
+      staffSupervisores: val,
+      accesos: val,
+      informes: val,
+      fechas: val,
+      linksPublicos: val,
+      baneos: val,
+      soporte: val,
+    })
+  }
+
+  return (
+    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #cbd5e1' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <strong style={{ fontSize: 13, color: '#0f172a', display: 'block' }}>
+            🎛️ Botones visibles en el panel del Encargado
+          </strong>
+          <small style={{ fontSize: 11, color: '#64748b' }}>
+            Marcá los accesos que este establecimiento podrá ver en su pantalla principal.
+          </small>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setAll(true)}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700, color: '#1e3a8a' }}
+          >
+            ✓ Todos
+          </button>
+          <button
+            type="button"
+            onClick={() => setAll(false)}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700, color: '#dc2626' }}
+          >
+            ✕ Ninguno
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+        {/* Bloque STAFF y sus sub-botones */}
+        <div style={{ background: '#fff', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.staff}
+              onChange={() => toggle('staff')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>👥 STAFF</span>
+          </label>
+          <div style={{ paddingLeft: 24, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, opacity: state.staff ? 1 : 0.4 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: state.staff ? 'pointer' : 'not-allowed', color: '#334155', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                disabled={!state.staff}
+                checked={state.staffVendedores}
+                onChange={() => toggle('staffVendedores')}
+                style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#1e3a8a' }}
+              />
+              <span>♙ Vendedores</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: state.staff ? 'pointer' : 'not-allowed', color: '#334155', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                disabled={!state.staff}
+                checked={state.staffCanjeadores}
+                onChange={() => toggle('staffCanjeadores')}
+                style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#1e3a8a' }}
+              />
+              <span>⌗ Canjeadores</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: state.staff ? 'pointer' : 'not-allowed', color: '#334155', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                disabled={!state.staff}
+                checked={state.staffSupervisores}
+                onChange={() => toggle('staffSupervisores')}
+                style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#1e3a8a' }}
+              />
+              <span>▣ Supervisores</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Bloque Accesos y Operación */}
+        <div style={{ background: '#fff', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.accesos}
+              onChange={() => toggle('accesos')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>🎟️ ACCESOS / QR</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.fechas}
+              onChange={() => toggle('fechas')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>📅 FECHAS</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.linksPublicos}
+              onChange={() => toggle('linksPublicos')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>🌐 LINK PÚBLICOS</span>
+          </label>
+        </div>
+
+        {/* Bloque Informes y Seguridad */}
+        <div style={{ background: '#fff', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.informes}
+              onChange={() => toggle('informes')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>📊 INFORMES</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.baneos}
+              onChange={() => toggle('baneos')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>🚫 BANEOS</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+            <input
+              type="checkbox"
+              checked={state.soporte}
+              onChange={() => toggle('soporte')}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#1e3a8a' }}
+            />
+            <span>💬 SOPORTE</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AdminDashboardPage() {
-  const { users, venues, updateUserRole, deleteUser, adminResetPassword, createVenue, deleteVenue, addMember, logout, activeVenue, setAdminActiveVenue } = useApp()
+  const { users, venues, updateUserRole, deleteUser, adminResetPassword, createVenue, updateVenue, deleteVenue, addMember, logout, activeVenue, setAdminActiveVenue } = useApp()
   const [tab, setTab] = useState<'users' | 'venues' | 'settings' | 'template'>('users')
   const [globalLogo, setGlobalLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
 
@@ -23,6 +188,14 @@ export function AdminDashboardPage() {
   const [resetModalUser, setResetModalUser] = useState<User | null>(null)
   const [resetModalPass, setResetModalPass] = useState('123456')
   const [isResettingPass, setIsResettingPass] = useState(false)
+
+  // Venue visible buttons state (for creation form)
+  const [venueVisibleButtons, setVenueVisibleButtons] = useState<Required<VenueVisibleButtons>>(defaultVenueVisibleButtons)
+
+  // Venue visible buttons modal state (for editing existing venue)
+  const [editingVenueButtons, setEditingVenueButtons] = useState<Venue | null>(null)
+  const [editButtonsState, setEditButtonsState] = useState<Required<VenueVisibleButtons>>(defaultVenueVisibleButtons)
+  const [isSavingButtons, setIsSavingButtons] = useState(false)
 
   // UI State for toggling create panels
   const [showUserForm, setShowUserForm] = useState(false)
@@ -145,7 +318,8 @@ export function AdminDashboardPage() {
         address: venueAddress.trim(),
         latitude: Number(lat) || 0,
         longitude: Number(lng) || 0,
-        radius: Number(radius) || 50
+        radius: Number(radius) || 50,
+        visibleButtons: venueVisibleButtons
       })
 
       let managerMsg = ''
@@ -172,12 +346,46 @@ export function AdminDashboardPage() {
       setVenueManagerName('')
       setVenueManagerEmail('')
       setVenueManagerPassword('')
+      setVenueVisibleButtons(defaultVenueVisibleButtons)
       setShowVenueForm(false)
       setMessage(`✓ Establecimiento "${cleanVenueName}" registrado${managerMsg}`)
     } catch (err: any) {
       setMessage(`Error al crear establecimiento: ${err?.message || 'Error desconocido'}`)
     } finally {
       setIsSubmittingVenue(false)
+    }
+  }
+
+  function handleOpenEditButtons(v: Venue) {
+    setEditingVenueButtons(v)
+    setEditButtonsState({
+      staff: v.visibleButtons?.staff ?? true,
+      staffVendedores: v.visibleButtons?.staffVendedores ?? true,
+      staffCanjeadores: v.visibleButtons?.staffCanjeadores ?? true,
+      staffSupervisores: v.visibleButtons?.staffSupervisores ?? true,
+      accesos: v.visibleButtons?.accesos ?? true,
+      informes: v.visibleButtons?.informes ?? true,
+      fechas: v.visibleButtons?.fechas ?? true,
+      linksPublicos: v.visibleButtons?.linksPublicos ?? true,
+      baneos: v.visibleButtons?.baneos ?? true,
+      soporte: v.visibleButtons?.soporte ?? true,
+    })
+  }
+
+  async function handleSaveVenueButtons(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingVenueButtons || isSavingButtons) return
+    setIsSavingButtons(true)
+    try {
+      await updateVenue(editingVenueButtons.id, {
+        visibleButtons: editButtonsState
+      })
+      setMessage(`✓ Permisos de botones actualizados para "${editingVenueButtons.name}"`)
+      setEditingVenueButtons(null)
+    } catch (err: any) {
+      setMessage(`Error al actualizar botones: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsSavingButtons(false)
     }
   }
 
@@ -703,6 +911,11 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Botones Visibles para este Cliente */}
+                    <div style={{ gridColumn: '1 / -1', marginTop: 12 }}>
+                      {renderButtonsSelector(venueVisibleButtons, setVenueVisibleButtons)}
+                    </div>
                   </div>
                   <button
                     className="admin-btn-action-primary"
@@ -751,6 +964,14 @@ export function AdminDashboardPage() {
                         }}
                       >
                         👁️ Ver Panel de este Local
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-btn-reset"
+                        style={{ background: '#0284c7', color: '#fff', fontWeight: 700 }}
+                        onClick={() => handleOpenEditButtons(v)}
+                      >
+                        🎛️ Permisos de Botones
                       </button>
                       <button
                         type="button"
@@ -905,6 +1126,104 @@ export function AdminDashboardPage() {
                   }}
                 >
                   {isResettingPass ? 'Guardando...' : '✓ Guardar Clave'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Configurar Botones Visibles de Establecimiento */}
+      {editingVenueButtons && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              maxWidth: 580,
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                  🎛️ Permisos de Botones: {editingVenueButtons.name}
+                </h3>
+                <small style={{ color: '#64748b', fontSize: 12 }}>
+                  Seleccioná qué botones y sub-botones podrá ver este establecimiento en su menú principal.
+                </small>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVenueButtons(null)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 32,
+                  height: 32,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: 14,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveVenueButtons} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {renderButtonsSelector(editButtonsState, setEditButtonsState)}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingVenueButtons(null)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    color: '#475569',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingButtons}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #1e3a8a, #2563eb)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isSavingButtons ? 'Guardando...' : '✓ Guardar Permisos'}
                 </button>
               </div>
             </form>
