@@ -409,26 +409,22 @@ export function CouponTemplateEditor() {
             </strong>
           </div>
 
-          {/* Vertical QRPASSLINE on the right side outside ticket box */}
-          <div
+          {/* Vertical QRPASSLINE Logo on the right side outside ticket box */}
+          <img
+            src="/qrpassline-logo-vertical.png"
+            alt="QR Pass Line"
             style={{
               position: 'absolute',
-              right: 8,
-              bottom: 28,
+              right: 5,
+              bottom: 24,
+              width: 16,
+              height: 'auto',
               zIndex: 3,
-              writingMode: 'vertical-rl',
-              transform: 'rotate(180deg)',
-              fontFamily: 'Impact, sans-serif',
-              fontSize: 16,
-              color: 'rgba(255, 255, 255, 0.92)',
-              textShadow: '0 2px 4px rgba(0, 0, 0, 0.85)',
-              letterSpacing: '0.08em',
+              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85))',
               userSelect: 'none',
               pointerEvents: 'none'
             }}
-          >
-            QRPASSLINE
-          </div>
+          />
         </div>
       </div>
     </div>

@@ -462,18 +462,23 @@ export function SellerEmitPage() {
     ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 980)
     ctx.shadowBlur = 0
 
-    // 6. Draw Vertical QRPASSLINE on bottom right side outside ticket box
-    ctx.save()
-    ctx.translate(685, 890)
-    ctx.rotate(-Math.PI / 2)
-    ctx.font = '900 32px Impact, sans-serif'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
-    ctx.shadowBlur = 6
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('QRPASSLINE', 0, 0)
-    ctx.restore()
+    // 6. Draw Vertical QRPASSLINE Logo on bottom right side outside ticket box
+    const logoImg = new Image()
+    logoImg.crossOrigin = 'anonymous'
+    await new Promise((resolve) => {
+      logoImg.onload = resolve
+      logoImg.onerror = resolve
+      logoImg.src = '/qrpassline-logo-vertical.png'
+    })
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      const logoW = 32
+      const logoH = Math.round(logoW * (logoImg.naturalHeight / logoImg.naturalWidth))
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+      ctx.shadowBlur = 6
+      ctx.drawImage(logoImg, width - logoW - 10, height - logoH - 48, logoW, logoH)
+      ctx.restore()
+    }
 
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -822,26 +827,22 @@ export function SellerEmitPage() {
                 </strong>
               </div>
 
-              {/* Vertical QRPASSLINE on the right side outside ticket box */}
-              <div
+              {/* Vertical QRPASSLINE Logo on the right side outside ticket box */}
+              <img
+                src="/qrpassline-logo-vertical.png"
+                alt="QR Pass Line"
                 style={{
                   position: 'absolute',
-                  right: 8,
-                  bottom: 28,
+                  right: 5,
+                  bottom: 24,
+                  width: 16,
+                  height: 'auto',
                   zIndex: 3,
-                  writingMode: 'vertical-rl',
-                  transform: 'rotate(180deg)',
-                  fontFamily: 'Impact, sans-serif',
-                  fontSize: 16,
-                  color: 'rgba(255, 255, 255, 0.92)',
-                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.85)',
-                  letterSpacing: '0.08em',
+                  filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85))',
                   userSelect: 'none',
                   pointerEvents: 'none'
                 }}
-              >
-                QRPASSLINE
-              </div>
+              />
             </div>
 
             {/* Acción de Cierre */}
