@@ -27,7 +27,7 @@ export function CouponTemplateEditor() {
           bgPosX: parsed.bgPosX ?? 0,
           bgPosY: parsed.bgPosY ?? 0,
         }
-      } catch {}
+      } catch { }
     }
     return {
       qrY: 155,
@@ -385,32 +385,37 @@ export function CouponTemplateEditor() {
               right: 0,
               bottom: 0,
               height: '133px',
-              background: 'rgba(228, 142, 141, 0.95)',
+              background: 'rgba(10, 8, 16, 0.82)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               borderTopLeftRadius: '14px',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              borderRight: 0,
+              borderBottom: 0,
               zIndex: 2,
               display: 'flex',
-              color: '#4b1216',
+              color: '#ffffff',
               overflow: 'hidden'
             }}
           >
             {/* Zona Principal de Tabla de Cupones */}
             <div style={{ flex: 1, padding: '8px 12px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1.5px solid rgba(120, 35, 40, 0.85)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.25)', color: 'rgba(255, 255, 255, 0.75)' }}>
                   <span>Cupón</span>
-                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>Cant.</span>
+                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4 }}>Cant.</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
-                  <span>INGRESO GENERAL 2AM</span>
-                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>1</span>
+                  <span style={{ color: '#ffffff' }}>INGRESO GENERAL 2AM</span>
+                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4, color: '#ff4d4d' }}>1</span>
                 </div>
               </div>
 
-              <div style={{ borderTop: '1.5px solid rgba(120, 35, 40, 0.85)', paddingTop: 2, textAlign: 'center' }}>
-                <div style={{ fontSize: 9, fontWeight: 700 }}>
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.25)', paddingTop: 2, textAlign: 'center' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(203, 213, 225, 0.9)' }}>
                   10/02 08:00 a 21:00
                 </div>
-                <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase' }}>
+                <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.04em' }}>
                   VENDEDOR: JOSE
                 </strong>
               </div>
@@ -420,11 +425,11 @@ export function CouponTemplateEditor() {
             <div
               style={{
                 width: '45px',
-                borderLeft: '1.5px solid rgba(75, 18, 22, 0.35)',
+                borderLeft: '1px solid rgba(255, 255, 255, 0.22)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'rgba(228, 142, 141, 0.85)'
+                background: 'rgba(0, 0, 0, 0.25)'
               }}
             >
               <span
@@ -433,7 +438,7 @@ export function CouponTemplateEditor() {
                   transform: 'rotate(180deg)',
                   fontFamily: 'Impact, sans-serif',
                   fontSize: 18,
-                  color: '#5f4491',
+                  color: 'rgba(255, 255, 255, 0.85)',
                   letterSpacing: '0.08em',
                   userSelect: 'none'
                 }}

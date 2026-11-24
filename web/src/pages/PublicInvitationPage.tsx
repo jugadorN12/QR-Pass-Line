@@ -63,7 +63,7 @@ function getWeekendDates(baseEvent?: ClubEvent | null, customDateIso?: string | 
 
 function formatEventDay(dateStr?: string) {
   if (!dateStr) return { dayName: 'Día del Evento', formattedStr: 'Fecha confirmada', iso: new Date().toISOString().split('T')[0] }
-  
+
   // Extraer año, mes, día numéricamente para evitar desfases de zona horaria
   const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr
   const parts = cleanDate.split('-')
@@ -356,7 +356,7 @@ export function PublicInvitationPage() {
                   setGeneratedTickets(parsed)
                   setIsExistingPass(true)
                 }
-              } catch {}
+              } catch { }
             } else {
               // Backward compatibility check with single pass
               const oldPassRaw = localStorage.getItem(`qr-pass-line.public-pass-${matchedEv.id}`)
@@ -367,7 +367,7 @@ export function PublicInvitationPage() {
                     setGeneratedTickets([parsed])
                     setIsExistingPass(true)
                   }
-                } catch {}
+                } catch { }
               }
             }
           }
@@ -408,7 +408,7 @@ export function PublicInvitationPage() {
                 venues[0] ||
                 null
               if (isMounted) setVenue(matchedVenue)
-            } catch {}
+            } catch { }
 
             let matchedCoupon: QrCatalogItem | null = null
             let matchedCouponSat: QrCatalogItem | null = null
@@ -441,7 +441,7 @@ export function PublicInvitationPage() {
                 setCouponSat(matchedCouponSat)
                 setCouponSun(matchedCouponSun)
               }
-            } catch {}
+            } catch { }
 
             let foundAnibal: User | null = null
             try {
@@ -456,7 +456,7 @@ export function PublicInvitationPage() {
                 allUsers.find((u) => (u.name || '').toLowerCase().includes('anibal')) ||
                 null
               if (isMounted) setAnibalUser(foundAnibal)
-            } catch {}
+            } catch { }
 
             let targetLimitation: Limitation | null = null
             let targetLimitationSat: Limitation | null = null
@@ -486,7 +486,7 @@ export function PublicInvitationPage() {
                 setLimitationSat(targetLimitationSat)
                 setLimitationSun(targetLimitationSun)
               }
-            } catch {}
+            } catch { }
 
             try {
               let totalQuota = targetLimitation ? Number(targetLimitation.quantity) || 2000 : 2000
@@ -547,7 +547,7 @@ export function PublicInvitationPage() {
                   setGeneratedTickets(parsed)
                   setIsExistingPass(true)
                 }
-              } catch {}
+              } catch { }
             } else {
               const oldPassRaw = localStorage.getItem(`qr-pass-line.public-pass-${targetEvent.id}`)
               if (oldPassRaw && isMounted) {
@@ -557,7 +557,7 @@ export function PublicInvitationPage() {
                     setGeneratedTickets([parsed])
                     setIsExistingPass(true)
                   }
-                } catch {}
+                } catch { }
               }
             }
           }
@@ -671,7 +671,7 @@ export function PublicInvitationPage() {
               }
             }
           }
-        } catch {}
+        } catch { }
       }
 
       // 2. Si es 'ambos', creamos 2 tickets separados (uno con el cupón de Sábado y otro con el de Domingo)
@@ -971,22 +971,26 @@ export function PublicInvitationPage() {
     const cardW = 875
     const cardH = 370
 
-    ctx.fillStyle = 'rgba(228, 142, 141, 0.95)'
+    // Fondo oscuro translúcido con desenfoque de vidrio (sin color rosado)
+    ctx.fillStyle = 'rgba(10, 8, 16, 0.82)'
     ctx.beginPath()
-    ctx.roundRect(cardX, cardY, cardW, cardH, [28, 0, 0, 0])
+    ctx.roundRect(cardX, cardY, cardW, cardH, [24, 0, 0, 0])
     ctx.fill()
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
 
     // Franja lateral para QRPASSLINE: ancho 125px (X desde 875 hasta 1000)
     const stripW = 125
     const tableRight = width - stripW
-    const tableLeft = cardX + 35
+    const tableLeft = cardX + 30
 
     // Línea divisoria antes de la franja
-    ctx.strokeStyle = 'rgba(75, 18, 22, 0.35)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
+    ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.moveTo(tableRight, cardY + 20)
-    ctx.lineTo(tableRight, height - 20)
+    ctx.moveTo(tableRight, cardY + 16)
+    ctx.lineTo(tableRight, height - 16)
     ctx.stroke()
 
     // Texto vertical QRPASSLINE en mayúsculas de abajo hacia arriba
@@ -994,7 +998,7 @@ export function PublicInvitationPage() {
     ctx.translate(tableRight + stripW / 2, cardY + cardH / 2)
     ctx.rotate(-Math.PI / 2)
     ctx.font = '900 56px Impact, sans-serif'
-    ctx.fillStyle = '#5f4491'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('QRPASSLINE', 0, 0)
@@ -1006,62 +1010,77 @@ export function PublicInvitationPage() {
         ? ticket.items
         : [{ couponName: 'Ingreso General', quantity: ticket.quantity || 1, schedule: ticket.schedule }]
 
-    const tblTopY = cardY + 46
-    const dividerX = tableRight - 130
-    const rowHeight = 44
-    const tblBotY = tblTopY + 36 + (itemsToDraw.length * rowHeight)
+    const tblTopY = cardY + 36
+    const dividerX = tableRight - 120
 
     // Encabezados: Cupón y Cant.
-    ctx.font = '900 26px sans-serif'
-    ctx.fillStyle = '#4b1216'
-    ctx.textAlign = 'center'
+    ctx.font = '22px sans-serif'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
+    ctx.textAlign = 'left'
     ctx.textBaseline = 'bottom'
-    ctx.fillText('Cupón', (tableLeft + dividerX) / 2, tblTopY - 12)
-    ctx.fillText('Cant.', (dividerX + tableRight) / 2, tblTopY - 12)
+    ctx.fillText('Cupón', tableLeft + 10, tblTopY - 10)
+    ctx.textAlign = 'center'
+    ctx.fillText('Cant.', (dividerX + tableRight) / 2, tblTopY - 10)
 
     // Líneas
-    ctx.strokeStyle = 'rgba(120, 35, 40, 0.85)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'
+    ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.moveTo(tableLeft, tblTopY)
-    ctx.lineTo(tableRight, tblTopY)
-    ctx.moveTo(dividerX, tblTopY)
-    ctx.lineTo(dividerX, tblBotY)
-    ctx.moveTo(tableLeft, tblBotY)
-    ctx.lineTo(tableRight, tblBotY)
+    ctx.lineTo(tableRight - 10, tblTopY)
     ctx.stroke()
 
     // Filas
-    itemsToDraw.forEach((it, idx) => {
-      const rowY = tblTopY + 36 + (idx * rowHeight)
+    const rowHeight = 44
+    let currentY = tblTopY
+    itemsToDraw.forEach((it) => {
+      const rowY = currentY + 30
       ctx.font = '900 24px sans-serif'
-      ctx.fillStyle = '#4b1216'
+      ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(it.couponName, tableLeft + 20, rowY)
+      ctx.fillText(it.couponName, tableLeft + 10, rowY)
 
+      ctx.fillStyle = '#ff4d4d'
       ctx.textAlign = 'center'
       ctx.fillText(String(it.quantity), (dividerX + tableRight) / 2, rowY)
+
+      const timeBadge = (it as any).schedule || ''
+      if (timeBadge) {
+        ctx.font = '600 17px sans-serif'
+        ctx.fillStyle = '#cbd5e1'
+        ctx.textAlign = 'left'
+        ctx.fillText(`🕒 ${timeBadge}`, tableLeft + 10, rowY + 22)
+        currentY += rowHeight + 14
+      } else {
+        currentY += rowHeight
+      }
     })
 
-    // Pie: Horario, Titular y RR.PP
-    const centerTblX = (tableLeft + tableRight) / 2
-    const timeSchedule = ticket.schedule || (ticket.items?.[0]?.schedule) || ''
-    ctx.font = '700 24px sans-serif'
-    ctx.fillStyle = '#4b1216'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    if (timeSchedule) {
-      ctx.fillText(timeSchedule, centerTblX, tblBotY + 32)
-    }
+    const tblBotY = currentY + 8
+    ctx.beginPath()
+    ctx.moveTo(tableLeft, tblBotY)
+    ctx.lineTo(tableRight - 10, tblBotY)
+    ctx.moveTo(dividerX, tblTopY)
+    ctx.lineTo(dividerX, tblBotY)
+    ctx.stroke()
 
+    // Pie: Titular y RR.PP
+    const centerTblX = (tableLeft + tableRight) / 2
     if (ticket.holderName) {
       ctx.font = '700 22px sans-serif'
-      ctx.fillText(`Titular: ${ticket.holderName.toUpperCase()}`, centerTblX, tblBotY + (timeSchedule ? 66 : 38))
+      ctx.fillStyle = '#ffffff'
+      ctx.textAlign = 'center'
+      ctx.fillText(`Titular: ${ticket.holderName.toUpperCase()}`, centerTblX, tblBotY + 28)
     }
 
-    ctx.font = '900 26px sans-serif'
-    ctx.fillText(`RR.PP: RR.PP ANIBAL`, centerTblX, tblBotY + (timeSchedule ? (ticket.holderName ? 100 : 72) : 68))
+    ctx.font = '900 28px sans-serif'
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+    ctx.shadowBlur = 8
+    ctx.fillText(`RR.PP: RR.PP ANIBAL`, centerTblX, tblBotY + (ticket.holderName ? 62 : 44))
+    ctx.shadowBlur = 0
 
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -1384,11 +1403,16 @@ export function PublicInvitationPage() {
                   right: 0,
                   bottom: 0,
                   height: '133px',
-                  background: 'rgba(228, 142, 141, 0.95)',
+                  background: 'rgba(10, 8, 16, 0.82)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
                   borderTopLeftRadius: '14px',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  borderRight: 0,
+                  borderBottom: 0,
                   zIndex: 2,
                   display: 'flex',
-                  color: '#4b1216',
+                  color: '#ffffff',
                   overflow: 'hidden'
                 }}
               >
@@ -1396,36 +1420,36 @@ export function PublicInvitationPage() {
                 <div style={{ flex: 1, padding: '8px 12px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   {/* Encabezado */}
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1.5px solid rgba(120, 35, 40, 0.85)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.25)', color: 'rgba(255, 255, 255, 0.75)' }}>
                       <span>Cupón</span>
-                      <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>Cant.</span>
+                      <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4 }}>Cant.</span>
                     </div>
                     {/* Filas */}
                     <div style={{ maxHeight: 46, overflowY: 'auto' }}>
                       {currentTicket.items && currentTicket.items.length > 0 ? (
                         currentTicket.items.map((it, idx) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.couponName}</span>
-                            <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>{it.quantity}</span>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>{it.couponName}</span>
+                            <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4, color: '#ff4d4d' }}>{it.quantity}</span>
                           </div>
                         ))
                       ) : (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Ingreso General</span>
-                          <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>{currentTicket.quantity || 1}</span>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>Ingreso General</span>
+                          <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4, color: '#ff4d4d' }}>{currentTicket.quantity || 1}</span>
                         </div>
                       )}
                     </div>
                   </div>
                   {/* Pie de tabla: Horario, Titular y RR.PP */}
-                  <div style={{ borderTop: '1.5px solid rgba(120, 35, 40, 0.85)', paddingTop: 2, textAlign: 'center' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700 }}>
+                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.25)', paddingTop: 2, textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(203, 213, 225, 0.9)' }}>
                       {currentTicket.schedule || currentTicket.items?.[0]?.schedule || ''}
                     </div>
-                    <div style={{ fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>
                       Titular: {currentTicket.holderName}
                     </div>
-                    <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase' }}>
+                    <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.04em' }}>
                       RR.PP: RR.PP ANIBAL
                     </strong>
                   </div>
@@ -1435,11 +1459,11 @@ export function PublicInvitationPage() {
                 <div
                   style={{
                     width: '45px',
-                    borderLeft: '1.5px solid rgba(75, 18, 22, 0.35)',
+                    borderLeft: '1px solid rgba(255, 255, 255, 0.22)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'rgba(228, 142, 141, 0.85)'
+                    background: 'rgba(0, 0, 0, 0.25)'
                   }}
                 >
                   <span
@@ -1448,7 +1472,7 @@ export function PublicInvitationPage() {
                       transform: 'rotate(180deg)',
                       fontFamily: 'Impact, sans-serif',
                       fontSize: 18,
-                      color: '#5f4491',
+                      color: 'rgba(255, 255, 255, 0.85)',
                       letterSpacing: '0.08em',
                       userSelect: 'none'
                     }}
