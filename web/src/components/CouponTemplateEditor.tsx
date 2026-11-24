@@ -408,6 +408,27 @@ export function CouponTemplateEditor() {
               RR.PP: JOSE
             </strong>
           </div>
+
+          {/* Vertical QRPASSLINE on the right side outside ticket box */}
+          <div
+            style={{
+              position: 'absolute',
+              right: 8,
+              bottom: 28,
+              zIndex: 3,
+              writingMode: 'vertical-rl',
+              transform: 'rotate(180deg)',
+              fontFamily: 'Impact, sans-serif',
+              fontSize: 16,
+              color: 'rgba(255, 255, 255, 0.92)',
+              textShadow: '0 2px 4px rgba(0, 0, 0, 0.85)',
+              letterSpacing: '0.08em',
+              userSelect: 'none',
+              pointerEvents: 'none'
+            }}
+          >
+            QRPASSLINE
+          </div>
         </div>
       </div>
     </div>

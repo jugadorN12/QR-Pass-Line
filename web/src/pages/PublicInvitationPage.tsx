@@ -1018,6 +1018,19 @@ export function PublicInvitationPage() {
     ctx.fillText(`RR.PP: RR.PP ANIBAL`, width / 2, 980)
     ctx.shadowBlur = 0
 
+    // 6. Draw Vertical QRPASSLINE on bottom right side outside ticket box
+    ctx.save()
+    ctx.translate(685, 890)
+    ctx.rotate(-Math.PI / 2)
+    ctx.font = '900 32px Impact, sans-serif'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+    ctx.shadowBlur = 6
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('QRPASSLINE', 0, 0)
+    ctx.restore()
+
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/png')
     })
@@ -1388,6 +1401,27 @@ export function PublicInvitationPage() {
                 <strong style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
                   RR.PP: RR.PP ANIBAL
                 </strong>
+              </div>
+
+              {/* Vertical QRPASSLINE on the right side outside ticket box */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  bottom: 28,
+                  zIndex: 3,
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                  fontFamily: 'Impact, sans-serif',
+                  fontSize: 16,
+                  color: 'rgba(255, 255, 255, 0.92)',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.85)',
+                  letterSpacing: '0.08em',
+                  userSelect: 'none',
+                  pointerEvents: 'none'
+                }}
+              >
+                QRPASSLINE
               </div>
             </div>
 
