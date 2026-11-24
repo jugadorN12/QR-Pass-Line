@@ -27,7 +27,7 @@ export function CouponTemplateEditor() {
           bgPosX: parsed.bgPosX ?? 0,
           bgPosY: parsed.bgPosY ?? 0,
         }
-      } catch {}
+      } catch { }
     }
     return {
       qrY: 155,
@@ -415,9 +415,9 @@ export function CouponTemplateEditor() {
             alt="QR Pass Line"
             style={{
               position: 'absolute',
-              right: 5,
-              bottom: 24,
-              width: 16,
+              right: 3,
+              bottom: 20,
+              width: 22,
               height: 'auto',
               zIndex: 3,
               filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85))',

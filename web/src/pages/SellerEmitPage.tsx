@@ -471,12 +471,12 @@ export function SellerEmitPage() {
       logoImg.src = '/qrpassline-logo-vertical.png'
     })
     if (logoImg.complete && logoImg.naturalWidth > 0) {
-      const logoW = 32
+      const logoW = 46
       const logoH = Math.round(logoW * (logoImg.naturalHeight / logoImg.naturalWidth))
       ctx.save()
       ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
       ctx.shadowBlur = 6
-      ctx.drawImage(logoImg, width - logoW - 10, height - logoH - 48, logoW, logoH)
+      ctx.drawImage(logoImg, width - logoW - 8, height - logoH - 40, logoW, logoH)
       ctx.restore()
     }
 
@@ -833,9 +833,9 @@ export function SellerEmitPage() {
                 alt="QR Pass Line"
                 style={{
                   position: 'absolute',
-                  right: 5,
-                  bottom: 24,
-                  width: 16,
+                  right: 3,
+                  bottom: 20,
+                  width: 22,
                   height: 'auto',
                   zIndex: 3,
                   filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85))',

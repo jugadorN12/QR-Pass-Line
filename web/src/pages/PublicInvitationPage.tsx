@@ -64,7 +64,7 @@ function getWeekendDates(baseEvent?: ClubEvent | null, customDateIso?: string | 
 
 function formatEventDay(dateStr?: string) {
   if (!dateStr) return { dayName: 'Día del Evento', formattedStr: 'Fecha confirmada', iso: new Date().toISOString().split('T')[0] }
-  
+
   // Extraer año, mes, día numéricamente para evitar desfases de zona horaria
   const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr
   const parts = cleanDate.split('-')
@@ -360,7 +360,7 @@ export function PublicInvitationPage() {
                   setGeneratedTickets(parsed)
                   setIsExistingPass(true)
                 }
-              } catch {}
+              } catch { }
             } else {
               // Backward compatibility check with single pass
               const oldPassRaw = localStorage.getItem(`qr-pass-line.public-pass-${matchedEv.id}`)
@@ -371,7 +371,7 @@ export function PublicInvitationPage() {
                     setGeneratedTickets([parsed])
                     setIsExistingPass(true)
                   }
-                } catch {}
+                } catch { }
               }
             }
           }
@@ -412,7 +412,7 @@ export function PublicInvitationPage() {
                 venues[0] ||
                 null
               if (isMounted) setVenue(matchedVenue)
-            } catch {}
+            } catch { }
 
             let matchedCoupon: QrCatalogItem | null = null
             let matchedCouponSat: QrCatalogItem | null = null
@@ -445,7 +445,7 @@ export function PublicInvitationPage() {
                 setCouponSat(matchedCouponSat)
                 setCouponSun(matchedCouponSun)
               }
-            } catch {}
+            } catch { }
 
             let foundAnibal: User | null = null
             try {
@@ -460,7 +460,7 @@ export function PublicInvitationPage() {
                 allUsers.find((u) => (u.name || '').toLowerCase().includes('anibal')) ||
                 null
               if (isMounted) setAnibalUser(foundAnibal)
-            } catch {}
+            } catch { }
 
             let targetLimitation: Limitation | null = null
             let targetLimitationSat: Limitation | null = null
@@ -490,7 +490,7 @@ export function PublicInvitationPage() {
                 setLimitationSat(targetLimitationSat)
                 setLimitationSun(targetLimitationSun)
               }
-            } catch {}
+            } catch { }
 
             try {
               let totalQuota = targetLimitation ? Number(targetLimitation.quantity) || 2000 : 2000
@@ -551,7 +551,7 @@ export function PublicInvitationPage() {
                   setGeneratedTickets(parsed)
                   setIsExistingPass(true)
                 }
-              } catch {}
+              } catch { }
             } else {
               const oldPassRaw = localStorage.getItem(`qr-pass-line.public-pass-${targetEvent.id}`)
               if (oldPassRaw && isMounted) {
@@ -561,7 +561,7 @@ export function PublicInvitationPage() {
                     setGeneratedTickets([parsed])
                     setIsExistingPass(true)
                   }
-                } catch {}
+                } catch { }
               }
             }
           }
@@ -675,7 +675,7 @@ export function PublicInvitationPage() {
               }
             }
           }
-        } catch {}
+        } catch { }
       }
 
       // 2. Si es 'ambos', creamos 2 tickets separados (uno con el cupón de Sábado y otro con el de Domingo)
@@ -1027,12 +1027,12 @@ export function PublicInvitationPage() {
       logoImg.src = '/qrpassline-logo-vertical.png'
     })
     if (logoImg.complete && logoImg.naturalWidth > 0) {
-      const logoW = 32
+      const logoW = 46
       const logoH = Math.round(logoW * (logoImg.naturalHeight / logoImg.naturalWidth))
       ctx.save()
       ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
       ctx.shadowBlur = 6
-      ctx.drawImage(logoImg, width - logoW - 10, height - logoH - 48, logoW, logoH)
+      ctx.drawImage(logoImg, width - logoW - 8, height - logoH - 40, logoW, logoH)
       ctx.restore()
     }
 
@@ -1414,9 +1414,9 @@ export function PublicInvitationPage() {
                 alt="QR Pass Line"
                 style={{
                   position: 'absolute',
-                  right: 5,
-                  bottom: 24,
-                  width: 16,
+                  right: 3,
+                  bottom: 20,
+                  width: 22,
                   height: 'auto',
                   zIndex: 3,
                   filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85))',
