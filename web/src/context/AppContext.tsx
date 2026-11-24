@@ -226,6 +226,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } catch { }
         }
 
+        // Cache local rápido para limitaciones, catalogo y eventos (renderizado inmediato en 0 ms)
+        const cachedLimitationsRaw = localStorage.getItem('qr-pass-line.cached-limitations')
+        let initialLimitations: Limitation[] = []
+        if (cachedLimitationsRaw) {
+          try {
+            initialLimitations = JSON.parse(cachedLimitationsRaw)
+          } catch { }
+        }
+
+        const cachedQrCatalogRaw = localStorage.getItem('qr-pass-line.cached-qr-catalog')
+        let initialQrCatalog: QrCatalogItem[] = []
+        if (cachedQrCatalogRaw) {
+          try {
+            initialQrCatalog = JSON.parse(cachedQrCatalogRaw)
+          } catch { }
+        }
+
+        const cachedEventsRaw = localStorage.getItem('qr-pass-line.cached-events')
+        let initialEvents: ClubEvent[] = []
+        if (cachedEventsRaw) {
+          try {
+            initialEvents = JSON.parse(cachedEventsRaw)
+          } catch { }
+        }
+
+        const cachedVenuesRaw = localStorage.getItem('qr-pass-line.cached-venues')
+        let initialVenues: Venue[] = []
+        if (cachedVenuesRaw) {
+          try {
+            initialVenues = JSON.parse(cachedVenuesRaw)
+          } catch { }
+        }
+
         // Set quick initial state if cached to avoid any loading screen flicker
         if (initialUser) {
           setData((prev) => ({
@@ -233,6 +266,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             users: prev.users.some((u) => u.id === initialUser!.id)
               ? prev.users
               : [initialUser!, ...prev.users],
+            limitations: initialLimitations.length ? initialLimitations : prev.limitations,
+            qrCatalog: initialQrCatalog.length ? initialQrCatalog : prev.qrCatalog,
+            events: initialEvents.length ? initialEvents : prev.events,
+            venues: initialVenues.length ? initialVenues : prev.venues,
             session: { userId: initialUser!.id },
           }))
           setLoading(false)
@@ -320,14 +357,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? query(collection(db, 'tickets'), where('issuedAt', '>=', recentCutoffIso))
           : query(collection(db, 'tickets'), where('issuedBy', '==', currentUserObj.id))
 
-        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot, ticketsSnapshot] = await Promise.all([
+        // Consultas ligeras paralelas para arranque ultra rápido (sin bloquear por los miles de tickets)
+        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'events')),
           getDocs(collection(db, 'qrCatalog')),
           getDocs(collection(db, 'limitations')),
           getDocs(collection(db, 'venues')),
           getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
-          getDocs(userTicketsQuery).catch(() => null),
         ])
 
         // Deduplicate users list by email so UI never shows duplicate rows
@@ -373,6 +410,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
         const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+        const events = eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
+
+        // Guardar en caché local para arranque instantáneo en el próximo ingreso
+        try {
+          localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(limitations))
+          localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(qrCatalog))
+          localStorage.setItem('qr-pass-line.cached-events', JSON.stringify(events))
+          localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(venues))
+        } catch { }
 
         let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
         if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
@@ -385,13 +431,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
 
-        const initialTickets = ticketsSnapshot ? ticketsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket)) : []
-
         setData((prev) => ({
           ...prev,
           users: allUsers,
-          events: eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent)),
-          tickets: initialTickets,
+          events,
           qrCatalog,
           limitations,
           venues,
@@ -433,6 +476,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           collection(db, 'venues'),
           (snap) => {
             const liveVenues = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+            try { localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(liveVenues)) } catch { }
             setData((prev) => ({ ...prev, venues: liveVenues }))
           },
           (err) => {
@@ -465,6 +509,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           collection(db, 'events'),
           (snap) => {
             const liveEvents = snap.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
+            try { localStorage.setItem('qr-pass-line.cached-events', JSON.stringify(liveEvents)) } catch { }
             setData((prev) => ({ ...prev, events: liveEvents }))
           },
           (err) => {
@@ -477,6 +522,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           collection(db, 'limitations'),
           (snap) => {
             const liveLimitations = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
+            try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(liveLimitations)) } catch { }
             setData((prev) => ({ ...prev, limitations: liveLimitations }))
           },
           (err) => {
@@ -489,6 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           collection(db, 'qrCatalog'),
           (snap) => {
             const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+            try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(liveCatalog)) } catch { }
             setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
           },
           (err) => {
@@ -839,33 +886,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const venueId = item.venueId || activeVenue?.id || currentUser?.venueId || ''
       const itemToSave = { ...item, venueId }
       await setDoc(doc(db, 'qrCatalog', item.id), itemToSave)
-      setData((prev) => ({
-        ...prev,
-        qrCatalog: [itemToSave, ...prev.qrCatalog.filter((q) => q.id !== item.id)],
-      }))
+      setData((prev) => {
+        const updated = [itemToSave, ...prev.qrCatalog.filter((q) => q.id !== item.id)]
+        try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(updated)) } catch { }
+        return {
+          ...prev,
+          qrCatalog: updated,
+        }
+      })
     },
     async deleteQrItem(id) {
       await deleteDoc(doc(db, 'qrCatalog', id))
-      setData((prev) => ({
-        ...prev,
-        qrCatalog: prev.qrCatalog.filter((q) => q.id !== id),
-      }))
+      setData((prev) => {
+        const updated = prev.qrCatalog.filter((q) => q.id !== id)
+        try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(updated)) } catch { }
+        return {
+          ...prev,
+          qrCatalog: updated,
+        }
+      })
     },
     async saveLimitation(limitation) {
       const venueId = limitation.venueId || activeVenue?.id || currentUser?.venueId || ''
       const limToSave = { ...limitation, venueId }
       await setDoc(doc(db, 'limitations', limitation.id), limToSave)
-      setData((prev) => ({
-        ...prev,
-        limitations: [limToSave, ...prev.limitations.filter((l) => l.id !== limitation.id)],
-      }))
+      setData((prev) => {
+        const updated = [limToSave, ...prev.limitations.filter((l) => l.id !== limitation.id)]
+        try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(updated)) } catch { }
+        return {
+          ...prev,
+          limitations: updated,
+        }
+      })
     },
     async deleteLimitation(id) {
       await deleteDoc(doc(db, 'limitations', id))
-      setData((prev) => ({
-        ...prev,
-        limitations: prev.limitations.filter((l) => l.id !== id),
-      }))
+      setData((prev) => {
+        const updated = prev.limitations.filter((l) => l.id !== id)
+        try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(updated)) } catch { }
+        return {
+          ...prev,
+          limitations: updated,
+        }
+      })
     },
     async issueTicket({ eventId, couponId, kind, holderName, dni, quantity, menQuantity, womenQuantity, venueId: customVenueId, eventDate, items }) {
       if (!currentUser) throw new Error('Sesión vencida.')
