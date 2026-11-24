@@ -203,6 +203,9 @@ export function SellerEmitPage() {
 
   const savedTemplate = JSON.parse(localStorage.getItem('qr-pass-line.coupon-template') || '{}')
   const template = couponTemplate || (savedTemplate.qrY ? savedTemplate : null)
+  const templateQrY = template?.qrY && template.qrY !== 180 ? template.qrY : 155
+  const templateQrSize = template?.qrSize ?? 180
+  const templateQrRadius = template?.qrRadius ?? 24
   const templateBrightness = template?.brightness ?? 1
   const templateShadow = template?.shadow ?? true
   const templateBgZoom = template?.bgZoom ?? 100
@@ -321,8 +324,8 @@ export function SellerEmitPage() {
 
   async function generateCouponPng(): Promise<Blob | null> {
     if (!previewTicket) return null
-    const width = 1000
-    const height = 1400
+    const width = 720
+    const height = 1040
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -340,8 +343,8 @@ export function SellerEmitPage() {
 
     if (bgImg.complete && bgImg.naturalWidth > 0) {
       const scale = (templateBgZoom || 100) / 100
-      const posX = (templateBgPosX || 0) * (width / 360)
-      const posY = (templateBgPosY || 0) * (height / 504)
+      const posX = (templateBgPosX || 0) * 2
+      const posY = (templateBgPosY || 0) * 2
 
       const imgRatio = bgImg.naturalWidth / bgImg.naturalHeight
       const canvasRatio = width / height
@@ -368,47 +371,20 @@ export function SellerEmitPage() {
       ctx.fillRect(0, 0, width, height)
     }
 
-    // 2. Draw Translucent Glass Rounded Card for QR Code (500x500 at x=250, y=450)
-    const qrSize = 500
-    const qrCardX = (width - qrSize) / 2
-    const qrCardY = 450
-    const qrRadius = 48
+    // 2. Draw Translucent Glass Rounded Card for QR Code (Proportional 2x scale from Preview 360x520)
+    const canvasQrSize = templateQrSize * 2
+    const qrCardX = (width - canvasQrSize) / 2
+    const qrCardY = templateQrY * 2
+    const qrRadius = templateQrRadius * 2
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.78)'
     ctx.beginPath()
-    ctx.roundRect(qrCardX, qrCardY, qrSize, qrSize, qrRadius)
+    ctx.roundRect(qrCardX, qrCardY, canvasQrSize, canvasQrSize, qrRadius)
     ctx.fill()
 
-    // Corner brackets decoration
-    ctx.strokeStyle = 'rgba(95, 68, 145, 0.7)'
-    ctx.lineWidth = 3
-    const bracketLen = 36
-    ctx.beginPath()
-    // Top-left
-    ctx.moveTo(qrCardX + 24, qrCardY + 12)
-    ctx.lineTo(qrCardX + 24 + bracketLen, qrCardY + 12)
-    ctx.moveTo(qrCardX + 12, qrCardY + 24)
-    ctx.lineTo(qrCardX + 12, qrCardY + 24 + bracketLen)
-    // Top-right
-    ctx.moveTo(qrCardX + qrSize - 24 - bracketLen, qrCardY + 12)
-    ctx.lineTo(qrCardX + qrSize - 24, qrCardY + 12)
-    ctx.moveTo(qrCardX + qrSize - 12, qrCardY + 24)
-    ctx.lineTo(qrCardX + qrSize - 12, qrCardY + 24 + bracketLen)
-    // Bottom-left
-    ctx.moveTo(qrCardX + 24, qrCardY + qrSize - 12)
-    ctx.lineTo(qrCardX + 24 + bracketLen, qrCardY + qrSize - 12)
-    ctx.moveTo(qrCardX + 12, qrCardY + qrSize - 24 - bracketLen)
-    ctx.lineTo(qrCardX + 12, qrCardY + qrSize - 24)
-    // Bottom-right
-    ctx.moveTo(qrCardX + qrSize - 24 - bracketLen, qrCardY + qrSize - 12)
-    ctx.lineTo(qrCardX + qrSize - 24, qrCardY + qrSize - 12)
-    ctx.moveTo(qrCardX + qrSize - 12, qrCardY + qrSize - 24 - bracketLen)
-    ctx.lineTo(qrCardX + qrSize - 12, qrCardY + qrSize - 24)
-    ctx.stroke()
-
-    // 3. Draw Dotted QR Code onto Canvas (410x410)
-    const innerQrSize = 410
-    const qrPadding = (qrSize - innerQrSize) / 2
+    // 3. Draw Dotted QR Code onto Canvas
+    const qrPadding = 20
+    const innerQrSize = canvasQrSize - (qrPadding * 2)
     const qrCanvas = document.createElement('canvas')
     qrCanvas.width = innerQrSize
     qrCanvas.height = innerQrSize
@@ -416,115 +392,74 @@ export function SellerEmitPage() {
     if (qrCtx) {
       drawDottedQr(qrCtx, previewTicket.code, innerQrSize)
     }
+
     ctx.drawImage(qrCanvas, qrCardX + qrPadding, qrCardY + qrPadding, innerQrSize, innerQrSize)
 
-    // 4. Draw Bottom Card: 875w x 370h at x=125, y=1030
-    const cardX = 125
-    const cardY = 1030
-    const cardW = 875
-    const cardH = 370
-
-    // Fondo oscuro translúcido con desenfoque de vidrio (sin color rosado)
-    ctx.fillStyle = 'rgba(10, 8, 16, 0.82)'
-    ctx.beginPath()
-    ctx.roundRect(cardX, cardY, cardW, cardH, [24, 0, 0, 0])
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-
-    // Lateral strip for QRPASSLINE: width = 125px (x from 875 to 1000)
-    const stripW = 125
-    const tableRight = width - stripW
-    const tableLeft = cardX + 30
-
-    // Vertical divider before lateral strip
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(tableRight, cardY + 16)
-    ctx.lineTo(tableRight, height - 16)
-    ctx.stroke()
-
-    // Vertical QRPASSLINE in ALL CAPS reading bottom-to-top
-    ctx.save()
-    ctx.translate(tableRight + stripW / 2, cardY + cardH / 2)
-    ctx.rotate(-Math.PI / 2)
-    ctx.font = '900 56px Impact, sans-serif'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('QRPASSLINE', 0, 0)
-    ctx.restore()
-
-    // Table Content (100% dinámico)
+    // 4. Draw Table (Cleanly aligned to the bottom to match preview and avoid overlapping flyer graphics)
     const itemsToDraw = previewTicket.items && previewTicket.items.length > 0
       ? previewTicket.items
       : [{ couponName: previewTicket.couponName, quantity: previewTicket.quantity, schedule: previewTicket.schedule }]
 
-    const tblTopY = cardY + 36
-    const dividerX = tableRight - 120
+    const rowHeight = 44
+    const tableHeight = 34 + (itemsToDraw.length * rowHeight)
+    // En el canvas de 1040px, el RR.PP está en Y=980, por lo que la tabla termina en Y=938
+    const tableBottomY = 938
+    const tableY = tableBottomY - tableHeight
 
-    // Header: Cupón & Cant.
-    ctx.font = '22px sans-serif'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'bottom'
-    ctx.fillText('Cupón', tableLeft + 10, tblTopY - 10)
-    ctx.textAlign = 'center'
-    ctx.fillText('Cant.', (dividerX + tableRight) / 2, tblTopY - 10)
+    // Fondo oscuro translúcido para garantizar legibilidad perfecta sobre cualquier afiche
+    ctx.fillStyle = 'rgba(10, 8, 16, 0.72)'
+    ctx.beginPath()
+    ctx.roundRect(70, tableY - 4, 580, tableHeight + 8, 12)
+    ctx.fill()
 
-    // Lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'
     ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.moveTo(tableLeft, tblTopY)
-    ctx.lineTo(tableRight - 10, tblTopY)
+    ctx.moveTo(80, tableY)
+    ctx.lineTo(640, tableY)
+    ctx.moveTo(80, tableY + 34)
+    ctx.lineTo(640, tableY + 34)
     ctx.stroke()
 
-    // Dynamic item rows
-    const rowHeight = 44
-    let currentY = tblTopY
-    itemsToDraw.forEach((it) => {
-      const rowY = currentY + 30
-      ctx.font = '900 24px sans-serif'
+    ctx.font = '20px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.textAlign = 'left'
+    ctx.fillText('Cupón', 100, tableY + 24)
+    ctx.textAlign = 'right'
+    ctx.fillText('Cant.', 620, tableY + 24)
+
+    itemsToDraw.forEach((it, idx) => {
+      const rowY = tableY + 34 + (idx * rowHeight) + 20
+      ctx.font = '900 22px sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(it.couponName, tableLeft + 10, rowY)
+      ctx.fillText(it.couponName, 100, rowY)
 
       ctx.fillStyle = '#ff4d4d'
-      ctx.textAlign = 'center'
-      ctx.fillText(String(it.quantity), (dividerX + tableRight) / 2, rowY)
+      ctx.textAlign = 'right'
+      ctx.fillText(String(it.quantity), 620, rowY)
 
       const timeBadge = formatCouponTimeBadge(it)
       if (timeBadge) {
-        ctx.font = '600 17px sans-serif'
+        ctx.font = '600 15px sans-serif'
         ctx.fillStyle = '#cbd5e1'
         ctx.textAlign = 'left'
-        ctx.fillText(`🕒 ${timeBadge}`, tableLeft + 10, rowY + 22)
-        currentY += rowHeight + 14
-      } else {
-        currentY += rowHeight
+        ctx.fillText(`🕒 ${timeBadge}`, 100, rowY + 18)
       }
     })
 
-    const tblBotY = currentY + 8
-    // Bottom line & vertical divider line
     ctx.beginPath()
-    ctx.moveTo(tableLeft, tblBotY)
-    ctx.lineTo(tableRight - 10, tblBotY)
-    ctx.moveTo(dividerX, tblTopY)
-    ctx.lineTo(dividerX, tblBotY)
+    ctx.moveTo(80, tableBottomY + 4)
+    ctx.lineTo(640, tableBottomY + 4)
     ctx.stroke()
 
-    // Footer Seller Name
+    // 5. Draw Seller Name
     ctx.textAlign = 'center'
     ctx.fillStyle = '#ffffff'
     ctx.font = '900 28px sans-serif'
     ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
     ctx.shadowBlur = 8
-    ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, (tableLeft + tableRight) / 2, tblBotY + 44)
+    ctx.fillText(`RR.PP: ${previewTicket.sellerName || 'JOSE'}`, width / 2, 980)
     ctx.shadowBlur = 0
 
     return new Promise((resolve) => {
@@ -757,12 +692,13 @@ export function SellerEmitPage() {
               </button>
             </div>
 
-            {/* Card con Fondo de Imagen (Proporción exacta 1000x1400 -> 360x504) */}
+            {/* Card con Fondo de Imagen */}
             <div
               style={{
                 width: 360,
-                height: 504,
+                height: 520,
                 borderRadius: 24,
+                padding: '20px',
                 color: '#fff',
                 boxShadow: templateShadow ? '0 20px 40px rgba(0,0,0,0.5)' : 'none',
                 position: 'relative',
@@ -794,113 +730,83 @@ export function SellerEmitPage() {
                 />
               </div>
 
-              {/* QR Box: 500x500 centrado a 450px de altura (en escala 360x504 = 180x180 a 162px de top) */}
+              {/* QR Box Usando Configuración del Admin Panel */}
               <div
                 style={{
                   position: 'absolute',
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  top: '162px',
-                  width: '180px',
-                  height: '180px',
-                  borderRadius: '18px',
-                  background: 'rgba(255, 255, 255, 0.92)',
+                  top: `${templateQrY}px`,
+                  width: `${templateQrSize}px`,
+                  height: `${templateQrSize}px`,
+                  borderRadius: `${templateQrRadius}px`,
+                  background: 'rgba(255, 255, 255, 0.78)',
                   backdropFilter: 'blur(10px)',
                   WebkitBackdropFilter: 'blur(10px)',
-                  padding: 12,
+                  padding: 10,
                   display: 'grid',
                   placeItems: 'center',
                   zIndex: 2,
                   boxShadow: templateShadow ? '0 8px 32px rgba(0,0,0,0.25)' : 'none'
                 }}
               >
-                <div style={{ width: 156, height: 156 }}>
-                  <DottedQrImage value={previewTicket.code} size={156} />
+                <div style={{ width: templateQrSize - 20, height: templateQrSize - 20 }}>
+                  <DottedQrImage value={previewTicket.code} size={templateQrSize - 20} />
                 </div>
               </div>
 
-              {/* Tarjeta Inferior: 875x370 (en escala = margen izq 45px, alto 133px al fondo) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '45px',
-                  right: 0,
-                  bottom: 0,
-                  height: '133px',
-                  background: 'rgba(10, 8, 16, 0.82)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  borderTopLeftRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
-                  borderRight: 0,
-                  borderBottom: 0,
-                  zIndex: 2,
-                  display: 'flex',
-                  color: '#ffffff',
-                  overflow: 'hidden'
-                }}
-              >
-                {/* Zona Principal de Tabla de Cupones */}
-                <div style={{ flex: 1, padding: '8px 12px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  {/* Encabezado */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.25)', color: 'rgba(255, 255, 255, 0.75)' }}>
-                      <span>Cupón</span>
-                      <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4 }}>Cant.</span>
-                    </div>
-                    {/* Filas */}
-                    <div style={{ maxHeight: 52, overflowY: 'auto' }}>
-                      {previewTicket.items && previewTicket.items.length > 0 ? (
-                        previewTicket.items.map((it, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>{it.couponName}</span>
-                            <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4, color: '#ff4d4d' }}>{it.quantity}</span>
+              {/* Detalle Inferior del Cupón */}
+              <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, padding: '0 16px', zIndex: 2, textAlign: 'center' }}>
+                <div style={{
+                  background: 'rgba(10, 8, 16, 0.72)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  borderRadius: 10,
+                  borderTop: '1px solid rgba(255,255,255,0.35)',
+                  borderBottom: '1px solid rgba(255,255,255,0.35)',
+                  padding: '5px 10px',
+                  margin: '0 auto 5px',
+                  width: '92%'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
+                    <span>Cupón</span>
+                    <span>Cant.</span>
+                  </div>
+                  {previewTicket.items && previewTicket.items.length > 0 ? (
+                    previewTicket.items.map((it, idx) => {
+                      const timeBadge = formatCouponTimeBadge(it)
+                      return (
+                        <div key={idx} style={{ marginBottom: idx < previewTicket.items!.length - 1 ? 4 : 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
+                            <span>{it.couponName}</span>
+                            <span style={{ color: '#ff4d4d' }}>{it.quantity}</span>
                           </div>
-                        ))
-                      ) : (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>{previewTicket.couponName}</span>
-                          <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.25)', paddingLeft: 4, color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                          {timeBadge && (
+                            <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              🕒 {timeBadge}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
+                        <span>{previewTicket.couponName}</span>
+                        <span style={{ color: '#ff4d4d' }}>{previewTicket.quantity}</span>
+                      </div>
+                      {formatCouponTimeBadge(previewTicket) && (
+                        <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          🕒 {formatCouponTimeBadge(previewTicket)}
                         </div>
                       )}
                     </div>
-                  </div>
-                  {/* Pie de tabla: Horario y Vendedor */}
-                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.25)', paddingTop: 2, textAlign: 'center' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(203, 213, 225, 0.9)' }}>
-                      {previewTicket.schedule || previewTicket.items?.[0]?.schedule || ''}
-                    </div>
-                    <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.04em' }}>
-                      RR.PP: {previewTicket.sellerName || 'JOSE'}
-                    </strong>
-                  </div>
+                  )}
                 </div>
 
-                {/* Franja Lateral Derecha con QRPASSLINE de abajo hacia arriba */}
-                <div
-                  style={{
-                    width: '45px',
-                    borderLeft: '1px solid rgba(255, 255, 255, 0.22)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'rgba(0, 0, 0, 0.25)'
-                  }}
-                >
-                  <span
-                    style={{
-                      writingMode: 'vertical-rl',
-                      transform: 'rotate(180deg)',
-                      fontFamily: 'Impact, sans-serif',
-                      fontSize: 18,
-                      color: 'rgba(255, 255, 255, 0.85)',
-                      letterSpacing: '0.08em',
-                      userSelect: 'none'
-                    }}
-                  >
-                    QRPASSLINE
-                  </span>
-                </div>
+                <strong style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateShadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
+                  RR.PP: {previewTicket.sellerName || 'JOSE'}
+                </strong>
               </div>
             </div>
 
