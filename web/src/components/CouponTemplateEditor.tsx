@@ -318,11 +318,10 @@ export function CouponTemplateEditor() {
         <div
           style={{
             width: 360,
-            height: 520,
+            height: 504,
             borderRadius: 24,
             position: 'relative',
             overflow: 'hidden',
-            padding: '20px',
             color: '#fff',
             boxShadow: templateConfig.shadow ? '0 20px 40px rgba(0,0,0,0.6)' : 'none',
             background: '#0f172a',
@@ -353,60 +352,95 @@ export function CouponTemplateEditor() {
             />
           </div>
 
-          {/* QR Box with Live Template Config */}
+          {/* QR Box with Live Template Config: 500x500 centrado a 450px (en escala 360x504 = 180x180 a 162px) */}
           <div
             style={{
               position: 'absolute',
               left: '50%',
               transform: 'translateX(-50%)',
-              top: `${templateConfig.qrY}px`,
-              width: `${templateConfig.qrSize}px`,
-              height: `${templateConfig.qrSize}px`,
-              borderRadius: `${templateConfig.qrRadius}px`,
-              background: 'rgba(255, 255, 255, 0.78)',
+              top: `${templateConfig.qrY ?? 162}px`,
+              width: `${templateConfig.qrSize ?? 180}px`,
+              height: `${templateConfig.qrSize ?? 180}px`,
+              borderRadius: `${templateConfig.qrRadius ?? 18}px`,
+              background: 'rgba(255, 255, 255, 0.92)',
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
-              padding: 10,
+              padding: 12,
               display: 'grid',
               placeItems: 'center',
               zIndex: 2,
               boxShadow: templateConfig.shadow ? '0 8px 32px rgba(0,0,0,0.3)' : 'none',
             }}
           >
-            <div style={{ width: templateConfig.qrSize - 20, height: templateConfig.qrSize - 20 }}>
-              <DottedQrImage value="DEMO-QR-CODE" size={templateConfig.qrSize - 20} />
+            <div style={{ width: (templateConfig.qrSize ?? 180) - 24, height: (templateConfig.qrSize ?? 180) - 24 }}>
+              <DottedQrImage value="DEMO-QR-CODE" size={(templateConfig.qrSize ?? 180) - 24} />
             </div>
           </div>
 
-          {/* Bottom Details */}
-          <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, padding: '0 16px', zIndex: 2, textAlign: 'center' }}>
-            <div style={{
-              background: 'rgba(10, 8, 16, 0.72)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              borderRadius: 10,
-              borderTop: '1px solid rgba(255,255,255,0.35)',
-              borderBottom: '1px solid rgba(255,255,255,0.35)',
-              padding: '5px 10px',
-              margin: '0 auto 5px',
-              width: '92%'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
-                <span>Cupón</span>
-                <span>Cant.</span>
+          {/* Tarjeta Inferior: 875x370 (en escala = margen izq 45px, alto 133px al fondo) */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '45px',
+              right: 0,
+              bottom: 0,
+              height: '133px',
+              background: 'rgba(228, 142, 141, 0.95)',
+              borderTopLeftRadius: '14px',
+              zIndex: 2,
+              display: 'flex',
+              color: '#4b1216',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Zona Principal de Tabla de Cupones */}
+            <div style={{ flex: 1, padding: '8px 12px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, paddingBottom: 2, borderBottom: '1.5px solid rgba(120, 35, 40, 0.85)' }}>
+                  <span>Cupón</span>
+                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>Cant.</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, fontWeight: 800, padding: '2px 0' }}>
+                  <span>INGRESO GENERAL 2AM</span>
+                  <span style={{ minWidth: 28, textAlign: 'center', borderLeft: '1.5px solid rgba(120, 35, 40, 0.85)', paddingLeft: 4 }}>1</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, lineHeight: 1.15 }}>
-                <span>INGRESO GENERAL 2AM</span>
-                <span style={{ color: '#ff4d4d' }}>1</span>
-              </div>
-              <div style={{ textAlign: 'left', fontSize: 10.5, color: '#cbd5e1', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap' }}>
-                🕒 Entrada: 23:59 hs · Límite: 02:00 hs
+
+              <div style={{ borderTop: '1.5px solid rgba(120, 35, 40, 0.85)', paddingTop: 2, textAlign: 'center' }}>
+                <div style={{ fontSize: 9, fontWeight: 700 }}>
+                  10/02 08:00 a 21:00
+                </div>
+                <strong style={{ fontSize: 9.5, fontWeight: 900, textTransform: 'uppercase' }}>
+                  VENDEDOR: JOSE
+                </strong>
               </div>
             </div>
 
-            <strong style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: templateConfig.shadow ? '0 2px 4px rgba(0,0,0,0.9)' : 'none' }}>
-              RR.PP: JOSE
-            </strong>
+            {/* Franja Lateral Derecha con QRPASSLINE de abajo hacia arriba */}
+            <div
+              style={{
+                width: '45px',
+                borderLeft: '1.5px solid rgba(75, 18, 22, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(228, 142, 141, 0.85)'
+              }}
+            >
+              <span
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                  fontFamily: 'Impact, sans-serif',
+                  fontSize: 18,
+                  color: '#5f4491',
+                  letterSpacing: '0.08em',
+                  userSelect: 'none'
+                }}
+              >
+                QRPASSLINE
+              </span>
+            </div>
           </div>
         </div>
       </div>
