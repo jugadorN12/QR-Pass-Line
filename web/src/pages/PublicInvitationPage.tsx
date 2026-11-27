@@ -1192,7 +1192,21 @@ export function PublicInvitationPage() {
       <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#09080e', color: '#fff', padding: 20 }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 48, height: 48, border: '3px solid #ff4606', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ fontWeight: 700, fontSize: 16 }}>Cargando Cubano Bar…</p>
+          <p style={{ fontWeight: 700, fontSize: 16 }}>Cargando {venue?.name || 'invitación'}…</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (venue && venue.isActive === false) {
+    return (
+      <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#09080e', color: '#fff', padding: 20 }}>
+        <div style={{ maxWidth: 400, width: '100%', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: 28 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>⏸️</div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px' }}>{venue.name}</h2>
+          <p style={{ fontSize: 14, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+            Las invitaciones digitales para este establecimiento no se encuentran habilitadas en este momento.
+          </p>
         </div>
       </main>
     )

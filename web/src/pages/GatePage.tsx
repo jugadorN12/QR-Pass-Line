@@ -1,7 +1,8 @@
 import { Component, useRef, useState, type ReactNode } from 'react'
 import { QrScanner, type QrScannerRef } from '../components/QrScanner'
-import { useApp } from '../context/AppContext'
+import { useApp, isMasterAdminEmail } from '../context/AppContext'
 import { parseQrPayload } from '../lib/ids'
+import { distanceInMeters, getCurrentPositionSafe } from '../lib/geo'
 import { StaffHeader } from '../components/StaffHeader'
 
 class GateErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
@@ -108,9 +109,10 @@ type ScanResult =
     }
 
 function GatePageContent() {
-  const { currentUser, events, redeemTicket, redeemTicketWithException, updateTicketQuantity } = useApp()
+  const { currentUser, activeVenue, events, redeemTicket, redeemTicketWithException, updateTicketQuantity } = useApp()
   const scannerRef = useRef<QrScannerRef | null>(null)
   const isCanjeador = currentUser?.role === 'canjeador' || Boolean(currentUser?.roles?.includes('canjeador'))
+  const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || Boolean(currentUser?.roles?.includes('admin'))
   const isProcessingRef = useRef(false)
 
   function handleDismissScanResult() {
@@ -158,6 +160,52 @@ function GatePageContent() {
     }
 
     try {
+      // 1. Verificar si el establecimiento está activo
+      if (!isMasterAdmin && activeVenue && activeVenue.isActive === false) {
+        setScanResult({
+          ok: false,
+          title: '⏸️ SERVICIO DESACTIVADO',
+          ticketCode: trimmed.toUpperCase(),
+          message: `El servicio de "${activeVenue.name}" se encuentra desactivado. Contactá a administración.`,
+          reason: 'venue_suspended',
+        })
+        return
+      }
+
+      // 2. Verificar limitación de zona por GPS (solo si NO es DEMO y tiene dirección + coordenadas)
+      const requiresGeoFence =
+        !isMasterAdmin &&
+        activeVenue &&
+        !activeVenue.isDemo &&
+        Boolean(activeVenue.address && activeVenue.address.trim()) &&
+        Boolean(activeVenue.latitude && activeVenue.longitude)
+
+      if (requiresGeoFence && activeVenue) {
+        const geo = await getCurrentPositionSafe(8000)
+        if (!geo.ok) {
+          setScanResult({
+            ok: false,
+            title: '📍 GPS REQUERIDO',
+            ticketCode: trimmed.toUpperCase(),
+            message: geo.message,
+            reason: 'geo_required',
+          })
+          return
+        }
+        const maxRadius = activeVenue.radius && activeVenue.radius > 0 ? activeVenue.radius : 50
+        const dist = distanceInMeters(geo.lat, geo.lng, activeVenue.latitude, activeVenue.longitude)
+        if (dist > maxRadius) {
+          setScanResult({
+            ok: false,
+            title: '📍 FUERA DE ZONA',
+            ticketCode: trimmed.toUpperCase(),
+            message: `Estás a ${dist}m de ${activeVenue.name}. Tenés que estar dentro de un radio de ${maxRadius}m de la puerta (${activeVenue.address}) para poder escanear.`,
+            reason: 'out_of_zone',
+          })
+          return
+        }
+      }
+
       const code = parseQrPayload(trimmed) || trimmed.toUpperCase()
 
       const timeoutPromise = new Promise<never>((_, reject) =>

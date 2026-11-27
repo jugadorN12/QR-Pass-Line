@@ -69,12 +69,43 @@ function PendingApprovalScreen() {
   )
 }
 
+function VenueSuspendedScreen() {
+  const { activeVenue, logout } = useApp()
+  return (
+    <main className="role-screen" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#f8fafc', padding: 16 }}>
+      <div className="role-card" style={{ maxWidth: 420, width: '100%', padding: '32px 24px', textAlign: 'center', background: '#fff', borderRadius: 24, boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'grid', placeItems: 'center', fontSize: 30, margin: '0 auto 16px' }}>
+          ⏸️
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 900, color: '#991b1b', margin: '0 0 10px' }}>
+          Servicio desactivado
+        </h2>
+        <p style={{ fontSize: 14, color: '#475569', margin: '0 0 20px', lineHeight: 1.5 }}>
+          El acceso para <strong>{activeVenue?.name || 'este establecimiento'}</strong> se encuentra pausado o pendiente de habilitación. Contactá con administración para reactivarlo.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button className="btn btn-primary btn-block" type="button" onClick={() => window.location.reload()} style={{ height: 46, borderRadius: 12, fontWeight: 800 }}>
+            ↻ Verificar estado
+          </button>
+          <button className="btn btn-secondary btn-block" type="button" onClick={() => void logout()} style={{ height: 44, borderRadius: 12 }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function ProtectedRoutes() {
-  const { currentUser, loading } = useApp()
+  const { currentUser, activeVenue, loading } = useApp()
   if (loading) return <main className="app-shell"><div className="page"><div className="card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
     return <PendingApprovalScreen />
+  }
+  const isMaster = isMasterAdminEmail(currentUser.email) || currentUser.role === 'admin' || Boolean(currentUser.roles?.includes('admin'))
+  if (!isMaster && activeVenue && activeVenue.isActive === false) {
+    return <VenueSuspendedScreen />
   }
   return (
     <Shell />
@@ -91,11 +122,15 @@ function AdminGate({ children }: { children: ReactNode }) {
 }
 
 function ProtectedRoutesNoShell({ children }: { children: ReactNode }) {
-  const { currentUser, loading } = useApp()
+  const { currentUser, activeVenue, loading } = useApp()
   if (loading) return <main className="role-screen"><div className="role-main"><div className="role-card">Cargando QR Pass Line…</div></div></main>
   if (!currentUser) return <Navigate to="/ingresar" replace />
   if (currentUser.role === 'pendiente' || !currentUser.role) {
     return <PendingApprovalScreen />
+  }
+  const isMaster = isMasterAdminEmail(currentUser.email) || currentUser.role === 'admin' || Boolean(currentUser.roles?.includes('admin'))
+  if (!isMaster && activeVenue && activeVenue.isActive === false) {
+    return <VenueSuspendedScreen />
   }
   return <>{children}</>
 }

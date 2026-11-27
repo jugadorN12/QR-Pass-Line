@@ -43,13 +43,23 @@ export const defaultVenueVisibleButtons: Required<VenueVisibleButtons> = {
   soporte: true,
 }
 
+export type VenueServiceType = 'BASICO' | 'ESTANDAR' | 'FULL' | 'MIXTO' | 'OTRO'
+
 export type Venue = {
   id: string
   name: string
   address: string
+  crossStreets?: string
   latitude: number
   longitude: number
   radius: number // en metros
+  isActive?: boolean
+  isDemo?: boolean
+  serviceType?: VenueServiceType
+  serviceNotes?: string
+  monthlyFee?: number
+  lastPaidAt?: string
+  nextDueAt?: string
   logo?: string
   qrBackground?: string
   minAgeMen?: string

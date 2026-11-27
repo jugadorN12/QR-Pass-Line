@@ -1,11 +1,20 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import type { Role, User, Venue, VenueVisibleButtons } from '../types'
+import type { Role, User, Venue, VenueServiceType, VenueVisibleButtons } from '../types'
 import { defaultVenueVisibleButtons } from '../types'
+import { parseGoogleMapsCoords } from '../lib/geo'
 import { CouponTemplateEditor } from '../components/CouponTemplateEditor'
 import { UserAvatar } from '../components/UserAvatar'
 import './AdminDashboard.css'
+
+const SERVICE_OPTIONS: { value: VenueServiceType; label: string }[] = [
+  { value: 'BASICO', label: 'BÁSICO' },
+  { value: 'ESTANDAR', label: 'ESTÁNDAR' },
+  { value: 'FULL', label: 'FULL' },
+  { value: 'MIXTO', label: 'MIXTO' },
+  { value: 'OTRO', label: 'Otro / Personalizado' },
+]
 
 const AVAILABLE_ROLES: { key: Role; label: string; icon: string }[] = [
   { key: 'vendedor', label: 'Vendedor', icon: '🏷️' },
@@ -180,7 +189,7 @@ function renderButtonsSelector(
 }
 
 export function AdminDashboardPage() {
-  const { users, venues, updateUserRole, deleteUser, adminResetPassword, createVenue, updateVenue, deleteVenue, addMember, logout, activeVenue, setAdminActiveVenue } = useApp()
+  const { users, venues, updateUserRole, deleteUser, adminResetPassword, createVenue, updateVenue, deleteVenue, addMember, replaceMember, createDemoVenue, logout, activeVenue, setAdminActiveVenue } = useApp()
   const [tab, setTab] = useState<'users' | 'venues' | 'settings' | 'template'>('users')
   const [globalLogo, setGlobalLogo] = useState(() => localStorage.getItem('qr-pass-line.logo') ?? '')
 
@@ -189,6 +198,20 @@ export function AdminDashboardPage() {
   const [resetModalPass, setResetModalPass] = useState('123456')
   const [isResettingPass, setIsResettingPass] = useState(false)
 
+  // Replace user (e.g. Demo -> Real) modal state
+  const [replacingUser, setReplacingUser] = useState<User | null>(null)
+  const [replaceName, setReplaceName] = useState('')
+  const [replaceEmail, setReplaceEmail] = useState('')
+  const [replacePass, setReplacePass] = useState('123456')
+  const [isReplacingUser, setIsReplacingUser] = useState(false)
+
+  // Demo creation state
+  const [isCreatingDemo, setIsCreatingDemo] = useState(false)
+  const [demoCredentialsModal, setDemoCredentialsModal] = useState<{
+    venueName: string
+    credentials: { roleLabel: string; name: string; email: string; password: string }[]
+  } | null>(null)
+
   // Venue visible buttons state (for creation form)
   const [venueVisibleButtons, setVenueVisibleButtons] = useState<Required<VenueVisibleButtons>>(defaultVenueVisibleButtons)
 
@@ -196,6 +219,22 @@ export function AdminDashboardPage() {
   const [editingVenueButtons, setEditingVenueButtons] = useState<Venue | null>(null)
   const [editButtonsState, setEditButtonsState] = useState<Required<VenueVisibleButtons>>(defaultVenueVisibleButtons)
   const [isSavingButtons, setIsSavingButtons] = useState(false)
+
+  // Full Venue Edit Modal state
+  const [editingVenue, setEditingVenue] = useState<Venue | null>(null)
+  const [editVenueName, setEditVenueName] = useState('')
+  const [editVenueAddress, setEditVenueAddress] = useState('')
+  const [editVenueCrossStreets, setEditVenueCrossStreets] = useState('')
+  const [editVenueMapsLink, setEditVenueMapsLink] = useState('')
+  const [editVenueLat, setEditVenueLat] = useState('')
+  const [editVenueLng, setEditVenueLng] = useState('')
+  const [editVenueRadius, setEditVenueRadius] = useState('50')
+  const [editVenueIsDemo, setEditVenueIsDemo] = useState(false)
+  const [editVenueServiceType, setEditVenueServiceType] = useState<VenueServiceType>('FULL')
+  const [editVenueServiceNotes, setEditVenueServiceNotes] = useState('')
+  const [editVenueMonthlyFee, setEditVenueMonthlyFee] = useState('')
+  const [editVenueNextDueAt, setEditVenueNextDueAt] = useState('')
+  const [isSavingVenueEdit, setIsSavingVenueEdit] = useState(false)
 
   // UI State for toggling create panels
   const [showUserForm, setShowUserForm] = useState(false)
@@ -216,9 +255,14 @@ export function AdminDashboardPage() {
   // State for venue creation
   const [venueName, setVenueName] = useState('')
   const [venueAddress, setVenueAddress] = useState('')
+  const [venueCrossStreets, setVenueCrossStreets] = useState('')
+  const [venueMapsLink, setVenueMapsLink] = useState('')
   const [lat, setLat] = useState('')
   const [lng, setLng] = useState('')
   const [radius, setRadius] = useState('50')
+  const [venueServiceType, setVenueServiceType] = useState<VenueServiceType>('FULL')
+  const [venueServiceNotes, setVenueServiceNotes] = useState('')
+  const [venueMonthlyFee, setVenueMonthlyFee] = useState('')
   const [venueManagerName, setVenueManagerName] = useState('')
   const [venueManagerEmail, setVenueManagerEmail] = useState('')
   const [venueManagerPassword, setVenueManagerPassword] = useState('')
@@ -283,19 +327,25 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function validateAddress() {
-    if (!venueAddress.trim()) return
+  async function validateAddress(customAddress?: string, isEditMode: boolean = false) {
+    const queryAddr = (customAddress ?? venueAddress).trim()
+    if (!queryAddr) return
     setIsGeocoding(true)
     setMessage('Validando dirección...')
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(venueAddress)}`)
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryAddr)}`)
       const data = await response.json()
       if (data && data.length > 0) {
-        setLat(data[0].lat)
-        setLng(data[0].lon)
+        if (isEditMode) {
+          setEditVenueLat(data[0].lat)
+          setEditVenueLng(data[0].lon)
+        } else {
+          setLat(data[0].lat)
+          setLng(data[0].lon)
+        }
         setMessage('📍 Dirección localizada con éxito en el mapa.')
       } else {
-        setMessage('No se encontró la dirección. Verificá la escritura.')
+        setMessage('No se encontró la dirección exacta. Probá agregar localidad/provincia o pegá un link/coordenadas de Google Maps.')
       }
     } catch {
       setMessage('Error al conectar con el servicio de mapas.')
@@ -316,9 +366,15 @@ export function AdminDashboardPage() {
       const createdVenue = await createVenue({
         name: cleanVenueName,
         address: venueAddress.trim(),
+        crossStreets: venueCrossStreets.trim(),
         latitude: Number(lat) || 0,
         longitude: Number(lng) || 0,
         radius: Number(radius) || 50,
+        isActive: true,
+        isDemo: false,
+        serviceType: venueServiceType,
+        serviceNotes: venueServiceNotes.trim(),
+        monthlyFee: Number(venueMonthlyFee) || 0,
         visibleButtons: venueVisibleButtons
       })
 
@@ -340,9 +396,14 @@ export function AdminDashboardPage() {
 
       setVenueName('')
       setVenueAddress('')
+      setVenueCrossStreets('')
+      setVenueMapsLink('')
       setLat('')
       setLng('')
       setRadius('50')
+      setVenueServiceType('FULL')
+      setVenueServiceNotes('')
+      setVenueMonthlyFee('')
       setVenueManagerName('')
       setVenueManagerEmail('')
       setVenueManagerPassword('')
@@ -353,6 +414,126 @@ export function AdminDashboardPage() {
       setMessage(`Error al crear establecimiento: ${err?.message || 'Error desconocido'}`)
     } finally {
       setIsSubmittingVenue(false)
+    }
+  }
+
+  async function handleCreateDemo() {
+    if (isCreatingDemo) return
+    setIsCreatingDemo(true)
+    setMessage('Creando versión DEMO con Encargado, Vendedor, Canjeador y Evento de prueba...')
+    try {
+      const res = await createDemoVenue()
+      setDemoCredentialsModal({
+        venueName: res.venue.name,
+        credentials: res.credentials,
+      })
+      setMessage(`✓ Local "${res.venue.name}" creado y listo para mostrar (sin límite de zona).`)
+    } catch (err: any) {
+      setMessage(`Error al crear DEMO: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsCreatingDemo(false)
+    }
+  }
+
+  async function handleToggleVenueActive(v: Venue) {
+    const nextState = !(v.isActive ?? true)
+    try {
+      await updateVenue(v.id, { isActive: nextState })
+      setMessage(nextState ? `🟢 Local "${v.name}" ACTIVADO.` : `🔴 Local "${v.name}" DESACTIVADO (bloqueado).`)
+    } catch (err: any) {
+      setMessage(`Error al cambiar estado: ${err?.message || 'Error desconocido'}`)
+    }
+  }
+
+  async function handleRegisterVenuePayment(v: Venue) {
+    const now = new Date()
+    const nextDue = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    try {
+      await updateVenue(v.id, {
+        isActive: true,
+        isDemo: false,
+        lastPaidAt: now.toISOString(),
+        nextDueAt: nextDue.toISOString(),
+      })
+      setMessage(`💰 Pago registrado para "${v.name}". Vencimiento extendido 30 días.`)
+    } catch (err: any) {
+      setMessage(`Error al registrar pago: ${err?.message || 'Error desconocido'}`)
+    }
+  }
+
+  function handleOpenEditVenue(v: Venue) {
+    setEditingVenue(v)
+    setEditVenueName(v.name || '')
+    setEditVenueAddress(v.address || '')
+    setEditVenueCrossStreets(v.crossStreets || '')
+    setEditVenueMapsLink('')
+    setEditVenueLat(v.latitude ? String(v.latitude) : '')
+    setEditVenueLng(v.longitude ? String(v.longitude) : '')
+    setEditVenueRadius(String(v.radius || 50))
+    setEditVenueIsDemo(Boolean(v.isDemo))
+    setEditVenueServiceType(v.serviceType || 'FULL')
+    setEditVenueServiceNotes(v.serviceNotes || '')
+    setEditVenueMonthlyFee(v.monthlyFee ? String(v.monthlyFee) : '')
+    setEditVenueNextDueAt(v.nextDueAt ? v.nextDueAt.split('T')[0] : '')
+  }
+
+  async function handleSaveVenueEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingVenue || isSavingVenueEdit) return
+    const cleanName = editVenueName.trim()
+    if (!cleanName) return
+    setIsSavingVenueEdit(true)
+    try {
+      const parsedLat = Number(editVenueLat) || 0
+      const parsedLng = Number(editVenueLng) || 0
+      const parsedRadius = Number(editVenueRadius) || 50
+      const updates: Partial<Venue> = {
+        name: cleanName,
+        address: editVenueAddress.trim(),
+        crossStreets: editVenueCrossStreets.trim(),
+        latitude: parsedLat,
+        longitude: parsedLng,
+        radius: parsedRadius,
+        isDemo: editVenueIsDemo,
+        serviceType: editVenueServiceType,
+        serviceNotes: editVenueServiceNotes.trim(),
+        monthlyFee: Number(editVenueMonthlyFee) || 0,
+        nextDueAt: editVenueNextDueAt ? new Date(`${editVenueNextDueAt}T23:59:59`).toISOString() : '',
+      }
+      await updateVenue(editingVenue.id, updates)
+      setMessage(`✓ Local "${cleanName}" actualizado correctamente.`)
+      setEditingVenue(null)
+    } catch (err: any) {
+      setMessage(`Error al actualizar local: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsSavingVenueEdit(false)
+    }
+  }
+
+  function handleOpenReplaceUser(user: User) {
+    setReplacingUser(user)
+    setReplaceName('')
+    setReplaceEmail('')
+    setReplacePass('123456')
+  }
+
+  async function handleConfirmReplaceUser(e: React.FormEvent) {
+    e.preventDefault()
+    if (!replacingUser || isReplacingUser) return
+    setIsReplacingUser(true)
+    try {
+      const newUser = await replaceMember({
+        oldUserId: replacingUser.id,
+        name: replaceName,
+        email: replaceEmail,
+        password: replacePass,
+      })
+      setMessage(`✓ Usuario "${replacingUser.name}" reemplazado por "${newUser.name}" (${newUser.email}) conservando roles y limitaciones.`)
+      setReplacingUser(null)
+    } catch (err: any) {
+      setMessage(`Error al reemplazar usuario: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsReplacingUser(false)
     }
   }
 
@@ -762,6 +943,17 @@ export function AdminDashboardPage() {
                         {!isMainAdmin && (
                           <button
                             type="button"
+                            className="admin-btn-reset"
+                            style={{ background: '#0ea5e9', color: '#fff', fontWeight: 700 }}
+                            onClick={() => handleOpenReplaceUser(user)}
+                            title="Reemplazar este usuario ficticio por el usuario real conservando roles y limitaciones"
+                          >
+                            🔄 Reemplazar
+                          </button>
+                        )}
+                        {!isMainAdmin && (
+                          <button
+                            type="button"
                             className="admin-btn-delete"
                             onClick={() => void handleDeleteUser(user)}
                             title="Eliminar este usuario definitivamente"
@@ -783,13 +975,22 @@ export function AdminDashboardPage() {
            ========================================================= */}
         {tab === 'venues' && (
           <div>
-            <div className="admin-section-header">
+            <div className="admin-section-header" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <button
                 type="button"
                 className="admin-btn-action-primary"
                 onClick={() => setShowVenueForm(!showVenueForm)}
               >
                 {showVenueForm ? '✕ Cancelar' : '＋ Registrar Nuevo Local'}
+              </button>
+              <button
+                type="button"
+                className="admin-btn-action-primary"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}
+                disabled={isCreatingDemo}
+                onClick={() => void handleCreateDemo()}
+              >
+                {isCreatingDemo ? 'Creando DEMO...' : '✨ Crear Local DEMO (Listo para mostrar)'}
               </button>
             </div>
 
@@ -819,14 +1020,13 @@ export function AdminDashboardPage() {
                       />
                     </div>
                     <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Dirección física</label>
+                      <label>Dirección física (opcional para quintas/eventos sin altura)</label>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <input
                           className="admin-input"
                           value={venueAddress}
                           onChange={e => setVenueAddress(e.target.value)}
-                          required
-                          placeholder="Ej: Av. Corrientes 1234, CABA"
+                          placeholder="Ej: Valentin Gomez 3085, Gregorio de Laferrere"
                           style={{ flex: 1 }}
                         />
                         <button
@@ -840,14 +1040,51 @@ export function AdminDashboardPage() {
                         </button>
                       </div>
                     </div>
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Entre calles / Referencia (ideal para provincia o quintas)</label>
+                      <input
+                        className="admin-input"
+                        value={venueCrossStreets}
+                        onChange={e => setVenueCrossStreets(e.target.value)}
+                        placeholder="Ej: Entre Av. Luro y Echeverría"
+                      />
+                    </div>
+                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Pegar Link de Google Maps o Coordenadas (opcional)</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          className="admin-input"
+                          value={venueMapsLink}
+                          onChange={e => setVenueMapsLink(e.target.value)}
+                          placeholder="Pegá el link de Google Maps o -34.7447, -58.5914"
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ whiteSpace: 'nowrap', padding: '0 14px', background: '#dbeafe', color: '#1e40af', fontWeight: 700 }}
+                          onClick={() => {
+                            const coords = parseGoogleMapsCoords(venueMapsLink)
+                            if (coords) {
+                              setLat(String(coords.lat))
+                              setLng(String(coords.lng))
+                              setMessage('📍 Coordenadas extraídas del link correctamente.')
+                            } else {
+                              setMessage('No se detectaron coordenadas en ese texto/link.')
+                            }
+                          }}
+                        >
+                          Extraer GPS
+                        </button>
+                      </div>
+                    </div>
                     <div className="admin-input-group">
                       <label>Latitud GPS</label>
                       <input
                         className="admin-input"
                         value={lat}
                         onChange={e => setLat(e.target.value)}
-                        required
-                        placeholder="-34.6037"
+                        placeholder="-34.7447"
                       />
                     </div>
                     <div className="admin-input-group">
@@ -856,21 +1093,50 @@ export function AdminDashboardPage() {
                         className="admin-input"
                         value={lng}
                         onChange={e => setLng(e.target.value)}
-                        required
-                        placeholder="-58.3816"
+                        placeholder="-58.5914"
                       />
                     </div>
-                    <div className="admin-input-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Radio permitido para canjes (en metros)</label>
+                    <div className="admin-input-group">
+                      <label>Radio permitido para canjes (metros)</label>
                       <input
                         className="admin-input"
                         type="number"
                         value={radius}
                         onChange={e => setRadius(e.target.value)}
-                        required
-                        min={10}
+                        min={0}
                         max={2000}
                         placeholder="50"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Tipo de Servicio</label>
+                      <select
+                        className="admin-select"
+                        value={venueServiceType}
+                        onChange={e => setVenueServiceType(e.target.value as VenueServiceType)}
+                      >
+                        {SERVICE_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Abono Mensual ($)</label>
+                      <input
+                        className="admin-input"
+                        type="number"
+                        value={venueMonthlyFee}
+                        onChange={e => setVenueMonthlyFee(e.target.value)}
+                        placeholder="Ej: 50000"
+                      />
+                    </div>
+                    <div className="admin-input-group">
+                      <label>Detalle / Texto libre del servicio</label>
+                      <input
+                        className="admin-input"
+                        value={venueServiceNotes}
+                        onChange={e => setVenueServiceNotes(e.target.value)}
+                        placeholder="Ej: Incluye 2 eventos por finde, soporte WhatsApp..."
                       />
                     </div>
 
@@ -935,58 +1201,152 @@ export function AdminDashboardPage() {
               </div>
             ) : (
               <div className="admin-venues-list">
-                {venues.map(v => (
-                  <div key={v.id} className="admin-venue-card">
-                    <div className="admin-venue-header">
-                      <div className="admin-venue-icon">🏢</div>
-                      <div className="admin-venue-details">
-                        <div className="admin-venue-name">{v.name}</div>
-                        <div className="admin-venue-address">📍 {v.address}</div>
-                        <div className="admin-venue-meta">
-                          <span className="admin-venue-tag">🎯 Radio: {v.radius || 50}m</span>
-                          {v.latitude && v.longitude && (
-                            <span className="admin-venue-tag">🌐 GPS Configurado</span>
+                {venues.map(v => {
+                  const isVenueActive = v.isActive ?? true
+                  const hasGeo = Boolean(!v.isDemo && v.address?.trim() && v.latitude && v.longitude)
+                  const createdLabel = v.createdAt ? new Date(v.createdAt).toLocaleDateString('es-AR') : '—'
+                  const nextDueLabel = v.nextDueAt ? new Date(v.nextDueAt).toLocaleDateString('es-AR') : ''
+                  const isOverdue = Boolean(v.nextDueAt && new Date(v.nextDueAt).getTime() < Date.now())
+
+                  return (
+                    <div
+                      key={v.id}
+                      className="admin-venue-card"
+                      style={{
+                        borderLeft: `5px solid ${isVenueActive ? (v.isDemo ? '#7c3aed' : '#16a34a') : '#dc2626'}`,
+                        opacity: isVenueActive ? 1 : 0.85,
+                      }}
+                    >
+                      <div className="admin-venue-header">
+                        <div className="admin-venue-icon">{v.isDemo ? '🧪' : '🏢'}</div>
+                        <div className="admin-venue-details">
+                          <div className="admin-venue-name" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span>{v.name}</span>
+                            <span
+                              className="admin-venue-tag"
+                              style={{
+                                background: isVenueActive ? '#dcfce7' : '#fee2e2',
+                                color: isVenueActive ? '#15803d' : '#b91c1c',
+                                fontWeight: 800,
+                              }}
+                            >
+                              {isVenueActive ? '🟢 ACTIVO' : '🔴 DESACTIVADO'}
+                            </span>
+                            {v.isDemo && (
+                              <span className="admin-venue-tag" style={{ background: '#ede9fe', color: '#6d28d9', fontWeight: 800 }}>
+                                🧪 DEMO
+                              </span>
+                            )}
+                            {v.serviceType && (
+                              <span className="admin-venue-tag" style={{ background: '#e0f2fe', color: '#0369a1', fontWeight: 800 }}>
+                                📦 {v.serviceType}{v.monthlyFee ? ` · $${v.monthlyFee.toLocaleString('es-AR')}/mes` : ''}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="admin-venue-address">
+                            📍 {v.address?.trim() ? v.address : 'Sin dirección fija (Evento/DEMO)'}
+                            {v.crossStreets ? ` · Entre: ${v.crossStreets}` : ''}
+                          </div>
+
+                          {v.serviceNotes && (
+                            <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                              📝 {v.serviceNotes}
+                            </div>
                           )}
-                          {activeVenue?.id === v.id && (
-                            <span className="admin-venue-tag" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>✓ SELECCIONADO EN TU PANTALLA</span>
-                          )}
+
+                          <div className="admin-venue-meta">
+                            <span className="admin-venue-tag">📅 Alta: {createdLabel}</span>
+                            {nextDueLabel && (
+                              <span
+                                className="admin-venue-tag"
+                                style={{
+                                  background: isOverdue ? '#fee2e2' : '#fef9c3',
+                                  color: isOverdue ? '#b91c1c' : '#854d0e',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {isOverdue ? '⚠️ Venció: ' : '💳 Vence: '}{nextDueLabel}
+                              </span>
+                            )}
+                            {hasGeo ? (
+                              <span className="admin-venue-tag" style={{ background: '#f0fdf4', color: '#166534' }}>
+                                🎯 Radio: {v.radius || 50}m · 🌐 GPS Activo
+                              </span>
+                            ) : (
+                              <span className="admin-venue-tag" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                🔓 Canje libre (sin límite de zona)
+                              </span>
+                            )}
+                            {activeVenue?.id === v.id && (
+                              <span className="admin-venue-tag" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>✓ SELECCIONADO</span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="admin-user-card-actions" style={{ flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{
+                            background: isVenueActive ? '#dc2626' : '#16a34a',
+                            color: '#fff',
+                            fontWeight: 800,
+                          }}
+                          onClick={() => void handleToggleVenueActive(v)}
+                        >
+                          {isVenueActive ? '⏸️ Desactivar' : '▶️ Activar'}
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ background: '#f59e0b', color: '#fff', fontWeight: 700 }}
+                          onClick={() => handleOpenEditVenue(v)}
+                        >
+                          ✏️ Editar Local / Dirección / Plan
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ background: '#15803d', color: '#fff', fontWeight: 700 }}
+                          onClick={() => void handleRegisterVenuePayment(v)}
+                        >
+                          💰 Pago (+30d)
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ background: '#1e3a8a', color: '#fff', fontWeight: 700 }}
+                          onClick={() => {
+                            setAdminActiveVenue(v.id)
+                            navigate('/encargado')
+                          }}
+                        >
+                          👁️ Ver Panel
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ background: '#0284c7', color: '#fff', fontWeight: 700 }}
+                          onClick={() => handleOpenEditButtons(v)}
+                        >
+                          🎛️ Botones
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-delete"
+                          onClick={() => {
+                            if (window.confirm(`¿Eliminar local "${v.name}"?`)) {
+                              void deleteVenue(v.id)
+                            }
+                          }}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
                     </div>
-                    <div className="admin-user-card-actions">
-                      <button
-                        type="button"
-                        className="admin-btn-reset"
-                        style={{ background: '#1e3a8a', color: '#fff', fontWeight: 700 }}
-                        onClick={() => {
-                          setAdminActiveVenue(v.id)
-                          navigate('/encargado')
-                        }}
-                      >
-                        👁️ Ver Panel de este Local
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-btn-reset"
-                        style={{ background: '#0284c7', color: '#fff', fontWeight: 700 }}
-                        onClick={() => handleOpenEditButtons(v)}
-                      >
-                        🎛️ Permisos de Botones
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-btn-delete"
-                        onClick={() => {
-                          if (window.confirm(`¿Eliminar local "${v.name}"?`)) {
-                            void deleteVenue(v.id)
-                          }
-                        }}
-                      >
-                        🗑️ Eliminar Local
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1224,6 +1584,239 @@ export function AdminDashboardPage() {
                   }}
                 >
                   {isSavingButtons ? 'Guardando...' : '✓ Guardar Permisos'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          MODAL DE CREDENCIALES DEMO GENERADAS
+         ========================================================= */}
+      {demoCredentialsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+        >
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 460, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 19, fontWeight: 900, color: '#0f172a' }}>
+              ✨ ¡{demoCredentialsModal.venueName} lista para mostrar!
+            </h3>
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px', lineHeight: 1.4 }}>
+              Se creó el local sin límite de zona, con 1 evento activo, 2 cupones, limitaciones y estos 3 usuarios ficticios (que luego podés reemplazar por los reales):
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {demoCredentialsModal.credentials.map((c, idx) => (
+                <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px', fontSize: 12.5 }}>
+                  <strong style={{ color: '#1e3a8a', display: 'block', marginBottom: 2 }}>{c.roleLabel}</strong>
+                  <div>Usuario: <code style={{ fontWeight: 700 }}>{c.email}</code></div>
+                  <div>Clave: <code style={{ fontWeight: 700 }}>{c.password}</code></div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="admin-btn-action-primary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  const text = `🎟️ *Acceso ${demoCredentialsModal.venueName} - QR Pass Line*\n🌐 https://qr-pass-line.web.app\n\n` +
+                    demoCredentialsModal.credentials.map(c => `*${c.roleLabel}*\nEmail: ${c.email}\nClave: ${c.password}`).join('\n\n')
+                  void navigator.clipboard?.writeText(text)
+                  setMessage('📋 Accesos copiados al portapapeles para enviar por WhatsApp.')
+                }}
+              >
+                📋 Copiar Accesos
+              </button>
+              <button
+                type="button"
+                className="admin-btn-reset"
+                style={{ padding: '0 18px', fontWeight: 700 }}
+                onClick={() => setDemoCredentialsModal(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          MODAL EDITAR LOCAL / DIRECCIÓN / SERVICIO / COBRANZA
+         ========================================================= */}
+      {editingVenue && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 9999,
+            padding: 16,
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 540, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.3)', maxHeight: '90dvh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
+                ✏️ Editar Local: {editingVenue.name}
+              </h3>
+              <button type="button" onClick={() => setEditingVenue(null)} style={{ border: 0, background: '#f1f5f9', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveVenueEdit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="admin-input-group">
+                <label>Nombre del Local (ej: cambiar DEMO por el nombre real)</label>
+                <input className="admin-input" value={editVenueName} onChange={e => setEditVenueName(e.target.value)} required />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f5f3ff', borderRadius: 10, border: '1px solid #ddd6fe', fontSize: 13, fontWeight: 700, color: '#5b21b6', cursor: 'pointer' }}>
+                <input type="checkbox" checked={editVenueIsDemo} onChange={e => setEditVenueIsDemo(e.target.checked)} />
+                <span>🧪 Marcar como DEMO (sin limitación de zona GPS aunque tenga texto de dirección)</span>
+              </label>
+
+              <div className="admin-input-group">
+                <label>Dirección física / Lugar del evento (quinta, salón, etc.)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="admin-input" value={editVenueAddress} onChange={e => setEditVenueAddress(e.target.value)} placeholder="Ej: Valentin Gomez 3085, Gregorio de Laferrere" style={{ flex: 1 }} />
+                  <button type="button" className="admin-btn-reset" disabled={isGeocoding} onClick={() => void validateAddress(editVenueAddress, true)} style={{ whiteSpace: 'nowrap', padding: '0 14px', background: '#e2e8f0' }}>
+                    {isGeocoding ? '...' : '📍 Buscar GPS'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="admin-input-group">
+                <label>Entre calles / Referencia</label>
+                <input className="admin-input" value={editVenueCrossStreets} onChange={e => setEditVenueCrossStreets(e.target.value)} placeholder="Ej: Entre Av. Luro y Echeverría" />
+              </div>
+
+              <div className="admin-input-group">
+                <label>Pegar Link de Google Maps o Coordenadas (para quintas/eventos)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="admin-input" value={editVenueMapsLink} onChange={e => setEditVenueMapsLink(e.target.value)} placeholder="Pegá link de Google Maps o -34.7447, -58.5914" style={{ flex: 1 }} />
+                  <button
+                    type="button"
+                    className="admin-btn-reset"
+                    style={{ whiteSpace: 'nowrap', padding: '0 12px', background: '#dbeafe', color: '#1e40af', fontWeight: 700 }}
+                    onClick={() => {
+                      const coords = parseGoogleMapsCoords(editVenueMapsLink)
+                      if (coords) {
+                        setEditVenueLat(String(coords.lat))
+                        setEditVenueLng(String(coords.lng))
+                        setMessage('📍 Coordenadas extraídas correctamente.')
+                      } else {
+                        setMessage('No se reconocieron coordenadas en ese link.')
+                      }
+                    }}
+                  >
+                    Extraer
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <div className="admin-input-group">
+                  <label>Latitud</label>
+                  <input className="admin-input" value={editVenueLat} onChange={e => setEditVenueLat(e.target.value)} placeholder="0" />
+                </div>
+                <div className="admin-input-group">
+                  <label>Longitud</label>
+                  <input className="admin-input" value={editVenueLng} onChange={e => setEditVenueLng(e.target.value)} placeholder="0" />
+                </div>
+                <div className="admin-input-group">
+                  <label>Radio (m)</label>
+                  <input className="admin-input" type="number" value={editVenueRadius} onChange={e => setEditVenueRadius(e.target.value)} min={0} max={5000} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 10, marginTop: 4 }}>
+                <strong style={{ fontSize: 13, color: '#0f172a', display: 'block', marginBottom: 8 }}>💳 Servicio y Cobranza Mensual</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div className="admin-input-group">
+                    <label>Tipo de Servicio</label>
+                    <select className="admin-select" value={editVenueServiceType} onChange={e => setEditVenueServiceType(e.target.value as VenueServiceType)}>
+                      {SERVICE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="admin-input-group">
+                    <label>Abono Mensual ($)</label>
+                    <input className="admin-input" type="number" value={editVenueMonthlyFee} onChange={e => setEditVenueMonthlyFee(e.target.value)} placeholder="50000" />
+                  </div>
+                  <div className="admin-input-group">
+                    <label>Próximo vencimiento</label>
+                    <input className="admin-input" type="date" value={editVenueNextDueAt} onChange={e => setEditVenueNextDueAt(e.target.value)} />
+                  </div>
+                  <div className="admin-input-group">
+                    <label>Notas / Texto libre</label>
+                    <input className="admin-input" value={editVenueServiceNotes} onChange={e => setEditVenueServiceNotes(e.target.value)} placeholder="Detalle del servicio..." />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button type="button" className="admin-btn-reset" onClick={() => setEditingVenue(null)} style={{ padding: '10px 16px' }}>Cancelar</button>
+                <button type="submit" disabled={isSavingVenueEdit} className="admin-btn-action-primary" style={{ padding: '10px 20px' }}>
+                  {isSavingVenueEdit ? 'Guardando...' : '✓ Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          MODAL REEMPLAZAR USUARIO FICTICIO POR USUARIO REAL
+         ========================================================= */}
+      {replacingUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+        >
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
+              🔄 Reemplazar usuario por persona real
+            </h3>
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px', lineHeight: 1.4 }}>
+              Se creará la cuenta real para reemplazar a <strong>{replacingUser.name}</strong> ({replacingUser.email}), transfiriendo automáticamente sus mismos roles y limitaciones de cupones.
+            </p>
+            <form onSubmit={handleConfirmReplaceUser} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="admin-input-group">
+                <label>Nombre Real</label>
+                <input className="admin-input" value={replaceName} onChange={e => setReplaceName(e.target.value)} required placeholder="Ej: Carlos Gómez" />
+              </div>
+              <div className="admin-input-group">
+                <label>Email Real</label>
+                <input className="admin-input" type="email" value={replaceEmail} onChange={e => setReplaceEmail(e.target.value)} required placeholder="carlos@boliche.com" />
+              </div>
+              <div className="admin-input-group">
+                <label>Contraseña Inicial</label>
+                <input className="admin-input" type="password" value={replacePass} onChange={e => setReplacePass(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button type="button" className="admin-btn-reset" onClick={() => setReplacingUser(null)} style={{ padding: '10px 16px' }}>Cancelar</button>
+                <button type="submit" disabled={isReplacingUser} className="admin-btn-action-primary" style={{ padding: '10px 18px' }}>
+                  {isReplacingUser ? 'Reemplazando...' : '✓ Confirmar Reemplazo'}
                 </button>
               </div>
             </form>

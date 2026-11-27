@@ -36,7 +36,7 @@ import { defaultQrCatalog } from '../lib/qrCatalog'
 import { formatCouponSchedule, checkCouponScheduleValidity, getCouponBaseDate } from '../lib/dateUtils'
 
 import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketItem, TicketKind, User, Venue } from '../types'
-import { defaultCouponTemplate } from '../types'
+import { defaultCouponTemplate, defaultVenueVisibleButtons } from '../types'
 
 type AppContextValue = AppData & {
   loading: boolean
@@ -73,6 +73,11 @@ type AppContextValue = AppData & {
   createVenue: (input: Omit<Venue, 'id' | 'createdAt'>) => Promise<Venue>
   updateVenue: (id: string, updates: Partial<Venue>) => Promise<void>
   deleteVenue: (id: string) => Promise<void>
+  replaceMember: (input: { oldUserId: string; name: string; email: string; password: string }) => Promise<User>
+  createDemoVenue: (customLabel?: string) => Promise<{
+    venue: Venue
+    credentials: { roleLabel: string; name: string; email: string; password: string }[]
+  }>
   saveCouponTemplate: (config: CouponTemplateConfig) => Promise<void>
   updateUserAvatar: (userId: string, avatarUrl: string) => Promise<void>
 }
@@ -373,12 +378,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }))
 
           // Normalización única en segundo plano para asegurar que datos antiguos sin venueId pertenezcan a Cubano
+          // y que Cubano / Joseo tengan su dirección base de Valentin Gomez 3085 (50m) si aún no tienen GPS
           if (!didLegacyCheck && venues.length > 0) {
             didLegacyCheck = true
             const cubanoVenue = venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) || venues[0]
             if (cubanoVenue) {
               void (async () => {
                 try {
+                  for (const v of venues) {
+                    const lowerName = (v.name || '').toLowerCase()
+                    if ((lowerName.includes('cubano') || lowerName.includes('joseo')) && (!v.latitude || !v.longitude)) {
+                      await updateDoc(doc(db, 'venues', v.id), {
+                        address: v.address || 'Valentin Gomez 3085, Gregorio de Laferrere',
+                        latitude: -34.7447619,
+                        longitude: -58.5914687,
+                        radius: v.radius || 50,
+                        isActive: v.isActive ?? true,
+                      }).catch(() => { })
+                    }
+                  }
                   const collectionsToNormalize = ['users', 'events', 'qrCatalog', 'limitations'] as const
                   for (const colName of collectionsToNormalize) {
                     const snap = await getDocs(collection(db, colName))
@@ -1044,6 +1062,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : (typeof quantity === 'number' && quantity > 0 ? quantity : 1)
       const ticketQty = computedQty > 0 ? computedQty : 1
       const venueId = customVenueId || event?.venueId || activeVenue?.id || currentUser.venueId || ''
+      const targetVenueObj = data.venues.find((v) => v.id === venueId)
+      if (targetVenueObj && targetVenueObj.isActive === false) {
+        throw new Error('El servicio de este local se encuentra desactivado. Contactá al administrador.')
+      }
       const primaryCouponId = couponId || (items && items.length > 0 ? items[0].couponId : '')
       const primaryCoupon = primaryCouponId ? data.qrCatalog.find((q) => q.id === primaryCouponId) : undefined
       const baseDate = getCouponBaseDate(event, primaryCoupon)
@@ -1122,6 +1144,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ok: false,
           reason: 'not_found',
           message: 'El código QR no existe o no se encuentra registrado en el sistema.'
+        }
+      }
+
+      const ticketVenueObj = data.venues.find((v) => v.id === (ticket!.venueId || activeVenue?.id || ''))
+      if (ticketVenueObj && ticketVenueObj.isActive === false) {
+        return {
+          ok: false,
+          reason: 'venue_suspended',
+          message: 'El servicio de este local se encuentra desactivado. Contactá a administración.'
         }
       }
 
@@ -1383,6 +1414,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      const ticketVenueObj = data.venues.find((v) => v.id === (ticket!.venueId || activeVenue?.id || ''))
+      if (ticketVenueObj && ticketVenueObj.isActive === false) {
+        return {
+          ok: false,
+          reason: 'venue_suspended',
+          message: 'El servicio de este local se encuentra desactivado. Contactá a administración.'
+        }
+      }
+
       // Check Already Redeemed - Strictly cannot redeem if already used
       if (ticket.redeemedAt) {
         const redeemer = data.users.find((u) => u.id === ticket.redeemedBy)
@@ -1585,11 +1625,206 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async createVenue(input) {
       const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
       if (!isMaster) throw new Error('Solo el Super Admin puede registrar locales nuevos.')
-      const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
+      const venue = {
+        ...input,
+        name: input.name.trim(),
+        address: input.address.trim(),
+        isActive: input.isActive ?? true,
+        createdAt: new Date().toISOString(),
+      }
       const created = await addDoc(collection(db, 'venues'), { ...venue, createdAt: serverTimestamp() })
       const result: Venue = { id: created.id, ...venue }
       setData((prev) => ({ ...prev, venues: [result, ...prev.venues] }))
       return result
+    },
+    async replaceMember({ oldUserId, name, email, password }) {
+      const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrg = isMaster || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
+      if (!isOrg) throw new Error('Sin permisos para reemplazar personal.')
+
+      const oldUser = data.users.find((u) => u.id === oldUserId)
+      if (!oldUser) throw new Error('Usuario a reemplazar no encontrado.')
+      const targetVenueId = oldUser.venueId || activeVenue?.id || currentUser?.venueId || ''
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanName = name.trim() || cleanEmail.split('@')[0]
+      const cleanPassword = password.trim() || '123456'
+      if (!cleanEmail) throw new Error('Ingresá un correo válido para el usuario real.')
+      if (cleanPassword.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
+
+      const credentials = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, cleanPassword)
+      await updateProfile(credentials.user, { displayName: cleanName })
+      const assignedRoles = oldUser.roles && oldUser.roles.length ? oldUser.roles : [oldUser.role]
+      const primaryRole = assignedRoles[0] || oldUser.role
+      const newUser: User = {
+        id: credentials.user.uid,
+        name: cleanName,
+        email: cleanEmail,
+        role: primaryRole,
+        roles: assignedRoles,
+        venueId: targetVenueId,
+        avatar: `https://unavatar.io/${encodeURIComponent(cleanEmail)}?fallback=https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=193659&color=fff`,
+        tempPassword: '',
+        mustChangePassword: false,
+        createdAt: new Date().toISOString(),
+      }
+      await setDoc(doc(db, 'users', newUser.id), newUser)
+      await signOut(secondaryAuth).catch(() => { })
+
+      // Migrar limitaciones del usuario ficticio al usuario real
+      const limSnap = await getDocs(query(collection(db, 'limitations'), where('venueId', '==', targetVenueId)))
+      const oldLimits = limSnap.docs.filter((d) => d.data()?.personId === oldUserId)
+      for (const limDoc of oldLimits) {
+        await updateDoc(limDoc.ref, { personId: newUser.id }).catch(() => { })
+      }
+
+      await deleteDoc(doc(db, 'users', oldUserId)).catch(() => { })
+
+      setData((prev) => ({
+        ...prev,
+        users: [newUser, ...prev.users.filter((u) => u.id !== oldUserId && u.id !== newUser.id)],
+        limitations: prev.limitations.map((l) => (l.personId === oldUserId ? { ...l, personId: newUser.id } : l)),
+      }))
+      return newUser
+    },
+    async createDemoVenue(customLabel) {
+      const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      if (!isMaster) throw new Error('Solo el Super Admin puede crear locales DEMO.')
+
+      const existingDemoCount = data.venues.filter((v) => v.isDemo || (v.name || '').toUpperCase().startsWith('DEMO')).length
+      const suffix = existingDemoCount + 1
+      const demoName = (customLabel || '').trim() || (existingDemoCount === 0 ? 'DEMO' : `DEMO ${suffix}`)
+      const slug = `demo${suffix}_${Date.now().toString(36).slice(-4)}`
+
+      const createdVenueData = {
+        name: demoName,
+        address: '',
+        crossStreets: '',
+        latitude: 0,
+        longitude: 0,
+        radius: 0,
+        isActive: true,
+        isDemo: true,
+        serviceType: 'FULL' as const,
+        serviceNotes: 'Versión DEMO completa para prueba de cliente (sin límite de zona hasta asignar dirección real).',
+        monthlyFee: 0,
+        visibleButtons: defaultVenueVisibleButtons,
+        createdAt: new Date().toISOString(),
+      }
+      const createdRef = await addDoc(collection(db, 'venues'), { ...createdVenueData, createdAt: serverTimestamp() })
+      const venue: Venue = { id: createdRef.id, ...createdVenueData }
+
+      const demoPass = 'demo1234'
+      const demoAccounts: Array<{ roleLabel: string; name: string; email: string; role: Role; roles: Role[] }> = [
+        { roleLabel: 'Encargado / Organizador', name: `Encargado ${demoName}`, email: `encargado.${slug}@qrpassline.demo`, role: 'organizador', roles: ['organizador', 'vendedor', 'canjeador'] },
+        { roleLabel: 'Vendedor / RR.PP', name: `Vendedor ${demoName}`, email: `vendedor.${slug}@qrpassline.demo`, role: 'vendedor', roles: ['vendedor'] },
+        { roleLabel: 'Canjeador (Puerta)', name: `Canjeador ${demoName}`, email: `canjeador.${slug}@qrpassline.demo`, role: 'canjeador', roles: ['canjeador'] },
+      ]
+
+      const createdUsers: User[] = []
+      for (const acc of demoAccounts) {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, acc.email, demoPass)
+        await updateProfile(cred.user, { displayName: acc.name })
+        const u: User = {
+          id: cred.user.uid,
+          name: acc.name,
+          email: acc.email,
+          role: acc.role,
+          roles: acc.roles,
+          venueId: venue.id,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}&background=193659&color=fff`,
+          createdAt: new Date().toISOString(),
+        }
+        await setDoc(doc(db, 'users', u.id), u)
+        createdUsers.push(u)
+      }
+      await signOut(secondaryAuth).catch(() => { })
+
+      // Crear evento de prueba activo + 2 cupones + limitaciones para el vendedor demo
+      const todayIso = new Date().toISOString().split('T')[0]
+      const demoEventData = {
+        name: `Fiesta Prueba ${demoName}`,
+        venue: demoName,
+        venueId: venue.id,
+        date: todayIso,
+        doorsOpen: '23:59',
+        notes: 'Evento de demostración listo para emitir y escanear QRs.',
+        status: 'activo' as const,
+        createdBy: currentUser?.id || '',
+        createdAt: new Date().toISOString(),
+      }
+      const evRef = await addDoc(collection(db, 'events'), { ...demoEventData, createdAt: serverTimestamp() })
+
+      const qr1: QrCatalogItem = {
+        id: `${venue.id}-free-2am`,
+        venueId: venue.id,
+        name: 'INGRESO SIN CARGO 2AM',
+        description: 'Acceso promocional de prueba hasta las 02:00 hs.',
+        kind: 'consumible',
+        icon: 'Ticket',
+        publicAccess: true,
+        active: true,
+        schedule: 'Entrada 23:59 hs · Límite 02:00 hs',
+        scheduleMode: 'full',
+        from: '23:59 del día corriente',
+        duration: '02:00',
+        days: ['L', 'M', 'X', 'J', 'V', 'S', 'D'],
+      }
+      const qr2: QrCatalogItem = {
+        id: `${venue.id}-vip`,
+        venueId: venue.id,
+        name: 'ACCESO VIP DEMO',
+        description: 'Acceso VIP de demostración hasta las 04:00 hs.',
+        kind: 'consumible',
+        icon: 'Estrella',
+        publicAccess: false,
+        active: true,
+        schedule: 'Entrada 23:59 hs · Límite 04:00 hs',
+        scheduleMode: 'full',
+        from: '23:59 del día corriente',
+        duration: '04:00',
+        days: ['L', 'M', 'X', 'J', 'V', 'S', 'D'],
+      }
+      await setDoc(doc(db, 'qrCatalog', qr1.id), qr1)
+      await setDoc(doc(db, 'qrCatalog', qr2.id), qr2)
+
+      const sellerUser = createdUsers.find((u) => u.role === 'vendedor') || createdUsers[0]
+      if (sellerUser) {
+        const lim1: Limitation = {
+          id: `${venue.id}-lim-1`,
+          venueId: venue.id,
+          personId: sellerUser.id,
+          couponId: qr1.id,
+          quantity: 100,
+          period: 'DEMO',
+        }
+        const lim2: Limitation = {
+          id: `${venue.id}-lim-2`,
+          venueId: venue.id,
+          personId: sellerUser.id,
+          couponId: qr2.id,
+          quantity: 50,
+          period: 'DEMO',
+        }
+        await setDoc(doc(db, 'limitations', lim1.id), lim1)
+        await setDoc(doc(db, 'limitations', lim2.id), lim2)
+      }
+
+      setData((prev) => ({
+        ...prev,
+        venues: [venue, ...prev.venues],
+        users: [...createdUsers, ...prev.users],
+        events: activeVenue?.id === venue.id ? [{ id: evRef.id, ...demoEventData }, ...prev.events] : prev.events,
+      }))
+
+      return {
+        venue,
+        credentials: demoAccounts.map((a) => ({
+          roleLabel: a.roleLabel,
+          name: a.name,
+          email: a.email,
+          password: demoPass,
+        })),
+      }
     },
     async updateVenue(id, updates) {
       const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')

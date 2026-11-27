@@ -59,6 +59,15 @@ service cloud.firestore {
         );
     }
 
+    function venueIsActive(vId) {
+      return vId is string &&
+        vId.size() > 0 &&
+        exists(/databases/$(database)/documents/venues/$(vId)) && (
+          !('isActive' in get(/databases/$(database)/documents/venues/$(vId)).data) ||
+          get(/databases/$(database)/documents/venues/$(vId)).data.isActive != false
+        );
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -111,7 +120,17 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isMasterAdmin() || sameVenue(venueId);
       allow create, delete: if isMasterAdmin();
-      allow update: if isMasterAdmin() || isOrganizerOfVenue(venueId);
+      allow update: if isMasterAdmin() || (
+        isOrganizerOfVenue(venueId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'isActive',
+          'isDemo',
+          'serviceType',
+          'monthlyFee',
+          'lastPaidAt',
+          'nextDueAt'
+        ])
+      );
     }
 
     match /events/{eventId} {
@@ -147,7 +166,8 @@ service cloud.firestore {
       );
 
       allow create: if isMasterAdmin() || (
-        'venueId' in request.resource.data && (
+        'venueId' in request.resource.data &&
+        venueIsActive(request.resource.data.venueId) && (
           (signedIn() && sameVenue(request.resource.data.venueId)) ||
           (
             request.resource.data.holderName is string &&
@@ -168,6 +188,7 @@ service cloud.firestore {
       allow update: if isMasterAdmin() || (
         'venueId' in resource.data &&
         isCanjeadorOfVenue(resource.data.venueId) &&
+        venueIsActive(resource.data.venueId) &&
         (!('venueId' in request.resource.data) || request.resource.data.venueId == resource.data.venueId)
       );
 
