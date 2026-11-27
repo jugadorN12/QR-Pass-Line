@@ -294,6 +294,26 @@ export function CouponTemplateEditor() {
         >
           GUARDAR CONFIGURACIÓN DE CUPÓN
         </button>
+
+        <a
+          href="/guia-disenador-cupon.png"
+          download="guia-disenador-cupon-qrpassline.png"
+          style={{
+            width: '100%',
+            padding: '11px 16px',
+            borderRadius: 12,
+            border: '1.5px solid #cbd5e1',
+            background: '#f8fafc',
+            color: '#1e3a8a',
+            fontSize: 13,
+            fontWeight: 800,
+            textAlign: 'center',
+            textDecoration: 'none',
+            display: 'block',
+          }}
+        >
+          📐 Descargar Guía de Medidas para Diseñador (720×1040 px)
+        </a>
       </div>
 
       {/* Right Column: Real-Time Live Preview */}
