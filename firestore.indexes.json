@@ -23,6 +23,14 @@
         { "fieldPath": "code", "order": "ASCENDING" },
         { "fieldPath": "venueId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING" },
+        { "fieldPath": "venueId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

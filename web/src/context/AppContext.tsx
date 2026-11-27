@@ -295,7 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             currentUserObj.role = 'organizador'
             const existingRoles = Array.isArray(currentUserObj.roles) ? currentUserObj.roles.filter(r => r !== 'admin') : []
             currentUserObj.roles = existingRoles.length ? existingRoles : ['organizador', 'vendedor', 'canjeador']
-            await updateDoc(userDocRef, { role: 'organizador', roles: currentUserObj.roles }).catch(() => {})
+            await updateDoc(userDocRef, { role: 'organizador', roles: currentUserObj.roles }).catch(() => { })
           }
           // Forzar admin si es el mail configurado aunque el doc diga otra cosa
           if (isMasterAdminEmail(currentUserObj.email) && currentUserObj.role !== 'admin') {
@@ -862,8 +862,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // 2. If user exists in Firestore database, update their role
-      const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
+      // 2. If user exists in Firestore database (scoped by venueId for non-superadmin), update their role
+      const q = isMasterAdmin
+        ? query(collection(db, 'users'), where('email', '==', cleanEmail))
+        : query(collection(db, 'users'), where('email', '==', cleanEmail), where('venueId', '==', venueId))
       const snap = await getDocs(q)
       if (!snap.empty) {
         const foundDoc = snap.docs[0]
@@ -912,10 +914,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (err: any) {
         console.error('addMember creation notice:', err)
         if (err?.code === 'auth/email-already-in-use') {
-          const q = query(collection(db, 'users'), where('email', '==', cleanEmail))
-          const snap = await getDocs(q)
-          if (!snap.empty) {
-            const foundDoc = snap.docs[0]
+          if (!isMasterAdmin) {
+            throw new Error('Ese correo ya está registrado en el sistema. Usá un correo distinto para este local.')
+          }
+          const q2 = query(collection(db, 'users'), where('email', '==', cleanEmail))
+          const snap2 = await getDocs(q2)
+          if (!snap2.empty) {
+            const foundDoc = snap2.docs[0]
             const docData = foundDoc.data()
             const mergedRoles = Array.from(new Set([...(docData.roles || [docData.role]), ...assignedRoles])).filter(Boolean) as Role[]
             await updateDoc(doc(db, 'users', foundDoc.id), {
