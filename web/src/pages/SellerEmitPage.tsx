@@ -290,7 +290,7 @@ export function SellerEmitPage() {
         items
       })
 
-      const couponBg = (selectedItems[0] as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || ''
+      const couponBg = (selectedItems[0] as any)?.backgroundImage || (targetEvent as any)?.backgroundImage || (targetEvent as any)?.imageUrl || '/demo-poster.jpg'
 
       const combinedSchedule = items.length > 1
         ? items.map((it) => `${it.couponName}: ${it.schedule}`).join(' · ')

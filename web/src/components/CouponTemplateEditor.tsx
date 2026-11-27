@@ -60,7 +60,7 @@ export function CouponTemplateEditor() {
     (activeEvent as any)?.backgroundImage ||
     (activeEvent as any)?.imageUrl ||
     (isCubano ? localStorage.getItem('qr-pass-line.poster') : '') ||
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80'
+    '/demo-poster.jpg'
 
   const scale = (templateConfig.bgZoom || 100) / 100
   const posX = templateConfig.bgPosX || 0
