@@ -65,6 +65,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/venues/$(vId)) && (
           !('isActive' in get(/databases/$(database)/documents/venues/$(vId)).data) ||
           get(/databases/$(database)/documents/venues/$(vId)).data.isActive != false
+        ) && (
+          !('nextDueAtMs' in get(/databases/$(database)/documents/venues/$(vId)).data) ||
+          !(get(/databases/$(database)/documents/venues/$(vId)).data.nextDueAtMs is number) ||
+          get(/databases/$(database)/documents/venues/$(vId)).data.nextDueAtMs <= 0 ||
+          request.time.toMillis() <= get(/databases/$(database)/documents/venues/$(vId)).data.nextDueAtMs
         );
     }
 
@@ -128,7 +133,8 @@ service cloud.firestore {
           'serviceType',
           'monthlyFee',
           'lastPaidAt',
-          'nextDueAt'
+          'nextDueAt',
+          'nextDueAtMs'
         ])
       );
     }

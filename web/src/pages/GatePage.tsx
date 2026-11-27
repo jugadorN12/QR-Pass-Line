@@ -1,6 +1,7 @@
 import { Component, useRef, useState, type ReactNode } from 'react'
 import { QrScanner, type QrScannerRef } from '../components/QrScanner'
 import { useApp, isMasterAdminEmail } from '../context/AppContext'
+import { isVenueEnabled } from '../types'
 import { parseQrPayload } from '../lib/ids'
 import { distanceInMeters, getCurrentPositionSafe } from '../lib/geo'
 import { StaffHeader } from '../components/StaffHeader'
@@ -160,13 +161,13 @@ function GatePageContent() {
     }
 
     try {
-      // 1. Verificar si el establecimiento está activo
-      if (!isMasterAdmin && activeVenue && activeVenue.isActive === false) {
+      // 1. Verificar si el establecimiento está activo y vigente
+      if (!isMasterAdmin && activeVenue && !isVenueEnabled(activeVenue)) {
         setScanResult({
           ok: false,
-          title: '⏸️ SERVICIO DESACTIVADO',
+          title: '⏸️ SERVICIO DESACTIVADO / VENCIDO',
           ticketCode: trimmed.toUpperCase(),
-          message: `El servicio de "${activeVenue.name}" se encuentra desactivado. Contactá a administración.`,
+          message: `El servicio de "${activeVenue.name}" se encuentra desactivado o vencido. Contactá a administración.`,
           reason: 'venue_suspended',
         })
         return

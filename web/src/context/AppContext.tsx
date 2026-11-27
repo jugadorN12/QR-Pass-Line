@@ -36,7 +36,7 @@ import { defaultQrCatalog } from '../lib/qrCatalog'
 import { formatCouponSchedule, checkCouponScheduleValidity, getCouponBaseDate } from '../lib/dateUtils'
 
 import type { AppData, ClubEvent, CouponTemplateConfig, EventStatus, Limitation, QrCatalogItem, Role, Ticket, TicketItem, TicketKind, User, Venue } from '../types'
-import { defaultCouponTemplate, defaultVenueVisibleButtons } from '../types'
+import { defaultCouponTemplate, defaultVenueVisibleButtons, isVenueEnabled } from '../types'
 
 type AppContextValue = AppData & {
   loading: boolean
@@ -1063,8 +1063,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const ticketQty = computedQty > 0 ? computedQty : 1
       const venueId = customVenueId || event?.venueId || activeVenue?.id || currentUser.venueId || ''
       const targetVenueObj = data.venues.find((v) => v.id === venueId)
-      if (targetVenueObj && targetVenueObj.isActive === false) {
-        throw new Error('El servicio de este local se encuentra desactivado. Contactá al administrador.')
+      if (targetVenueObj && !isVenueEnabled(targetVenueObj)) {
+        throw new Error('El servicio de este local se encuentra desactivado o vencido. Contactá al administrador.')
       }
       const primaryCouponId = couponId || (items && items.length > 0 ? items[0].couponId : '')
       const primaryCoupon = primaryCouponId ? data.qrCatalog.find((q) => q.id === primaryCouponId) : undefined
@@ -1148,11 +1148,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const ticketVenueObj = data.venues.find((v) => v.id === (ticket!.venueId || activeVenue?.id || ''))
-      if (ticketVenueObj && ticketVenueObj.isActive === false) {
+      if (ticketVenueObj && !isVenueEnabled(ticketVenueObj)) {
         return {
           ok: false,
           reason: 'venue_suspended',
-          message: 'El servicio de este local se encuentra desactivado. Contactá a administración.'
+          message: 'El servicio de este local se encuentra desactivado o vencido. Contactá a administración.'
         }
       }
 
@@ -1415,11 +1415,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const ticketVenueObj = data.venues.find((v) => v.id === (ticket!.venueId || activeVenue?.id || ''))
-      if (ticketVenueObj && ticketVenueObj.isActive === false) {
+      if (ticketVenueObj && !isVenueEnabled(ticketVenueObj)) {
         return {
           ok: false,
           reason: 'venue_suspended',
-          message: 'El servicio de este local se encuentra desactivado. Contactá a administración.'
+          message: 'El servicio de este local se encuentra desactivado o vencido. Contactá a administración.'
         }
       }
 

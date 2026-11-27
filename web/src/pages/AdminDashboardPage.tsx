@@ -236,6 +236,13 @@ export function AdminDashboardPage() {
   const [editVenueNextDueAt, setEditVenueNextDueAt] = useState('')
   const [isSavingVenueEdit, setIsSavingVenueEdit] = useState(false)
 
+  // Pay by Date & Time Modal state
+  const [payByDateVenue, setPayByDateVenue] = useState<Venue | null>(null)
+  const [payDateValue, setPayDateValue] = useState('')
+  const [payTimeValue, setPayTimeValue] = useState('06:00')
+  const [payAmountValue, setPayAmountValue] = useState('')
+  const [isSavingPayByDate, setIsSavingPayByDate] = useState(false)
+
   // UI State for toggling create panels
   const [showUserForm, setShowUserForm] = useState(false)
   const [showVenueForm, setShowVenueForm] = useState(false)
@@ -454,10 +461,64 @@ export function AdminDashboardPage() {
         isDemo: false,
         lastPaidAt: now.toISOString(),
         nextDueAt: nextDue.toISOString(),
+        nextDueAtMs: nextDue.getTime(),
       })
       setMessage(`💰 Pago registrado para "${v.name}". Vencimiento extendido 30 días.`)
     } catch (err: any) {
       setMessage(`Error al registrar pago: ${err?.message || 'Error desconocido'}`)
+    }
+  }
+
+  function handleOpenPayByDate(v: Venue) {
+    setPayByDateVenue(v)
+    if (v.nextDueAt) {
+      const d = new Date(v.nextDueAt)
+      if (!Number.isNaN(d.getTime())) {
+        const yyyy = d.getFullYear()
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        const hh = String(d.getHours()).padStart(2, '0')
+        const min = String(d.getMinutes()).padStart(2, '0')
+        setPayDateValue(`${yyyy}-${mm}-${dd}`)
+        setPayTimeValue(`${hh}:${min}`)
+      } else {
+        setPayDateValue(new Date().toISOString().split('T')[0])
+        setPayTimeValue('06:00')
+      }
+    } else {
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      setPayDateValue(tomorrow.toISOString().split('T')[0])
+      setPayTimeValue('06:00')
+    }
+    setPayAmountValue(v.monthlyFee ? String(v.monthlyFee) : '')
+  }
+
+  async function handleSavePayByDate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!payByDateVenue || !payDateValue || isSavingPayByDate) return
+    setIsSavingPayByDate(true)
+    try {
+      const timeStr = payTimeValue || '23:59'
+      const targetDate = new Date(`${payDateValue}T${timeStr}:00`)
+      if (Number.isNaN(targetDate.getTime())) {
+        throw new Error('Fecha u hora inválida.')
+      }
+      const updates: Partial<Venue> = {
+        isActive: true,
+        lastPaidAt: new Date().toISOString(),
+        nextDueAt: targetDate.toISOString(),
+        nextDueAtMs: targetDate.getTime(),
+      }
+      if (payAmountValue.trim() !== '') {
+        updates.monthlyFee = Number(payAmountValue) || 0
+      }
+      await updateVenue(payByDateVenue.id, updates)
+      setMessage(`📅 "${payByDateVenue.name}" habilitado hasta el ${targetDate.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} hs.`)
+      setPayByDateVenue(null)
+    } catch (err: any) {
+      setMessage(`Error al guardar fecha de habilitación: ${err?.message || 'Error desconocido'}`)
+    } finally {
+      setIsSavingPayByDate(false)
     }
   }
 
@@ -487,6 +548,7 @@ export function AdminDashboardPage() {
       const parsedLat = Number(editVenueLat) || 0
       const parsedLng = Number(editVenueLng) || 0
       const parsedRadius = Number(editVenueRadius) || 50
+      const nextDueDateObj = editVenueNextDueAt ? new Date(`${editVenueNextDueAt}T23:59:59`) : null
       const updates: Partial<Venue> = {
         name: cleanName,
         address: editVenueAddress.trim(),
@@ -498,7 +560,8 @@ export function AdminDashboardPage() {
         serviceType: editVenueServiceType,
         serviceNotes: editVenueServiceNotes.trim(),
         monthlyFee: Number(editVenueMonthlyFee) || 0,
-        nextDueAt: editVenueNextDueAt ? new Date(`${editVenueNextDueAt}T23:59:59`).toISOString() : '',
+        nextDueAt: nextDueDateObj ? nextDueDateObj.toISOString() : '',
+        nextDueAtMs: nextDueDateObj ? nextDueDateObj.getTime() : 0,
       }
       await updateVenue(editingVenue.id, updates)
       setMessage(`✓ Local "${cleanName}" actualizado correctamente.`)
@@ -615,10 +678,10 @@ export function AdminDashboardPage() {
     return users.filter(user => {
       const q = searchUser.trim().toLowerCase()
       const matchesSearch = !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q)
-      
+
       const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
       const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as Role)
-      
+
       const matchesVenue = venueFilter === 'all' || (venueFilter === 'none' ? !user.venueId : user.venueId === venueFilter)
 
       return matchesSearch && matchesRole && matchesVenue
@@ -862,7 +925,7 @@ export function AdminDashboardPage() {
                 {filteredUsers.map(user => {
                   const isMainAdmin = user.email.toLowerCase() === 'simplemente_anibal@hotmail.com'
                   const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
-                  
+
                   return (
                     <div key={user.id} className="admin-user-card">
                       {/* Card Header: Avatar, Name, Email */}
@@ -1205,8 +1268,13 @@ export function AdminDashboardPage() {
                   const isVenueActive = v.isActive ?? true
                   const hasGeo = Boolean(!v.isDemo && v.address?.trim() && v.latitude && v.longitude)
                   const createdLabel = v.createdAt ? new Date(v.createdAt).toLocaleDateString('es-AR') : '—'
-                  const nextDueLabel = v.nextDueAt ? new Date(v.nextDueAt).toLocaleDateString('es-AR') : ''
-                  const isOverdue = Boolean(v.nextDueAt && new Date(v.nextDueAt).getTime() < Date.now())
+                  const nextDueLabel = v.nextDueAt
+                    ? new Date(v.nextDueAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : ''
+                  const isOverdue = Boolean(
+                    (v.nextDueAtMs && v.nextDueAtMs > 0 && Date.now() > v.nextDueAtMs) ||
+                    (v.nextDueAt && new Date(v.nextDueAt).getTime() < Date.now())
+                  )
 
                   return (
                     <div
@@ -1312,6 +1380,14 @@ export function AdminDashboardPage() {
                           onClick={() => void handleRegisterVenuePayment(v)}
                         >
                           💰 Pago (+30d)
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-reset"
+                          style={{ background: '#7c3aed', color: '#fff', fontWeight: 700 }}
+                          onClick={() => handleOpenPayByDate(v)}
+                        >
+                          📅 Paga por fecha
                         </button>
                         <button
                           type="button"
@@ -1817,6 +1893,78 @@ export function AdminDashboardPage() {
                 <button type="button" className="admin-btn-reset" onClick={() => setReplacingUser(null)} style={{ padding: '10px 16px' }}>Cancelar</button>
                 <button type="submit" disabled={isReplacingUser} className="admin-btn-action-primary" style={{ padding: '10px 18px' }}>
                   {isReplacingUser ? 'Reemplazando...' : '✓ Confirmar Reemplazo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* =========================================================
+          MODAL PAGA POR FECHA (ALMANAQUE Y HORA LÍMITE)
+         ========================================================= */}
+      {payByDateVenue && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+        >
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>
+                📅 Paga por Fecha: {payByDateVenue.name}
+              </h3>
+              <button type="button" onClick={() => setPayByDateVenue(null)} style={{ border: 0, background: '#f1f5f9', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px', lineHeight: 1.4 }}>
+              Elegí en el almanaque hasta qué <strong>día y hora exacta</strong> va a quedar habilitado el servicio para este local. Al pasar esa hora, se bloqueará automáticamente.
+            </p>
+            <form onSubmit={handleSavePayByDate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="admin-input-group">
+                <label>📅 Habilitado hasta el día (Almanaque)</label>
+                <input
+                  className="admin-input"
+                  type="date"
+                  value={payDateValue}
+                  onChange={e => setPayDateValue(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="admin-input-group">
+                <label>🕒 Hasta la hora</label>
+                <input
+                  className="admin-input"
+                  type="time"
+                  value={payTimeValue}
+                  onChange={e => setPayTimeValue(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="admin-input-group">
+                <label>💵 Monto abonado ($) (opcional)</label>
+                <input
+                  className="admin-input"
+                  type="number"
+                  value={payAmountValue}
+                  onChange={e => setPayAmountValue(e.target.value)}
+                  placeholder="Ej: 25000"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button type="button" className="admin-btn-reset" onClick={() => setPayByDateVenue(null)} style={{ padding: '10px 16px' }}>Cancelar</button>
+                <button
+                  type="submit"
+                  disabled={isSavingPayByDate}
+                  className="admin-btn-action-primary"
+                  style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}
+                >
+                  {isSavingPayByDate ? 'Guardando...' : '✓ Habilitar hasta fecha y hora'}
                 </button>
               </div>
             </form>

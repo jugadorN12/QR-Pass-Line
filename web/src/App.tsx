@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { useApp, isMasterAdminEmail } from './context/AppContext'
+import { isVenueEnabled } from './types'
 import { Shell } from './components/Shell'
 import { ForceChangePasswordModal } from './components/ForceChangePasswordModal'
 
@@ -104,7 +105,7 @@ function ProtectedRoutes() {
     return <PendingApprovalScreen />
   }
   const isMaster = isMasterAdminEmail(currentUser.email) || currentUser.role === 'admin' || Boolean(currentUser.roles?.includes('admin'))
-  if (!isMaster && activeVenue && activeVenue.isActive === false) {
+  if (!isMaster && activeVenue && !isVenueEnabled(activeVenue)) {
     return <VenueSuspendedScreen />
   }
   return (
@@ -129,7 +130,7 @@ function ProtectedRoutesNoShell({ children }: { children: ReactNode }) {
     return <PendingApprovalScreen />
   }
   const isMaster = isMasterAdminEmail(currentUser.email) || currentUser.role === 'admin' || Boolean(currentUser.roles?.includes('admin'))
-  if (!isMaster && activeVenue && activeVenue.isActive === false) {
+  if (!isMaster && activeVenue && !isVenueEnabled(activeVenue)) {
     return <VenueSuspendedScreen />
   }
   return <>{children}</>

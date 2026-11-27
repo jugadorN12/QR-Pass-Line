@@ -1198,7 +1198,7 @@ export function PublicInvitationPage() {
     )
   }
 
-  if (venue && venue.isActive === false) {
+  if (venue && (venue.isActive === false || (venue.nextDueAtMs && venue.nextDueAtMs > 0 && Date.now() > venue.nextDueAtMs) || (venue.nextDueAt && new Date(venue.nextDueAt).getTime() < Date.now()))) {
     return (
       <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#09080e', color: '#fff', padding: 20 }}>
         <div style={{ maxWidth: 400, width: '100%', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: 28 }}>

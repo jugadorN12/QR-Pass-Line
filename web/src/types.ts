@@ -60,6 +60,7 @@ export type Venue = {
   monthlyFee?: number
   lastPaidAt?: string
   nextDueAt?: string
+  nextDueAtMs?: number
   logo?: string
   qrBackground?: string
   minAgeMen?: string
@@ -71,6 +72,19 @@ export type Venue = {
   brandStrongColor?: string
   backgroundColor?: string
   createdAt: string
+}
+
+export function isVenueEnabled(venue?: Venue | null): boolean {
+  if (!venue) return true
+  if (venue.isActive === false) return false
+  if (venue.nextDueAtMs && venue.nextDueAtMs > 0) {
+    return Date.now() <= venue.nextDueAtMs
+  }
+  if (venue.nextDueAt && venue.nextDueAt.trim() !== '') {
+    const dueMs = new Date(venue.nextDueAt).getTime()
+    if (!Number.isNaN(dueMs) && Date.now() > dueMs) return false
+  }
+  return true
 }
 
 export type ClubEvent = {
