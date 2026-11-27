@@ -1010,7 +1010,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await setDoc(doc(db, 'qrCatalog', item.id), itemToSave)
       setData((prev) => {
         const updated = [itemToSave, ...prev.qrCatalog.filter((q) => q.id !== item.id)]
-        try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(updated)) } catch { }
+        if (venueId) {
+          try { localStorage.setItem(`qr-pass-line.cached-qr-catalog.${venueId}`, JSON.stringify(updated)) } catch { }
+        }
         return {
           ...prev,
           qrCatalog: updated,
@@ -1018,10 +1020,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
     },
     async deleteQrItem(id) {
+      const targetVenueId = activeVenue?.id || currentUser?.venueId || ''
       await deleteDoc(doc(db, 'qrCatalog', id))
       setData((prev) => {
         const updated = prev.qrCatalog.filter((q) => q.id !== id)
-        try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(updated)) } catch { }
+        if (targetVenueId) {
+          try { localStorage.setItem(`qr-pass-line.cached-qr-catalog.${targetVenueId}`, JSON.stringify(updated)) } catch { }
+        }
         return {
           ...prev,
           qrCatalog: updated,
@@ -1034,7 +1039,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await setDoc(doc(db, 'limitations', limitation.id), limToSave)
       setData((prev) => {
         const updated = [limToSave, ...prev.limitations.filter((l) => l.id !== limitation.id)]
-        try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(updated)) } catch { }
+        if (venueId) {
+          try { localStorage.setItem(`qr-pass-line.cached-limitations.${venueId}`, JSON.stringify(updated)) } catch { }
+        }
         return {
           ...prev,
           limitations: updated,
@@ -1042,10 +1049,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
     },
     async deleteLimitation(id) {
+      const targetVenueId = activeVenue?.id || currentUser?.venueId || ''
       await deleteDoc(doc(db, 'limitations', id))
       setData((prev) => {
         const updated = prev.limitations.filter((l) => l.id !== id)
-        try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(updated)) } catch { }
+        if (targetVenueId) {
+          try { localStorage.setItem(`qr-pass-line.cached-limitations.${targetVenueId}`, JSON.stringify(updated)) } catch { }
+        }
         return {
           ...prev,
           limitations: updated,

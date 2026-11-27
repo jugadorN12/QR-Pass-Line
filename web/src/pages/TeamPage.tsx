@@ -163,9 +163,9 @@ export function TeamPage() {
       ) : null}
 
       <section className="card" style={{ marginTop: 24 }}>
-        <h2>Personal actual ({users.filter(u => u.role !== 'pendiente' && u.role !== 'admin').length})</h2>
+        <h2>Personal actual ({venueUsers.filter(u => u.role !== 'pendiente' && u.role !== 'admin').length})</h2>
         <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>Tocá los botones de rol para activar o desactivar roles a cada integrante:</p>
-        {users.filter(u => u.role !== 'pendiente' && u.role !== 'admin').map((user) => {
+        {venueUsers.filter(u => u.role !== 'pendiente' && u.role !== 'admin').map((user) => {
           const userRoles = user.roles && user.roles.length ? user.roles : (user.role ? [user.role] : [])
           return (
             <div className="list-item" key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>

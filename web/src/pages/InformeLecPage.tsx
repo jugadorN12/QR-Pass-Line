@@ -336,7 +336,7 @@ export function InformeLecPage() {
                     <span>Vendedor:</span>
                     <select value={selectedSeller} onChange={(e) => setSelectedSeller(e.target.value)}>
                       <option value="all">Todos los vendedores</option>
-                      {users.filter((u) => u.role === 'vendedor' || u.roles?.includes('vendedor')).map((u) => (
+                      {users.filter((u) => isEntityForVenue(u.venueId, targetVenueId, venues) && (u.role === 'vendedor' || u.roles?.includes('vendedor'))).map((u) => (
                         <option key={u.id} value={u.id}>{u.name}</option>
                       ))}
                     </select>
