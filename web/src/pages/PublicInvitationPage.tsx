@@ -387,7 +387,10 @@ export function PublicInvitationPage() {
             }
 
             if (!targetEvent) {
-              const evsSnap = await getDocs(collection(db, 'events'))
+              const evQuery = urlVenueId
+                ? query(collection(db, 'events'), where('venueId', '==', urlVenueId))
+                : collection(db, 'events')
+              const evsSnap = await getDocs(evQuery)
               const allEvents = evsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as ClubEvent[]
               targetEvent =
                 allEvents.find((e) => e.status === 'activo' && (e.name?.toLowerCase().includes('cubano') || e.venue?.toLowerCase().includes('cubano'))) ||
@@ -401,16 +404,24 @@ export function PublicInvitationPage() {
 
           if (targetEvent && isMounted) {
             setEvent(targetEvent)
+            const effectiveVenueId = urlVenueId || targetEvent.venueId || ''
 
             try {
-              const vSnap = await getDocs(collection(db, 'venues'))
-              const venues = vSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Venue[]
-              const matchedVenue =
-                (urlVenueId ? venues.find((v) => v.id === urlVenueId) : null) ||
-                venues.find((v) => v.id === targetEvent!.venueId) ||
-                venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) ||
-                venues[0] ||
-                null
+              let matchedVenue: Venue | null = null
+              if (effectiveVenueId) {
+                const vDoc = await getDoc(doc(db, 'venues', effectiveVenueId))
+                if (vDoc.exists()) {
+                  matchedVenue = { id: vDoc.id, ...(vDoc.data() as any) } as Venue
+                }
+              }
+              if (!matchedVenue) {
+                const vSnap = await getDocs(collection(db, 'venues'))
+                const venues = vSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Venue[]
+                matchedVenue =
+                  venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) ||
+                  venues[0] ||
+                  null
+              }
               if (isMounted) setVenue(matchedVenue)
             } catch { }
 
@@ -419,7 +430,10 @@ export function PublicInvitationPage() {
             let matchedCouponSun: QrCatalogItem | null = null
 
             try {
-              const qSnap = await getDocs(collection(db, 'qrCatalog'))
+              const qQuery = effectiveVenueId
+                ? query(collection(db, 'qrCatalog'), where('venueId', '==', effectiveVenueId))
+                : collection(db, 'qrCatalog')
+              const qSnap = await getDocs(qQuery)
               const catalog = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as QrCatalogItem[]
               if (urlCouponId) {
                 matchedCoupon = catalog.find((c) => c.id === urlCouponId) || null
@@ -449,17 +463,22 @@ export function PublicInvitationPage() {
 
             let foundAnibal: User | null = null
             try {
-              const uSnap = await getDocs(collection(db, 'users'))
-              const allUsers = uSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as User[]
-              foundAnibal =
-                allUsers.find((u) => {
-                  const em = (u.email || '').toLowerCase()
-                  return em === 'gncesso@gmail.com' || em === 'gncasso@gmail.com'
-                }) ||
-                allUsers.find((u) => (u.email || '').toLowerCase() === 'simplemente_anibal@hotmail.com') ||
-                allUsers.find((u) => (u.name || '').toLowerCase().includes('anibal')) ||
-                null
-              if (isMounted) setAnibalUser(foundAnibal)
+              if (auth.currentUser && !auth.currentUser.isAnonymous) {
+                const uQuery = effectiveVenueId
+                  ? query(collection(db, 'users'), where('venueId', '==', effectiveVenueId))
+                  : collection(db, 'users')
+                const uSnap = await getDocs(uQuery)
+                const allUsers = uSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as User[]
+                foundAnibal =
+                  allUsers.find((u) => {
+                    const em = (u.email || '').toLowerCase()
+                    return em === 'gncesso@gmail.com' || em === 'gncasso@gmail.com'
+                  }) ||
+                  allUsers.find((u) => (u.email || '').toLowerCase() === 'simplemente_anibal@hotmail.com') ||
+                  allUsers.find((u) => (u.name || '').toLowerCase().includes('anibal')) ||
+                  null
+                if (isMounted) setAnibalUser(foundAnibal)
+              }
             } catch { }
 
             let targetLimitation: Limitation | null = null
@@ -467,7 +486,10 @@ export function PublicInvitationPage() {
             let targetLimitationSun: Limitation | null = null
 
             try {
-              const limSnap = await getDocs(collection(db, 'limitations'))
+              const limQuery = effectiveVenueId
+                ? query(collection(db, 'limitations'), where('venueId', '==', effectiveVenueId))
+                : collection(db, 'limitations')
+              const limSnap = await getDocs(limQuery)
               const allLimits = limSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Limitation[]
               if (foundAnibal) {
                 targetLimitation =

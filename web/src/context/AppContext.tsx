@@ -28,6 +28,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import { auth, db, secondaryAuth } from '../lib/firebase'
 import { ticketCode } from '../lib/ids'
@@ -159,23 +160,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let unsubscribeTickets: (() => void) | null = null
-    let unsubscribeEvents: (() => void) | null = null
     let unsubscribeUsers: (() => void) | null = null
     let unsubscribeVenues: (() => void) | null = null
-    let unsubscribeLimitations: (() => void) | null = null
-    let unsubscribeQrCatalog: (() => void) | null = null
     let unsubscribeCouponTemplate: (() => void) | null = null
+    let didLegacyCheck = false
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (unsubscribeTickets) {
-        unsubscribeTickets()
-        unsubscribeTickets = null
-      }
-      if (unsubscribeEvents) {
-        unsubscribeEvents()
-        unsubscribeEvents = null
-      }
       if (unsubscribeUsers) {
         unsubscribeUsers()
         unsubscribeUsers = null
@@ -183,14 +173,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (unsubscribeVenues) {
         unsubscribeVenues()
         unsubscribeVenues = null
-      }
-      if (unsubscribeLimitations) {
-        unsubscribeLimitations()
-        unsubscribeLimitations = null
-      }
-      if (unsubscribeQrCatalog) {
-        unsubscribeQrCatalog()
-        unsubscribeQrCatalog = null
       }
       if (unsubscribeCouponTemplate) {
         unsubscribeCouponTemplate()
@@ -226,38 +208,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } catch { }
         }
 
-        // Cache local rápido para limitaciones, catalogo y eventos (renderizado inmediato en 0 ms)
-        const cachedLimitationsRaw = localStorage.getItem('qr-pass-line.cached-limitations')
-        let initialLimitations: Limitation[] = []
-        if (cachedLimitationsRaw) {
+        const cachedVenueKey = initialUser?.venueId || localStorage.getItem('qr-pass-line.admin-active-venue') || ''
+        const readCachedArray = <T,>(baseKey: string): T[] => {
+          if (!cachedVenueKey) return []
           try {
-            initialLimitations = JSON.parse(cachedLimitationsRaw)
-          } catch { }
+            const raw = localStorage.getItem(`${baseKey}.${cachedVenueKey}`)
+            return raw ? (JSON.parse(raw) as T[]) : []
+          } catch {
+            return []
+          }
         }
 
-        const cachedQrCatalogRaw = localStorage.getItem('qr-pass-line.cached-qr-catalog')
-        let initialQrCatalog: QrCatalogItem[] = []
-        if (cachedQrCatalogRaw) {
-          try {
-            initialQrCatalog = JSON.parse(cachedQrCatalogRaw)
-          } catch { }
-        }
+        const initialLimitations = readCachedArray<Limitation>('qr-pass-line.cached-limitations')
+        const initialQrCatalog = readCachedArray<QrCatalogItem>('qr-pass-line.cached-qr-catalog')
+        const initialEvents = readCachedArray<ClubEvent>('qr-pass-line.cached-events')
 
-        const cachedEventsRaw = localStorage.getItem('qr-pass-line.cached-events')
-        let initialEvents: ClubEvent[] = []
-        if (cachedEventsRaw) {
-          try {
-            initialEvents = JSON.parse(cachedEventsRaw)
-          } catch { }
-        }
-
-        const cachedVenuesRaw = localStorage.getItem('qr-pass-line.cached-venues')
         let initialVenues: Venue[] = []
-        if (cachedVenuesRaw) {
-          try {
-            initialVenues = JSON.parse(cachedVenuesRaw)
-          } catch { }
-        }
+        try {
+          const cachedVenuesRaw = localStorage.getItem('qr-pass-line.cached-venues')
+          if (cachedVenuesRaw) initialVenues = JSON.parse(cachedVenuesRaw)
+        } catch { }
 
         // Set quick initial state if cached to avoid any loading screen flicker
         if (initialUser) {
@@ -308,9 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               await deleteDoc(doc(db, 'users', existingUserDoc.id)).catch(() => { })
             }
           } else {
-            const usersSnap = await getDocs(collection(db, 'users'))
-            const isFirst = usersSnap.empty
-            const assignedRole: Role = (isFirst || isMasterAdminEmail(email)) ? 'admin' : 'pendiente'
+            const assignedRole: Role = isMasterAdminEmail(email) ? 'admin' : 'pendiente'
             currentUserObj = {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || (email ? email.split('@')[0] : 'Usuario'),
@@ -338,56 +306,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(currentUserObj))
 
-        // Fast parallel fetch for lightweight collections
-        // Privacidad y rendimiento: organizadores y canjeadores sincronizan tickets globales (45 días);
-        // vendedores puros solo sincronizan sus propios tickets (where issuedBy == currentUser.id)
-        const hasGlobalTicketAccess =
+        const isMasterUser =
           isMasterAdminEmail(currentUserObj.email) ||
           currentUserObj.role === 'admin' ||
-          currentUserObj.role === 'organizador' ||
-          currentUserObj.role === 'supervisor' ||
-          currentUserObj.role === 'canjeador' ||
-          Boolean(currentUserObj.roles?.some((r) => r === 'admin' || r === 'organizador' || r === 'supervisor' || r === 'canjeador'))
+          Boolean(currentUserObj.roles?.includes('admin'))
 
-        const recentCutoff = new Date()
-        recentCutoff.setDate(recentCutoff.getDate() - 45)
-        const recentCutoffIso = recentCutoff.toISOString()
+        const myVenueId = currentUserObj.venueId || ''
 
-        const userTicketsQuery = hasGlobalTicketAccess
-          ? query(collection(db, 'tickets'), where('issuedAt', '>=', recentCutoffIso))
-          : query(collection(db, 'tickets'), where('issuedBy', '==', currentUserObj.id))
+        // Cargar locales y usuarios según nivel de acceso (Super Admin vs Local independiente)
+        let venues: Venue[] = []
+        let allUsers: User[] = [currentUserObj]
 
-        // Consultas ligeras paralelas para arranque ultra rápido (sin bloquear por los miles de tickets)
-        const [usersSnapshot, eventsSnapshot, qrSnapshot, limitationsSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
-          getDocs(collection(db, 'users')),
-          getDocs(collection(db, 'events')),
-          getDocs(collection(db, 'qrCatalog')),
-          getDocs(collection(db, 'limitations')),
-          getDocs(collection(db, 'venues')),
-          getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
-        ])
+        if (isMasterUser) {
+          const [usersSnapshot, venuesSnapshot, settingsSnapshot] = await Promise.all([
+            getDocs(collection(db, 'users')),
+            getDocs(collection(db, 'venues')),
+            getDoc(doc(db, 'settings', 'couponTemplate')).catch(() => null),
+          ])
 
-        // Deduplicate users list by email so UI never shows duplicate rows
-        const userMap = new Map<string, User>()
-        for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
-          const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
-          if (!userMap.has(key)) {
-            userMap.set(key, rawUser)
-          } else {
-            const existing = userMap.get(key)!
-            if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+          const userMap = new Map<string, User>()
+          for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
+            const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+            if (!userMap.has(key)) {
               userMap.set(key, rawUser)
+            } else {
+              const existing = userMap.get(key)!
+              if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+                userMap.set(key, rawUser)
+              }
             }
           }
-        }
-        if (!userMap.has(currentUserObj.email.toLowerCase())) {
-          userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
-        }
-        const allUsers = Array.from(userMap.values())
+          if (!userMap.has(currentUserObj.email.toLowerCase())) {
+            userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
+          }
+          allUsers = Array.from(userMap.values())
 
-        // Limpieza de seguridad: convertir contraseñas provisorias en permanentes y eliminar texto plano de Firestore
-        const isMasterAdmin = isMasterAdminEmail(currentUserObj.email) || currentUserObj.role === 'admin' || currentUserObj.roles?.includes('admin')
-        if (isMasterAdmin) {
+          // Limpieza de seguridad: eliminar contraseñas provisorias en texto plano de Firestore
           for (const docSnap of usersSnapshot.docs) {
             const uData = docSnap.data()
             if (uData.tempPassword || uData.mustChangePassword) {
@@ -397,167 +351,197 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }).catch(() => { })
             }
           }
-        }
 
-        let qrCatalog = qrSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
-        if (!qrCatalog.length) {
-          const defaults = defaultQrCatalog()
-          for (const item of defaults) {
-            await setDoc(doc(db, 'qrCatalog', item.id), item)
+          venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+
+          let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
+          if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
+            couponTemplate = { ...defaultCouponTemplate, ...(settingsSnapshot as any).data() }
           }
-          qrCatalog = defaults
-        }
+          localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
 
-        const limitations = limitationsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
-        const venues = venuesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
-        const events = eventsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
+          try {
+            localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(venues))
+          } catch { }
 
-        // Guardar en caché local para arranque instantáneo en el próximo ingreso
-        try {
-          localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(limitations))
-          localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(qrCatalog))
-          localStorage.setItem('qr-pass-line.cached-events', JSON.stringify(events))
-          localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(venues))
-        } catch { }
+          setData((prev) => ({
+            ...prev,
+            users: allUsers,
+            venues,
+            couponTemplate,
+            session: { userId: currentUserObj.id },
+          }))
 
-        let couponTemplate: CouponTemplateConfig = defaultCouponTemplate
-        if (settingsSnapshot && (settingsSnapshot as any).exists && (settingsSnapshot as any).exists()) {
-          couponTemplate = { ...defaultCouponTemplate, ...(settingsSnapshot as any).data() }
-        } else {
-          const localSaved = localStorage.getItem('qr-pass-line.coupon-template')
-          if (localSaved) {
-            try { couponTemplate = { ...defaultCouponTemplate, ...JSON.parse(localSaved) } } catch { }
+          // Normalización única en segundo plano para asegurar que datos antiguos sin venueId pertenezcan a Cubano
+          if (!didLegacyCheck && venues.length > 0) {
+            didLegacyCheck = true
+            const cubanoVenue = venues.find((v) => (v.name || '').toLowerCase().includes('cubano')) || venues[0]
+            if (cubanoVenue) {
+              void (async () => {
+                try {
+                  const collectionsToNormalize = ['users', 'events', 'qrCatalog', 'limitations'] as const
+                  for (const colName of collectionsToNormalize) {
+                    const snap = await getDocs(collection(db, colName))
+                    const docsWithoutVenue = snap.docs.filter((d) => {
+                      const vId = d.data()?.venueId
+                      const emailVal = String(d.data()?.email || '').toLowerCase()
+                      if (colName === 'users' && isMasterAdminEmail(emailVal)) return false
+                      return !vId || String(vId).trim() === ''
+                    })
+                    if (docsWithoutVenue.length > 0) {
+                      for (let i = 0; i < docsWithoutVenue.length; i += 400) {
+                        const batch = writeBatch(db)
+                        docsWithoutVenue.slice(i, i + 400).forEach((d) => {
+                          batch.update(d.ref, { venueId: cubanoVenue.id })
+                        })
+                        await batch.commit()
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.warn('Aviso normalización venueId:', err)
+                }
+              })()
+            }
           }
-        }
-        localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(couponTemplate))
 
-        setData((prev) => ({
-          ...prev,
-          users: allUsers,
-          events,
-          qrCatalog,
-          limitations,
-          venues,
-          couponTemplate,
-          session: { userId: currentUserObj.id },
-        }))
-
-        // Sincronización en tiempo real de usuarios y roles
-        unsubscribeUsers = onSnapshot(
-          collection(db, 'users'),
-          (snap) => {
-            const liveUsers = snap.docs.map((item) => asUser(item.id, item.data()))
-            const userMap = new Map<string, User>()
-            for (const rawUser of liveUsers) {
-              const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
-              if (!userMap.has(key)) {
-                userMap.set(key, rawUser)
-              } else {
-                const existing = userMap.get(key)!
-                if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+          unsubscribeUsers = onSnapshot(
+            collection(db, 'users'),
+            (snap) => {
+              const liveUsers = snap.docs.map((item) => asUser(item.id, item.data()))
+              const userMap = new Map<string, User>()
+              for (const rawUser of liveUsers) {
+                const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+                if (!userMap.has(key)) {
                   userMap.set(key, rawUser)
+                } else {
+                  const existing = userMap.get(key)!
+                  if (rawUser.id === firebaseUser.uid || (rawUser.role !== 'pendiente' && existing.role === 'pendiente')) {
+                    userMap.set(key, rawUser)
+                  }
                 }
               }
-            }
-            const updatedUsers = Array.from(userMap.values())
-            const updatedCurrentUser = updatedUsers.find((u) => u.id === firebaseUser.uid)
-            if (updatedCurrentUser) {
-              localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(updatedCurrentUser))
-            }
-            setData((prev) => ({ ...prev, users: updatedUsers }))
-          },
-          (err) => {
-            console.warn('Aviso sincronización de usuarios en vivo:', err)
-          }
-        )
-
-        // Sincronización en tiempo real de locales
-        unsubscribeVenues = onSnapshot(
-          collection(db, 'venues'),
-          (snap) => {
-            const liveVenues = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
-            try { localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(liveVenues)) } catch { }
-            setData((prev) => ({ ...prev, venues: liveVenues }))
-          },
-          (err) => {
-            console.warn('Aviso sincronización de locales:', err)
-          }
-        )
-
-        // Sincronización en tiempo real de tickets (globales o personales según rol)
-        unsubscribeTickets = onSnapshot(
-          userTicketsQuery,
-          (snap) => {
-            const liveTickets = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket))
-            setData((prev) => {
-              // Combinar los tickets recientes en vivo con cualquier ticket individual ya cargado
-              const liveIds = new Set(liveTickets.map((t) => t.id))
-              const extraTickets = prev.tickets.filter((t) => !liveIds.has(t.id))
-              return {
-                ...prev,
-                tickets: [...liveTickets, ...extraTickets],
+              const updatedUsers = Array.from(userMap.values())
+              const updatedCurrentUser = updatedUsers.find((u) => u.id === firebaseUser.uid)
+              if (updatedCurrentUser) {
+                localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(updatedCurrentUser))
               }
-            })
-          },
-          (err) => {
-            console.warn('Aviso sincronización de tickets en vivo:', err)
-          }
-        )
-
-        // Sincronización en tiempo real de eventos
-        unsubscribeEvents = onSnapshot(
-          collection(db, 'events'),
-          (snap) => {
-            const liveEvents = snap.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
-            try { localStorage.setItem('qr-pass-line.cached-events', JSON.stringify(liveEvents)) } catch { }
-            setData((prev) => ({ ...prev, events: liveEvents }))
-          },
-          (err) => {
-            console.warn('Aviso sincronización de eventos en vivo:', err)
-          }
-        )
-
-        // Sincronización en tiempo real de limitaciones (asignación de cupones a RRPPs)
-        unsubscribeLimitations = onSnapshot(
-          collection(db, 'limitations'),
-          (snap) => {
-            const liveLimitations = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
-            try { localStorage.setItem('qr-pass-line.cached-limitations', JSON.stringify(liveLimitations)) } catch { }
-            setData((prev) => ({ ...prev, limitations: liveLimitations }))
-          },
-          (err) => {
-            console.warn('Aviso sincronización de limitaciones en vivo:', err)
-          }
-        )
-
-        // Sincronización en tiempo real del catálogo de cupones
-        unsubscribeQrCatalog = onSnapshot(
-          collection(db, 'qrCatalog'),
-          (snap) => {
-            const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
-            try { localStorage.setItem('qr-pass-line.cached-qr-catalog', JSON.stringify(liveCatalog)) } catch { }
-            setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
-          },
-          (err) => {
-            console.warn('Aviso sincronización de catálogo de cupones en vivo:', err)
-          }
-        )
-
-        // Sincronización en tiempo real de plantilla y afiche de cupón
-        unsubscribeCouponTemplate = onSnapshot(
-          doc(db, 'settings', 'couponTemplate'),
-          (docSnap) => {
-            if (docSnap.exists()) {
-              const liveTemplate: CouponTemplateConfig = { ...defaultCouponTemplate, ...docSnap.data() }
-              localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(liveTemplate))
-              setData((prev) => ({ ...prev, couponTemplate: liveTemplate }))
+              setData((prev) => ({ ...prev, users: updatedUsers }))
+            },
+            (err) => {
+              console.warn('Aviso sincronización de usuarios en vivo:', err)
             }
-          },
-          (err) => {
-            console.warn('Aviso sincronización de plantilla de cupón en vivo:', err)
-          }
-        )
+          )
 
+          unsubscribeVenues = onSnapshot(
+            collection(db, 'venues'),
+            (snap) => {
+              const liveVenues = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Venue))
+              try { localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(liveVenues)) } catch { }
+              setData((prev) => ({ ...prev, venues: liveVenues }))
+            },
+            (err) => {
+              console.warn('Aviso sincronización de locales:', err)
+            }
+          )
+
+          unsubscribeCouponTemplate = onSnapshot(
+            doc(db, 'settings', 'couponTemplate'),
+            (docSnap) => {
+              if (docSnap.exists()) {
+                const liveTemplate: CouponTemplateConfig = { ...defaultCouponTemplate, ...docSnap.data() }
+                localStorage.setItem('qr-pass-line.coupon-template', JSON.stringify(liveTemplate))
+                setData((prev) => ({ ...prev, couponTemplate: liveTemplate }))
+              }
+            },
+            (err) => {
+              console.warn('Aviso sincronización de plantilla de cupón en vivo:', err)
+            }
+          )
+        } else if (myVenueId) {
+          // Usuario de un local específico: solo lee su local y los usuarios de SU local
+          const [usersSnapshot, venueSnap] = await Promise.all([
+            getDocs(query(collection(db, 'users'), where('venueId', '==', myVenueId))),
+            getDoc(doc(db, 'venues', myVenueId)).catch(() => null),
+          ])
+
+          const userMap = new Map<string, User>()
+          for (const rawUser of usersSnapshot.docs.map((item) => asUser(item.id, item.data()))) {
+            const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+            if (!userMap.has(key)) {
+              userMap.set(key, rawUser)
+            }
+          }
+          userMap.set(currentUserObj.email.toLowerCase(), currentUserObj)
+          allUsers = Array.from(userMap.values())
+
+          if (venueSnap && venueSnap.exists()) {
+            venues = [{ id: venueSnap.id, ...venueSnap.data() } as Venue]
+            try { localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify(venues)) } catch { }
+          }
+
+          setData((prev) => ({
+            ...prev,
+            users: allUsers,
+            venues,
+            session: { userId: currentUserObj.id },
+          }))
+
+          unsubscribeUsers = onSnapshot(
+            query(collection(db, 'users'), where('venueId', '==', myVenueId)),
+            (snap) => {
+              const liveUsers = snap.docs.map((item) => asUser(item.id, item.data()))
+              const userMap = new Map<string, User>()
+              for (const rawUser of liveUsers) {
+                const key = rawUser.email ? rawUser.email.toLowerCase() : rawUser.id
+                if (!userMap.has(key)) userMap.set(key, rawUser)
+              }
+              const updatedUsers = Array.from(userMap.values())
+              const updatedCurrentUser = updatedUsers.find((u) => u.id === firebaseUser.uid)
+              if (updatedCurrentUser) {
+                localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(updatedCurrentUser))
+              }
+              setData((prev) => ({ ...prev, users: updatedUsers }))
+            },
+            (err) => {
+              console.warn('Aviso sincronización de usuarios del local:', err)
+            }
+          )
+
+          unsubscribeVenues = onSnapshot(
+            doc(db, 'venues', myVenueId),
+            (docSnap) => {
+              if (docSnap.exists()) {
+                const liveVenue = { id: docSnap.id, ...docSnap.data() } as Venue
+                try { localStorage.setItem('qr-pass-line.cached-venues', JSON.stringify([liveVenue])) } catch { }
+                setData((prev) => ({ ...prev, venues: [liveVenue] }))
+              }
+            },
+            (err) => {
+              console.warn('Aviso sincronización de local:', err)
+            }
+          )
+        } else {
+          // Usuario pendiente sin local asignado aún: solo escucha su propio documento
+          setData((prev) => ({
+            ...prev,
+            users: [currentUserObj],
+            events: [],
+            tickets: [],
+            limitations: [],
+            qrCatalog: [],
+            venues: [],
+            session: { userId: currentUserObj.id },
+          }))
+
+          unsubscribeUsers = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const updatedMe = asUser(docSnap.id, docSnap.data())
+              localStorage.setItem('qr-pass-line.cached-user', JSON.stringify(updatedMe))
+              setData((prev) => ({ ...prev, users: [updatedMe] }))
+            }
+          })
+        }
       } catch (error) {
         console.error('No se pudieron cargar los datos de Firebase.', error)
         const fallbackUser: User = {
@@ -583,12 +567,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
-      if (unsubscribeTickets) unsubscribeTickets()
-      if (unsubscribeEvents) unsubscribeEvents()
       if (unsubscribeUsers) unsubscribeUsers()
       if (unsubscribeVenues) unsubscribeVenues()
-      if (unsubscribeLimitations) unsubscribeLimitations()
-      if (unsubscribeQrCatalog) unsubscribeQrCatalog()
       if (unsubscribeCouponTemplate) unsubscribeCouponTemplate()
       unsubscribeAuth()
     }
@@ -625,9 +605,120 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const found = data.venues.find((v) => v.id === currentUser.venueId)
       if (found) return found
     }
-    const cubano = data.venues.find((v) => (v.name || '').toLowerCase().includes('cubano'))
-    return cubano || data.venues[0] || null
+    if (isMasterAdmin) {
+      const cubano = data.venues.find((v) => (v.name || '').toLowerCase().includes('cubano'))
+      return cubano || data.venues[0] || null
+    }
+    return null
   }, [currentUser, data.venues, isMasterAdmin, adminSelectedVenueId])
+
+  // Sincronización aislada por local activo (100% independiente entre clientes y escalable a 20+ locales)
+  useEffect(() => {
+    if (!currentUser) return
+    const targetVenueId = activeVenue?.id || (!isMasterAdmin ? currentUser.venueId || '' : '')
+    if (!targetVenueId) {
+      setData((prev) => ({ ...prev, events: [], qrCatalog: [], limitations: [], tickets: [] }))
+      return
+    }
+
+    // Cargar caché instantánea de este local si existe
+    const readVenueCache = <T,>(baseKey: string): T[] => {
+      try {
+        const raw = localStorage.getItem(`${baseKey}.${targetVenueId}`)
+        return raw ? (JSON.parse(raw) as T[]) : []
+      } catch {
+        return []
+      }
+    }
+    const cachedEv = readVenueCache<ClubEvent>('qr-pass-line.cached-events')
+    const cachedQr = readVenueCache<QrCatalogItem>('qr-pass-line.cached-qr-catalog')
+    const cachedLim = readVenueCache<Limitation>('qr-pass-line.cached-limitations')
+    if (cachedEv.length || cachedQr.length || cachedLim.length) {
+      setData((prev) => ({
+        ...prev,
+        events: cachedEv,
+        qrCatalog: cachedQr,
+        limitations: cachedLim,
+      }))
+    } else {
+      // Al cambiar de local (ej. Super Admin cambiando de boliche), limpiar estado anterior para evitar mezclas visuales
+      setData((prev) => ({
+        ...prev,
+        events: [],
+        qrCatalog: [],
+        limitations: [],
+        tickets: [],
+      }))
+    }
+
+    const hasGlobalTicketAccess =
+      Boolean(isMasterAdmin) ||
+      currentUser.role === 'organizador' ||
+      currentUser.role === 'supervisor' ||
+      currentUser.role === 'canjeador' ||
+      Boolean(currentUser.roles?.some((r) => r === 'admin' || r === 'organizador' || r === 'supervisor' || r === 'canjeador'))
+
+    const recentCutoff = new Date()
+    recentCutoff.setDate(recentCutoff.getDate() - 45)
+    const recentCutoffIso = recentCutoff.toISOString()
+
+    const eventsQuery = query(collection(db, 'events'), where('venueId', '==', targetVenueId))
+    const qrQuery = query(collection(db, 'qrCatalog'), where('venueId', '==', targetVenueId))
+    const limitationsQuery = query(collection(db, 'limitations'), where('venueId', '==', targetVenueId))
+    const ticketsQuery = hasGlobalTicketAccess
+      ? query(collection(db, 'tickets'), where('venueId', '==', targetVenueId), where('issuedAt', '>=', recentCutoffIso))
+      : query(collection(db, 'tickets'), where('issuedBy', '==', currentUser.id), where('venueId', '==', targetVenueId))
+
+    const unsubEvents = onSnapshot(
+      eventsQuery,
+      (snap) => {
+        const liveEvents = snap.docs.map((item) => ({ id: item.id, ...item.data() } as ClubEvent))
+        try { localStorage.setItem(`qr-pass-line.cached-events.${targetVenueId}`, JSON.stringify(liveEvents)) } catch { }
+        setData((prev) => ({ ...prev, events: liveEvents }))
+      },
+      (err) => console.warn('Aviso sincronización de eventos del local:', err)
+    )
+
+    const unsubQr = onSnapshot(
+      qrQuery,
+      (snap) => {
+        const liveCatalog = snap.docs.map((item) => ({ id: item.id, ...item.data() } as QrCatalogItem))
+        try { localStorage.setItem(`qr-pass-line.cached-qr-catalog.${targetVenueId}`, JSON.stringify(liveCatalog)) } catch { }
+        setData((prev) => ({ ...prev, qrCatalog: liveCatalog }))
+      },
+      (err) => console.warn('Aviso sincronización de cupones del local:', err)
+    )
+
+    const unsubLim = onSnapshot(
+      limitationsQuery,
+      (snap) => {
+        const liveLim = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Limitation))
+        try { localStorage.setItem(`qr-pass-line.cached-limitations.${targetVenueId}`, JSON.stringify(liveLim)) } catch { }
+        setData((prev) => ({ ...prev, limitations: liveLim }))
+      },
+      (err) => console.warn('Aviso sincronización de limitaciones del local:', err)
+    )
+
+    const unsubTickets = onSnapshot(
+      ticketsQuery,
+      (snap) => {
+        const liveTickets = snap.docs.map((item) => ({ id: item.id, ...item.data() } as Ticket))
+        setData((prev) => {
+          const liveIds = new Set(liveTickets.map((t) => t.id))
+          const extraTickets = prev.tickets.filter((t) => !liveIds.has(t.id) && t.venueId === targetVenueId)
+          return { ...prev, tickets: [...liveTickets, ...extraTickets] }
+        })
+      },
+      (err) => console.warn('Aviso sincronización de tickets del local:', err)
+    )
+
+    return () => {
+      unsubEvents()
+      unsubQr()
+      unsubLim()
+      unsubTickets()
+    }
+  }, [currentUser?.id, currentUser?.role, currentUser?.venueId, isMasterAdmin, activeVenue?.id])
 
   // Resolved coupon template (venue specific or global fallback)
   const resolvedCouponTemplate = useMemo(() => {
@@ -696,6 +787,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('Error al cerrar sesión:', err)
       } finally {
+        try {
+          Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith('qr-pass-line.cached-') || k === 'qr-pass-line.admin-active-venue') {
+              localStorage.removeItem(k)
+            }
+          })
+        } catch { }
+        setAdminSelectedVenueId('')
         setData(emptyData)
       }
     },
@@ -999,7 +1098,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // If not yet present in memory, try a direct query
       if (!ticket) {
         try {
-          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+          const lookupVenueId = !isMasterAdmin ? (currentUser?.venueId || '') : ''
+          const q = lookupVenueId
+            ? query(collection(db, 'tickets'), where('code', '==', normalizedCode), where('venueId', '==', lookupVenueId))
+            : query(collection(db, 'tickets'), where('code', '==', normalizedCode))
           const snap = await getDocs(q)
           if (!snap.empty) {
             const d = snap.docs[0]
@@ -1254,7 +1356,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (!ticket) {
         try {
-          const q = query(collection(db, 'tickets'), where('code', '==', normalizedCode))
+          const lookupVenueId = !isMasterAdmin ? (currentUser?.venueId || '') : ''
+          const q = lookupVenueId
+            ? query(collection(db, 'tickets'), where('code', '==', normalizedCode), where('venueId', '==', lookupVenueId))
+            : query(collection(db, 'tickets'), where('code', '==', normalizedCode))
           const snap = await getDocs(q)
           if (!snap.empty) {
             const d = snap.docs[0]
@@ -1473,9 +1578,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async createVenue(input) {
-      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
-      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
-      if (!isOrgOrAdmin) throw new Error('Solo administradores pueden registrar locales.')
+      const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      if (!isMaster) throw new Error('Solo el Super Admin puede registrar locales nuevos.')
       const venue = { ...input, name: input.name.trim(), address: input.address.trim(), createdAt: new Date().toISOString() }
       const created = await addDoc(collection(db, 'venues'), { ...venue, createdAt: serverTimestamp() })
       const result: Venue = { id: created.id, ...venue }
@@ -1483,9 +1587,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return result
     },
     async updateVenue(id, updates) {
-      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
-      const isOrgOfVenue = (currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')) && (currentUser?.venueId === id || !currentUser?.venueId)
-      if (!isMasterAdmin && !isOrgOfVenue) {
+      const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      const isOrgOfVenue = (currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')) && currentUser?.venueId === id
+      if (!isMaster && !isOrgOfVenue) {
         throw new Error('Sin permisos para editar este establecimiento.')
       }
       await updateDoc(doc(db, 'venues', id), updates)
@@ -1495,14 +1599,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
     },
     async deleteVenue(id) {
-      const isMasterAdmin = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
-      const isOrgOrAdmin = isMasterAdmin || currentUser?.role === 'organizador' || currentUser?.roles?.includes('organizador')
-      if (!isOrgOrAdmin) throw new Error('Solo administradores pueden eliminar locales.')
+      const isMaster = isMasterAdminEmail(currentUser?.email) || currentUser?.role === 'admin' || currentUser?.roles?.includes('admin')
+      if (!isMaster) throw new Error('Solo el Super Admin puede eliminar locales.')
       await deleteDoc(doc(db, 'venues', id))
       setData((prev) => ({ ...prev, venues: prev.venues.filter((v) => v.id !== id) }))
     },
     async saveCouponTemplate(config: CouponTemplateConfig) {
-      const targetVenueId = currentUser?.venueId || ''
+      const targetVenueId = activeVenue?.id || currentUser?.venueId || ''
       if (targetVenueId) {
         await updateDoc(doc(db, 'venues', targetVenueId), { couponTemplate: config }).catch(() => { })
         setData((prev) => ({

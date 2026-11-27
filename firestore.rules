@@ -1,80 +1,182 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
     function signedIn() {
       return request.auth != null;
     }
 
     function isMasterAdmin() {
-      return signedIn() && request.auth.token.email == 'simplemente_anibal@hotmail.com';
+      return signedIn() &&
+        ('email' in request.auth.token) &&
+        request.auth.token.email == 'simplemente_anibal@hotmail.com';
+    }
+
+    function isAnonymous() {
+      return signedIn() &&
+        ('firebase' in request.auth.token) &&
+        ('sign_in_provider' in request.auth.token.firebase) &&
+        request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function isOrganizerOrAdmin() {
-      return signedIn() && (
-        isMasterAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          userDoc().role == 'admin' ||
-          userDoc().role == 'organizador' ||
-          ('roles' in userDoc() && ('admin' in userDoc().roles || 'organizador' in userDoc().roles))
-        ))
+    function userVenueId() {
+      return hasUserDoc() && ('venueId' in userDoc()) && userDoc().venueId is string
+        ? userDoc().venueId
+        : '';
+    }
+
+    function sameVenue(vId) {
+      return isMasterAdmin() || (userVenueId() != '' && vId is string && userVenueId() == vId);
+    }
+
+    function isOrganizerOfVenue(vId) {
+      return isMasterAdmin() || (
+        sameVenue(vId) && (
+          ('role' in userDoc() && (userDoc().role == 'organizador' || userDoc().role == 'admin')) ||
+          ('roles' in userDoc() && userDoc().roles is list && ('organizador' in userDoc().roles || 'admin' in userDoc().roles))
+        )
       );
     }
 
-    function isCanjeador() {
-      return signedIn() && (
-        isOrganizerOrAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          userDoc().role == 'canjeador' ||
-          ('roles' in userDoc() && 'canjeador' in userDoc().roles)
-        ))
-      );
+    function isCanjeadorOfVenue(vId) {
+      return isMasterAdmin() ||
+        isOrganizerOfVenue(vId) || (
+          sameVenue(vId) && (
+            ('role' in userDoc() && (userDoc().role == 'canjeador' || userDoc().role == 'supervisor')) ||
+            ('roles' in userDoc() && userDoc().roles is list && ('canjeador' in userDoc().roles || 'supervisor' in userDoc().roles))
+          )
+        );
     }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
 
     match /users/{userId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && (request.auth.uid == userId || isOrganizerOrAdmin());
-      allow update, delete: if isOrganizerOrAdmin() || request.auth.uid == userId;
-    }
-
-    match /events/{eventId} {
-      allow read: if true;
-      allow create, update, delete: if isOrganizerOrAdmin();
-    }
-
-    match /tickets/{ticketId} {
-      allow read: if isCanjeador() || (signedIn() && resource.data.issuedBy == request.auth.uid);
-      allow create: if signedIn() || (
-        request.resource.data.holderName is string &&
-        request.resource.data.holderName.size() >= 3 &&
-        request.resource.data.code is string &&
-        request.resource.data.eventId is string
+      allow read: if isMasterAdmin() || (
+        signedIn() && (
+          request.auth.uid == userId ||
+          ('venueId' in resource.data && sameVenue(resource.data.venueId))
+        )
       );
-      allow update: if isCanjeador();
-      allow delete: if isOrganizerOrAdmin();
-    }
 
-    match /qrCatalog/{qrId} {
-      allow read: if true;
-      allow create, update, delete: if isOrganizerOrAdmin();
-    }
+      allow create: if isMasterAdmin() || (
+        signedIn() &&
+        request.auth.uid == userId &&
+        (!('role' in request.resource.data) || request.resource.data.role == 'pendiente') &&
+        (!('roles' in request.resource.data) || request.resource.data.roles == [] || request.resource.data.roles == ['pendiente'])
+      ) || (
+        ('venueId' in request.resource.data) &&
+        isOrganizerOfVenue(request.resource.data.venueId) &&
+        (!('role' in request.resource.data) || request.resource.data.role != 'admin') &&
+        (!('roles' in request.resource.data) || !(request.resource.data.roles is list) || !('admin' in request.resource.data.roles))
+      );
 
-    match /limitations/{limitId} {
-      allow read: if true;
-      allow create, update, delete: if isOrganizerOrAdmin();
+      allow update: if isMasterAdmin() || (
+        signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.get('role', '') == resource.data.get('role', '') &&
+        request.resource.data.get('roles', []) == resource.data.get('roles', []) &&
+        request.resource.data.get('venueId', '') == resource.data.get('venueId', '')
+      ) || (
+        ('venueId' in resource.data) &&
+        isOrganizerOfVenue(resource.data.venueId) &&
+        request.resource.data.get('venueId', '') == resource.data.get('venueId', '') &&
+        resource.data.get('role', '') != 'admin' &&
+        request.resource.data.get('role', '') != 'admin' &&
+        (!('roles' in resource.data) || !(resource.data.roles is list) || !('admin' in resource.data.roles)) &&
+        (!('roles' in request.resource.data) || !(request.resource.data.roles is list) || !('admin' in request.resource.data.roles))
+      );
+
+      allow delete: if isMasterAdmin() || (
+        ('venueId' in resource.data) &&
+        isOrganizerOfVenue(resource.data.venueId) &&
+        resource.data.get('role', '') != 'admin' &&
+        (!('roles' in resource.data) || !(resource.data.roles is list) || !('admin' in resource.data.roles))
+      );
     }
 
     match /venues/{venueId} {
-      allow read: if true;
-      allow create, update, delete: if isOrganizerOrAdmin();
+      allow get: if true;
+      allow list: if isMasterAdmin() || sameVenue(venueId);
+      allow create, delete: if isMasterAdmin();
+      allow update: if isMasterAdmin() || isOrganizerOfVenue(venueId);
+    }
+
+    match /events/{eventId} {
+      allow get: if true;
+      allow list: if isMasterAdmin() || !signedIn() || isAnonymous() || ('venueId' in resource.data && sameVenue(resource.data.venueId));
+      allow create: if isMasterAdmin() || ('venueId' in request.resource.data && isOrganizerOfVenue(request.resource.data.venueId));
+      allow update: if isMasterAdmin() || ('venueId' in resource.data && 'venueId' in request.resource.data && isOrganizerOfVenue(resource.data.venueId) && request.resource.data.venueId == resource.data.venueId);
+      allow delete: if isMasterAdmin() || ('venueId' in resource.data && isOrganizerOfVenue(resource.data.venueId));
+    }
+
+    match /qrCatalog/{qrId} {
+      allow get: if true;
+      allow list: if isMasterAdmin() || !signedIn() || isAnonymous() || ('venueId' in resource.data && sameVenue(resource.data.venueId));
+      allow create: if isMasterAdmin() || ('venueId' in request.resource.data && isOrganizerOfVenue(request.resource.data.venueId));
+      allow update: if isMasterAdmin() || ('venueId' in resource.data && 'venueId' in request.resource.data && isOrganizerOfVenue(resource.data.venueId) && request.resource.data.venueId == resource.data.venueId);
+      allow delete: if isMasterAdmin() || ('venueId' in resource.data && isOrganizerOfVenue(resource.data.venueId));
+    }
+
+    match /limitations/{limitId} {
+      allow get: if true;
+      allow list: if isMasterAdmin() || !signedIn() || isAnonymous() || ('venueId' in resource.data && sameVenue(resource.data.venueId));
+      allow create: if isMasterAdmin() || ('venueId' in request.resource.data && isOrganizerOfVenue(request.resource.data.venueId));
+      allow update: if isMasterAdmin() || ('venueId' in resource.data && 'venueId' in request.resource.data && isOrganizerOfVenue(resource.data.venueId) && request.resource.data.venueId == resource.data.venueId);
+      allow delete: if isMasterAdmin() || ('venueId' in resource.data && isOrganizerOfVenue(resource.data.venueId));
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isMasterAdmin() || (
+        'venueId' in resource.data && (
+          isCanjeadorOfVenue(resource.data.venueId) ||
+          (signedIn() && 'issuedBy' in resource.data && resource.data.issuedBy == request.auth.uid && sameVenue(resource.data.venueId))
+        )
+      );
+
+      allow create: if isMasterAdmin() || (
+        'venueId' in request.resource.data && (
+          (signedIn() && sameVenue(request.resource.data.venueId)) ||
+          (
+            request.resource.data.holderName is string &&
+            request.resource.data.holderName.size() >= 3 &&
+            request.resource.data.holderName.size() <= 120 &&
+            request.resource.data.code is string &&
+            request.resource.data.code.size() > 0 &&
+            request.resource.data.code.size() <= 200 &&
+            request.resource.data.eventId is string &&
+            request.resource.data.eventId.size() > 0 &&
+            request.resource.data.venueId is string &&
+            request.resource.data.venueId.size() > 0 &&
+            request.resource.data.venueId.size() <= 100
+          )
+        )
+      );
+
+      allow update: if isMasterAdmin() || (
+        'venueId' in resource.data &&
+        isCanjeadorOfVenue(resource.data.venueId) &&
+        (!('venueId' in request.resource.data) || request.resource.data.venueId == resource.data.venueId)
+      );
+
+      allow delete: if isMasterAdmin() || ('venueId' in resource.data && isOrganizerOfVenue(resource.data.venueId));
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow create, update, delete: if isOrganizerOrAdmin();
+      allow create, update, delete: if isMasterAdmin();
     }
   }
 }
